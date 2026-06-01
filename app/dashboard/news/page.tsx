@@ -18,7 +18,7 @@ import {
   Clock,
   User,
   Tag,
-  X,
+  ArrowLeft,
 } from 'lucide-react'
 
 const typeIcons: Record<NewsType, React.ElementType> = {
@@ -109,9 +109,65 @@ export default function NewsPage() {
       </div>
 
       {/* Content */}
-      <div className="grid lg:grid-cols-3 gap-4">
-        {/* News list */}
-        <div className="lg:col-span-2 space-y-2">
+      {selected ? (
+        <div className="rounded-lg border border-border bg-card">
+          <div className="flex items-center gap-3 px-6 py-4 border-b border-border">
+            <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setSelected(null)}>
+              <ArrowLeft className="h-3.5 w-3.5" />返回列表
+            </Button>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {(() => {
+                const Icon = typeIcons[selected.type]
+                return (
+                  <Badge variant="outline" className="text-xs font-normal gap-1">
+                    <Icon className={cn('h-3 w-3', typeColors[selected.type])} />
+                    {typeLabels[selected.type]}
+                  </Badge>
+                )
+              })()}
+              {selected.pinned && (
+                <Badge variant="secondary" className="text-xs font-normal gap-1">
+                  <Pin className="h-3 w-3" />置顶
+                </Badge>
+              )}
+            </div>
+            <div className="flex items-center gap-3 ml-auto text-xs text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <Clock className="h-3 w-3" />{selected.date}
+              </span>
+              {selected.author && (
+                <span className="flex items-center gap-1">
+                  <User className="h-3 w-3" />{selected.author}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="px-6 py-6 max-w-none">
+            <h2 className="text-lg font-semibold leading-snug mb-4">{selected.title}</h2>
+            <MarkdownContent content={selected.content} />
+            {selected.tags && selected.tags.length > 0 && (
+              <div className="pt-4 mt-6 border-t border-border flex items-center gap-1.5 flex-wrap">
+                <Tag className="h-3.5 w-3.5 text-muted-foreground" />
+                {selected.tags.map(tag => (
+                  <Badge key={tag} variant="secondary" className="text-xs font-normal">
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            )}
+            {selected.link && (
+              <div className="mt-6">
+                <Button size="sm" variant="outline" className="h-8 text-xs" asChild>
+                  <a href={selected.link} target="_blank" rel="noopener noreferrer">
+                    查看更多
+                  </a>
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-2">
           {filtered.length === 0 && (
             <div className="rounded-lg border border-border bg-card flex flex-col items-center justify-center py-16 text-center">
               <Newspaper className="h-8 w-8 text-muted-foreground/40 mb-3" />
@@ -120,17 +176,11 @@ export default function NewsPage() {
           )}
           {filtered.map(news => {
             const Icon = typeIcons[news.type]
-            const isSelected = selected?.id === news.id
             return (
               <button
                 key={news.id}
                 onClick={() => setSelected(news)}
-                className={cn(
-                  'w-full flex gap-3 p-4 rounded-lg border text-left transition-colors',
-                  isSelected
-                    ? 'border-primary/50 bg-primary/5'
-                    : 'border-border bg-card hover:bg-accent'
-                )}
+                className="w-full flex gap-3 p-4 rounded-lg border border-border bg-card text-left transition-colors hover:bg-accent"
               >
                 <Icon className={cn('h-4 w-4 mt-0.5 shrink-0', typeColors[news.type])} />
                 <div className="flex-1 min-w-0">
@@ -163,81 +213,7 @@ export default function NewsPage() {
             )
           })}
         </div>
-
-        {/* Detail panel */}
-        <div className="rounded-lg border border-border bg-card h-fit lg:sticky lg:top-4">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-            <p className="text-sm font-medium">动态详情</p>
-            {selected && (
-              <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setSelected(null)}>
-                <X className="h-3.5 w-3.5" />
-              </Button>
-            )}
-          </div>
-          <div className="p-4">
-            {selected ? (() => {
-              const Icon = typeIcons[selected.type]
-              return (
-                <div className="space-y-4">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <Badge variant="outline" className="text-xs font-normal gap-1">
-                      <Icon className={cn('h-3 w-3', typeColors[selected.type])} />
-                      {typeLabels[selected.type]}
-                    </Badge>
-                    {selected.pinned && (
-                      <Badge variant="secondary" className="text-xs font-normal gap-1">
-                        <Pin className="h-3 w-3" />置顶
-                      </Badge>
-                    )}
-                  </div>
-
-                  <div>
-                    <h3 className="font-semibold leading-snug">{selected.title}</h3>
-                    <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" />{selected.date}
-                      </span>
-                      {selected.author && (
-                        <span className="flex items-center gap-1">
-                          <User className="h-3 w-3" />{selected.author}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <MarkdownContent content={selected.content} />
-
-                  {selected.tags && selected.tags.length > 0 && (
-                    <div className="pt-3 border-t border-border">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <Tag className="h-3.5 w-3.5 text-muted-foreground" />
-                        {selected.tags.map(tag => (
-                          <Badge key={tag} variant="secondary" className="text-xs font-normal">
-                            {tag}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {selected.link && (
-                    <Button size="sm" variant="outline" className="w-full h-8 text-xs" asChild>
-                      <a href={selected.link} target="_blank" rel="noopener noreferrer">
-                        查看更多
-                      </a>
-                    </Button>
-                  )}
-                </div>
-              )
-            })() : (
-              <div className="flex flex-col items-center justify-center py-10 text-center">
-                <Newspaper className="h-8 w-8 text-muted-foreground/40 mb-3" />
-                <p className="text-sm text-muted-foreground">选择动态查看详情</p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   )
 }
