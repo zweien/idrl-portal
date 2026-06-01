@@ -28,6 +28,38 @@ export interface Workstation {
   zone: 'A' | 'B' | 'C' | 'D'
 }
 
+// ============ Floor Layout ============
+export interface Floor {
+  id: string
+  name: string
+  order: number
+  zones: Zone[]
+}
+
+export interface Zone {
+  id: string
+  name: string
+  floorId: string
+  color: string
+  order: number
+  rows: number
+  cols: number
+  workstations: NewWorkstation[]
+}
+
+export type WorkstationStatus = 'occupied' | 'empty' | 'maintenance'
+
+export interface NewWorkstation {
+  id: string
+  name: string
+  zoneId: string
+  floorId: string
+  row: number
+  col: number
+  personId?: string
+  status: WorkstationStatus
+}
+
 export interface AttendanceRecord {
   id: string
   personId: string
