@@ -1,4 +1,4 @@
-import type { Person, Workstation, Resource, NewsItem } from './types'
+import type { Person, Workstation, Resource, NewsItem, Floor as FloorType, NewWorkstation } from './types'
 
 // ============ Personnel Mock Data ============
 export const mockPersonnel: Person[] = [
@@ -416,6 +416,99 @@ export function getWorkstationStats() {
   const total = mockWorkstations.length
   const occupied = mockWorkstations.filter(ws => ws.personId).length
   const available = total - occupied
-  
+
   return { total, occupied, available }
 }
+
+// ============ Floor Layout Data ============
+
+function generateWorkstations(zoneId: string, floorId: string, prefix: string, rows: number, cols: number, occupiedIds: string[] = []): NewWorkstation[] {
+  const result: NewWorkstation[] = []
+  const occupiedCopy = [...occupiedIds]
+  let idx = 1
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const personId = occupiedCopy.shift()
+      result.push({
+        id: `ws-${zoneId}-${idx}`,
+        name: `${prefix}-${String(idx).padStart(2, '0')}`,
+        zoneId,
+        floorId,
+        row: r,
+        col: c,
+        personId,
+        status: personId ? 'occupied' : 'empty',
+      })
+      idx++
+    }
+  }
+  return result
+}
+
+export const mockFloors: FloorType[] = [
+  {
+    id: 'floor-9',
+    name: '9层',
+    order: 0,
+    zones: [
+      {
+        id: 'zone-9a',
+        name: '教授/博士后区',
+        floorId: 'floor-9',
+        color: 'oklch(0.65 0.18 260)',
+        order: 0,
+        rows: 2,
+        cols: 3,
+        workstations: generateWorkstations('zone-9a', 'floor-9', 'A', 2, 3, ['1', '2']),
+      },
+      {
+        id: 'zone-9b',
+        name: '博士生区',
+        floorId: 'floor-9',
+        color: 'oklch(0.65 0.18 145)',
+        order: 1,
+        rows: 3,
+        cols: 6,
+        workstations: generateWorkstations('zone-9b', 'floor-9', 'B', 3, 6, ['3', '4']),
+      },
+      {
+        id: 'zone-9c',
+        name: '硕士生区',
+        floorId: 'floor-9',
+        color: 'oklch(0.70 0.15 55)',
+        order: 2,
+        rows: 3,
+        cols: 6,
+        workstations: generateWorkstations('zone-9c', 'floor-9', 'C', 3, 6, ['5', '6']),
+      },
+    ],
+  },
+  {
+    id: 'floor-10',
+    name: '10层',
+    order: 1,
+    zones: [
+      {
+        id: 'zone-10a',
+        name: '本科生/行政区',
+        floorId: 'floor-10',
+        color: 'oklch(0.65 0.15 300)',
+        order: 0,
+        rows: 2,
+        cols: 4,
+        workstations: generateWorkstations('zone-10a', 'floor-10', 'D', 2, 4, ['7', '8']),
+      },
+      {
+        id: 'zone-10b',
+        name: '会议/讨论区',
+        floorId: 'floor-10',
+        color: 'oklch(0.60 0.12 30)',
+        order: 1,
+        rows: 2,
+        cols: 3,
+        workstations: generateWorkstations('zone-10b', 'floor-10', 'E', 2, 3),
+      },
+    ],
+  },
+]
+
