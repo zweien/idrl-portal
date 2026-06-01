@@ -22,7 +22,7 @@ import { cn } from '@/lib/utils'
 import {
   Users, Server, Newspaper, Plus, Pencil, Trash2,
   Database, RefreshCw, AlertTriangle, CheckCircle, Info,
-  ShieldAlert,
+  ShieldAlert, MapPin,
 } from 'lucide-react'
 
 /* ── Labels ─────────────────────────────────────── */
@@ -256,6 +256,9 @@ export default function AdminPage() {
           <TabsTrigger value="news" className="text-xs gap-1.5 h-7">
             <Newspaper className="h-3.5 w-3.5" />动态管理
           </TabsTrigger>
+          <TabsTrigger value="floor-layout" className="text-xs gap-1.5 h-7">
+            <MapPin className="h-3.5 w-3.5" />工位布局
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="personnel" className="mt-3">
@@ -354,6 +357,23 @@ export default function AdminPage() {
                 onEdit={item => console.log('Edit:', item)}
                 onDelete={item => setNewsData(newsData.filter(n => n.id !== item.id))}
               />
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="floor-layout" className="mt-3">
+          <div className="rounded-lg border border-border bg-card">
+            <div className="px-4 py-3 border-b border-border">
+              <p className="text-sm font-medium">工位布局管理</p>
+              <p className="text-xs text-muted-foreground mt-0.5">配置楼层、区域和工位布局</p>
+            </div>
+            <div className="p-4">
+              <p className="text-sm text-muted-foreground mb-3">
+                使用专用编辑器配置工位布局
+              </p>
+              <Button asChild size="sm" className="h-8 text-xs gap-1.5">
+                <a href="/dashboard/admin/floor-layout">打开工位布局编辑器</a>
+              </Button>
             </div>
           </div>
         </TabsContent>
