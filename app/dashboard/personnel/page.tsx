@@ -6,8 +6,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { FloorPlan } from '@/components/dashboard/floor-plan'
-import { mockPersonnel, mockWorkstations, getWorkstationByPerson } from '@/lib/mock-data'
-import type { Person, Workstation } from '@/lib/types'
+import { FloorTabs } from '@/components/dashboard/floor-tabs'
+import { mockPersonnel, mockFloors } from '@/lib/mock-data'
+import type { Person, NewWorkstation } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Search, MapPin, Mail, User } from 'lucide-react'
 
@@ -33,7 +34,13 @@ export default function PersonnelPage() {
   const [search, setSearch]                     = useState('')
   const [statusFilter, setStatusFilter]         = useState<string | null>(null)
   const [selectedPerson, setSelectedPerson]     = useState<Person | null>(null)
-  const [selectedWs, setSelectedWs]             = useState<Workstation | null>(null)
+  const [selectedWs, setSelectedWs]             = useState<NewWorkstation | null>(null)
+  const [activeFloorId, setActiveFloorId]       = useState(mockFloors[0]?.id ?? '')
+
+  const activeFloor = useMemo(
+    () => mockFloors.find(f => f.id === activeFloorId) ?? mockFloors[0],
+    [activeFloorId],
+  )
 
   const filtered = useMemo(() => mockPersonnel.filter(p => {
     const matchSearch = !search ||
@@ -51,25 +58,31 @@ export default function PersonnelPage() {
     leave:   mockPersonnel.filter(p => p.status === 'leave').length,
   }), [])
 
-  const handleWsSelect = (ws: Workstation, person?: Person) => {
+  const handleWsSelect = (ws: NewWorkstation, person?: Person) => {
     setSelectedWs(ws)
     setSelectedPerson(person ?? null)
   }
 
   const handlePersonSelect = (person: Person) => {
     setSelectedPerson(person)
-    setSelectedWs(getWorkstationByPerson(person.id) ?? null)
+    let found: NewWorkstation | null = null
+    for (const floor of mockFloors) {
+      for (const zone of floor.zones) {
+        const ws = zone.workstations.find(w => w.personId === person.id)
+        if (ws) { found = ws; break }
+      }
+      if (found) break
+    }
+    setSelectedWs(found)
   }
 
   return (
     <div className="space-y-4 py-2">
-      {/* Header */}
       <div>
         <h1 className="text-xl font-semibold tracking-tight">人员与工位</h1>
         <p className="text-sm text-muted-foreground mt-0.5">查看实验室人员在位情况与工位分布</p>
       </div>
 
-      {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -102,21 +115,30 @@ export default function PersonnelPage() {
         ))}
       </div>
 
-      {/* Content */}
       <div className="grid lg:grid-cols-3 gap-4">
-        {/* Floor plan */}
         <div className="lg:col-span-2 rounded-lg border border-border bg-card">
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+          <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
             <MapPin className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm font-medium">工位平面图</span>
-            <span className="text-xs text-muted-foreground ml-auto">点击工位查看详情</span>
+            <div className="ml-auto">
+              <FloorTabs
+                floors={mockFloors}
+                activeFloorId={activeFloorId}
+                onFloorChange={setActiveFloorId}
+              />
+            </div>
           </div>
           <div className="p-4">
-            <FloorPlan onSelectWorkstation={handleWsSelect} selectedWorkstationId={selectedWs?.id} />
+            {activeFloor && (
+              <FloorPlan
+                floor={activeFloor}
+                onSelectWorkstation={handleWsSelect}
+                selectedWorkstationId={selectedWs?.id}
+              />
+            )}
           </div>
         </div>
 
-        {/* Detail panel */}
         <div className="rounded-lg border border-border bg-card">
           <div className="px-4 py-3 border-b border-border">
             <p className="text-sm font-medium">人员详情</p>
@@ -181,7 +203,6 @@ export default function PersonnelPage() {
         </div>
       </div>
 
-      {/* Personnel list */}
       <div className="rounded-lg border border-border bg-card">
         <div className="px-4 py-3 border-b border-border flex items-center justify-between">
           <span className="text-sm font-medium">人员列表</span>
@@ -191,7 +212,6 @@ export default function PersonnelPage() {
         </div>
         <div className="p-4 grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
           {filtered.map(person => {
-            const ws = getWorkstationByPerson(person.id)
             const isSelected = selectedPerson?.id === person.id
             return (
               <button
@@ -215,7 +235,6 @@ export default function PersonnelPage() {
                     <span className={cn('status-dot shrink-0', statusConfig[person.status].dot)} />
                   </div>
                   <p className="text-xs text-muted-foreground">{roleLabels[person.role]}</p>
-                  {ws && <p className="text-xs text-muted-foreground">工位 {ws.name}</p>}
                 </div>
               </button>
             )
