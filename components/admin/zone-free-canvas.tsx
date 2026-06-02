@@ -124,7 +124,35 @@ function CanvasSurface({
   onSelect: (id: string | null) => void
   onChange: (zone: Zone) => void
 }) {
-  // 占位实现，下个 Task 替换为带交互的版本
+  const findWsByCell = useCallback(
+    (r: number, c: number) => zone.workstations.find(ws => ws.row === r && ws.col === c),
+    [zone.workstations],
+  )
+
+  const handleCellClick = (r: number, c: number) => {
+    const existing = findWsByCell(r, c)
+    if (existing) {
+      onSelect(existing.id)
+      return
+    }
+    // 空 cell
+    if (brush === 'add') {
+      const seq = nextSeq(zone.workstations)
+      const newWs: NewWorkstation = {
+        id: genWsId(zone.id, seq),
+        name: defaultWsName(zone, seq),
+        zoneId: zone.id,
+        floorId: zone.floorId,
+        row: r,
+        col: c,
+        status: 'empty',
+        nameCustomized: false,
+      }
+      onChange({ ...zone, workstations: [...zone.workstations, newWs] })
+    }
+    // remove 模式下点击空 cell 不做任何事
+  }
+
   return (
     <svg
       viewBox={`0 0 ${layout.width} ${layout.height}`}
@@ -132,13 +160,6 @@ function CanvasSurface({
       height={layout.height}
       className="select-none border border-border rounded-md"
     >
-      <rect
-        x={0}
-        y={0}
-        width={layout.width}
-        height={layout.height}
-        fill="none"
-      />
       {/* 栅格底纹 */}
       <g>
         {Array.from({ length: zone.maxRows * zone.maxCols }).map((_, i) => {
@@ -160,13 +181,34 @@ function CanvasSurface({
           )
         })}
       </g>
+
+      {/* 透明点击区（覆盖在每个 cell） */}
+      <g>
+        {Array.from({ length: zone.maxRows * zone.maxCols }).map((_, i) => {
+          const r = Math.floor(i / zone.maxCols)
+          const c = i % zone.maxCols
+          return (
+            <rect
+              key={`hit-${r}-${c}`}
+              x={ZONE_PAD + c * (CELL_W + CELL_GAP)}
+              y={ZONE_TITLE_H + ZONE_PAD + r * (CELL_H + CELL_GAP)}
+              width={CELL_W}
+              height={CELL_H}
+              fill="transparent"
+              className="cursor-pointer"
+              onClick={() => handleCellClick(r, c)}
+            />
+          )
+        })}
+      </g>
+
       {/* 工位 */}
       {zone.workstations.map(ws => {
         const x = ZONE_PAD + ws.col * (CELL_W + CELL_GAP)
         const y = ZONE_TITLE_H + ZONE_PAD + ws.row * (CELL_H + CELL_GAP)
         const isSelected = ws.id === selectedId
         return (
-          <g key={ws.id}>
+          <g key={ws.id} className="pointer-events-none">
             <rect
               x={x}
               y={y}
@@ -202,10 +244,51 @@ function RenameRow({
   zone: Zone
   onChange: (zone: Zone) => void
 }) {
-  // 占位实现，下个 Task 替换
+  if (!ws) {
+    return (
+      <div className="text-xs text-muted-foreground">
+        提示：点击工位可选中改名；拖拽可批量添加/清除
+      </div>
+    )
+  }
+
+  const handleRename = (newName: string) => {
+    if (newName.trim() === '') {
+      // 清空 → 回退默认命名
+      const seq = zone.workstations.indexOf(ws) + 1
+      const fallback = defaultWsName(zone, seq)
+      onChange({
+        ...zone,
+        workstations: zone.workstations.map(w =>
+          w.id === ws.id ? { ...w, name: fallback, nameCustomized: false } : w,
+        ),
+      })
+      return
+    }
+    onChange({
+      ...zone,
+      workstations: zone.workstations.map(w =>
+        w.id === ws.id ? { ...w, name: newName.trim(), nameCustomized: true } : w,
+      ),
+    })
+  }
+
   return (
-    <div className="text-xs text-muted-foreground">
-      {ws ? `已选中：${ws.name}` : '提示：点击工位可选中改名；拖拽可批量添加/清除'}
+    <div className="flex items-center gap-2">
+      <span className="text-xs text-muted-foreground shrink-0">改名：</span>
+      <Input
+        key={ws.id}
+        defaultValue={ws.name}
+        onBlur={e => handleRename(e.target.value)}
+        onKeyDown={e => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+        }}
+        className="h-8 text-sm flex-1 max-w-[200px]"
+        placeholder="清空则恢复默认命名"
+      />
+      {ws.nameCustomized && (
+        <span className="text-[10px] text-muted-foreground/70">自定义</span>
+      )}
     </div>
   )
 }
