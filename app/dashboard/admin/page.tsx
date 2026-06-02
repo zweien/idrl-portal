@@ -4,23 +4,15 @@ import { useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
-import { mockPersonnel, mockResources, mockNews } from '@/lib/mock-data'
-import type { Person } from '@/lib/types'
-import { useAuth } from '@/lib/auth-context'
 import { cn } from '@/lib/utils'
+import { mockPersonnel, mockResources, mockNews } from '@/lib/mock-data'
+import type { Person, Resource, NewsItem } from '@/lib/types'
+import { useAuth } from '@/lib/auth-context'
+import { PersonDialog } from '@/components/admin/person-dialog'
+import { ResourceDialog } from '@/components/admin/resource-dialog'
+import { NewsDialog } from '@/components/admin/news-dialog'
 import {
-  Users, Server, Newspaper, Plus, Pencil, Trash2,
+  Users, Server, Newspaper, Trash2,
   Database, RefreshCw, AlertTriangle, CheckCircle, Info,
   ShieldAlert, MapPin,
 } from 'lucide-react'
@@ -129,70 +121,16 @@ function ApiCard({ method, endpoint, description }: { method: string; endpoint: 
   )
 }
 
-/* ── Add person dialog ──────────────────────────── */
-function AddPersonDialog({ onAdd }: { onAdd: (p: Person) => void }) {
-  const [open, setOpen] = useState(false)
-  const [form, setForm] = useState({ name: '', email: '', role: 'master' as Person['role'] })
-
-  const handleSubmit = () => {
-    if (!form.name) return
-    onAdd({ id: `p-${Date.now()}`, name: form.name, email: form.email, role: form.role, status: 'offline' })
-    setOpen(false)
-    setForm({ name: '', email: '', role: 'master' })
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm" className="h-8 text-xs gap-1.5">
-          <Plus className="h-3.5 w-3.5" />添加人员
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>添加新人员</DialogTitle>
-          <DialogDescription>填写人员基本信息，添加后可继续编辑更多详情。</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="space-y-1.5">
-            <Label className="text-xs">姓名</Label>
-            <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="请输入姓名" className="h-9" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">邮箱</Label>
-            <Input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="name@idrl.edu.cn" className="h-9" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">角色</Label>
-            <div className="flex flex-wrap gap-1.5">
-              {(Object.entries(roleLabels) as [Person['role'], string][]).map(([v, l]) => (
-                <Button
-                  key={v} type="button" size="sm"
-                  variant={form.role === v ? 'default' : 'outline'}
-                  className="h-7 text-xs"
-                  onClick={() => setForm({ ...form, role: v })}
-                >
-                  {l}
-                </Button>
-              ))}
-            </div>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" size="sm" onClick={() => setOpen(false)}>取消</Button>
-          <Button size="sm" onClick={handleSubmit} disabled={!form.name}>添加</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
 /* ── Page ───────────────────────────────────────── */
 export default function AdminPage() {
   const { user } = useAuth()
   const [personnelData, setPersonnelData] = useState(mockPersonnel)
   const [resourcesData, setResourcesData] = useState(mockResources)
   const [newsData, setNewsData]           = useState(mockNews)
+
+  const [editingPerson, setEditingPerson]     = useState<Person | null>(null)
+  const [editingResource, setEditingResource] = useState<Resource | null>(null)
+  const [editingNews, setEditingNews]         = useState<NewsItem | null>(null)
 
   if (user?.role !== 'admin') {
     return (
@@ -268,7 +206,7 @@ export default function AdminPage() {
                 <p className="text-sm font-medium">人员管理</p>
                 <p className="text-xs text-muted-foreground mt-0.5">管理实验室人员信息</p>
               </div>
-              <AddPersonDialog onAdd={p => setPersonnelData([...personnelData, p])} />
+              <PersonDialog onSubmit={p => setPersonnelData(prev => [...prev, p])} />
             </div>
             <div className="px-4">
               <DataTable
@@ -283,11 +221,17 @@ export default function AdminPage() {
                     </Badge>
                   )},
                 ]}
-                onEdit={item => console.log('Edit:', item)}
-                onDelete={item => setPersonnelData(personnelData.filter(p => p.id !== item.id))}
+                onEdit={item => setEditingPerson(item)}
+                onDelete={item => setPersonnelData(prev => prev.filter(p => p.id !== item.id))}
               />
             </div>
           </div>
+          {editingPerson && (
+            <PersonDialog
+              initialData={editingPerson}
+              onSubmit={updated => { setPersonnelData(prev => prev.map(p => p.id === updated.id ? updated : p)); setEditingPerson(null) }}
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="resources" className="mt-3">
@@ -297,9 +241,7 @@ export default function AdminPage() {
                 <p className="text-sm font-medium">资源管理</p>
                 <p className="text-xs text-muted-foreground mt-0.5">管理实验室资源信息</p>
               </div>
-              <Button size="sm" className="h-8 text-xs gap-1.5">
-                <Plus className="h-3.5 w-3.5" />添加资源
-              </Button>
+              <ResourceDialog onSubmit={r => setResourcesData(prev => [...prev, r])} />
             </div>
             <div className="px-4">
               <DataTable
@@ -318,11 +260,17 @@ export default function AdminPage() {
                     </a>
                   ) : <span className="text-muted-foreground">—</span> },
                 ]}
-                onEdit={item => console.log('Edit:', item)}
-                onDelete={item => setResourcesData(resourcesData.filter(r => r.id !== item.id))}
+                onEdit={item => setEditingResource(item)}
+                onDelete={item => setResourcesData(prev => prev.filter(r => r.id !== item.id))}
               />
             </div>
           </div>
+          {editingResource && (
+            <ResourceDialog
+              initialData={editingResource}
+              onSubmit={updated => { setResourcesData(prev => prev.map(r => r.id === updated.id ? updated : r)); setEditingResource(null) }}
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="news" className="mt-3">
@@ -332,9 +280,7 @@ export default function AdminPage() {
                 <p className="text-sm font-medium">动态管理</p>
                 <p className="text-xs text-muted-foreground mt-0.5">管理实验室新闻与通知</p>
               </div>
-              <Button size="sm" className="h-8 text-xs gap-1.5">
-                <Plus className="h-3.5 w-3.5" />发布动态
-              </Button>
+              <NewsDialog onSubmit={n => setNewsData(prev => [n, ...prev])} />
             </div>
             <div className="px-4">
               <DataTable
@@ -354,11 +300,17 @@ export default function AdminPage() {
                     : <span className="text-muted-foreground">—</span>
                   },
                 ]}
-                onEdit={item => console.log('Edit:', item)}
-                onDelete={item => setNewsData(newsData.filter(n => n.id !== item.id))}
+                onEdit={item => setEditingNews(item)}
+                onDelete={item => setNewsData(prev => prev.filter(n => n.id !== item.id))}
               />
             </div>
           </div>
+          {editingNews && (
+            <NewsDialog
+              initialData={editingNews}
+              onSubmit={updated => { setNewsData(prev => prev.map(n => n.id === updated.id ? updated : n)); setEditingNews(null) }}
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="floor-layout" className="mt-3">
