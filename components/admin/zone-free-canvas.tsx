@@ -254,8 +254,9 @@ function RenameRow({
 
   const handleRename = (newName: string) => {
     if (newName.trim() === '') {
-      // 清空 → 回退默认命名
-      const seq = zone.workstations.indexOf(ws) + 1
+      // 清空 → 回退默认命名（从 ws.id 提取 seq，与 nextSeq 保持一致）
+      const m = ws.id.match(/-(\d+)$/)
+      const seq = m ? parseInt(m[1], 10) : zone.workstations.indexOf(ws) + 1
       const fallback = defaultWsName(zone, seq)
       onChange({
         ...zone,
