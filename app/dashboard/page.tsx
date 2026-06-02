@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { MarkdownContent } from '@/components/dashboard/markdown-content'
-import { mockPersonnel, mockResources, mockNews, getPersonnelStats } from '@/lib/mock-data'
+import { useAdminData } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import type { NewsItem, NewsType } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -164,20 +164,43 @@ function NewsExpandModal({ news, onClose }: { news: NewsItem; onClose: () => voi
 
 export default function DashboardPage() {
   const { user } = useAuth()
+  const { data } = useAdminData()
+  const personnel = data?.personnel ?? []
+  const resources = data?.resources ?? []
+  const news = data?.news ?? []
   const [expandedNews, setExpandedNews] = useState<NewsItem | null>(null)
 
-  const personnelStats = useMemo(() => getPersonnelStats(), [])
-  const availableCount = useMemo(() => mockResources.filter(r => r.status === 'available').length, [])
+  const personnelStats = useMemo(() => ({
+    total: personnel.length,
+    online: personnel.filter(p => p.status === 'online').length,
+    offline: personnel.filter(p => p.status === 'offline').length,
+    busy: personnel.filter(p => p.status === 'busy').length,
+    leave: personnel.filter(p => p.status === 'leave').length,
+  }), [personnel])
 
-  const pinnedNews = useMemo(() => mockNews.filter(n => n.pinned), [])
+  const availableCount = useMemo(
+    () => resources.filter(r => r.status === 'available').length,
+    [resources],
+  )
+
+  const pinnedNews = useMemo(() => news.filter(n => n.pinned), [news])
 
   const groupedNews = useMemo(() => {
     const groups: Record<NewsType, NewsItem[]> = { paper: [], notice: [], event: [], achievement: [] }
-    mockNews.forEach(n => { if (!n.pinned) groups[n.type].push(n) })
+    news.forEach(n => { if (!n.pinned) groups[n.type].push(n) })
     return groups
-  }, [])
+  }, [news])
 
   const orderedTypes: NewsType[] = ['paper', 'notice', 'event', 'achievement']
+
+  if (!data) {
+    return (
+      <div className="space-y-4 py-2">
+        <h1 className="text-xl font-semibold tracking-tight">仪表盘</h1>
+        <p className="text-sm text-muted-foreground">加载中...</p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6 py-2">
@@ -195,7 +218,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard icon={Users}   label="在位人员" value={`${personnelStats.online}/${personnelStats.total}`} />
         <StatCard icon={Monitor} label="工位使用" value="查看详情" sub="→ 人员工位" />
-        <StatCard icon={Server}  label="可用资源" value={`${availableCount}/${mockResources.length}`} />
+        <StatCard icon={Server}  label="可用资源" value={`${availableCount}/${resources.length}`} />
         <StatCard icon={Pin}     label="置顶动态" value={String(pinnedNews.length)} />
       </div>
 
@@ -259,7 +282,7 @@ export default function DashboardPage() {
           </Link>
         </div>
         <div className="p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-          {mockResources.slice(0, 6).map((resource) => (
+          {resources.slice(0, 6).map((resource) => (
             <a
               key={resource.id}
               href={resource.url ?? '#'}

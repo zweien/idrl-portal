@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { FloorPlan } from '@/components/dashboard/floor-plan'
 import { FloorTabs } from '@/components/dashboard/floor-tabs'
-import { mockPersonnel, mockFloors } from '@/lib/mock-data'
+import { usePersonnel, useFloorLayout } from '@/lib/api'
 import type { Person, NewWorkstation } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Search, MapPin, Mail, User } from 'lucide-react'
@@ -31,32 +31,41 @@ const statusConfig = {
 const statusFilters = ['online', 'offline', 'busy', 'leave'] as const
 
 export default function PersonnelPage() {
+  const { data: personnelResp } = usePersonnel({ pageSize: 1000 })
+  const { data: floorData } = useFloorLayout()
+  const personnel = personnelResp?.data?.items ?? []
+  const floors = floorData?.floors ?? []
+
   const [search, setSearch]                     = useState('')
   const [statusFilter, setStatusFilter]         = useState<string | null>(null)
   const [selectedPerson, setSelectedPerson]     = useState<Person | null>(null)
   const [selectedWs, setSelectedWs]             = useState<NewWorkstation | null>(null)
-  const [activeFloorId, setActiveFloorId]       = useState(mockFloors[0]?.id ?? '')
+  const [activeFloorId, setActiveFloorId]       = useState('')
+
+  useEffect(() => {
+    if (!activeFloorId && floors.length > 0) setActiveFloorId(floors[0].id)
+  }, [floors, activeFloorId])
 
   const activeFloor = useMemo(
-    () => mockFloors.find(f => f.id === activeFloorId) ?? mockFloors[0],
-    [activeFloorId],
+    () => floors.find(f => f.id === activeFloorId) ?? floors[0],
+    [floors, activeFloorId],
   )
 
-  const filtered = useMemo(() => mockPersonnel.filter(p => {
+  const filtered = useMemo(() => personnel.filter(p => {
     const matchSearch = !search ||
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.email?.toLowerCase().includes(search.toLowerCase()) ||
       p.researchAreas?.some(a => a.toLowerCase().includes(search.toLowerCase()))
     const matchStatus = !statusFilter || p.status === statusFilter
     return matchSearch && matchStatus
-  }), [search, statusFilter])
+  }), [search, statusFilter, personnel])
 
   const counts = useMemo(() => ({
-    online:  mockPersonnel.filter(p => p.status === 'online').length,
-    offline: mockPersonnel.filter(p => p.status === 'offline').length,
-    busy:    mockPersonnel.filter(p => p.status === 'busy').length,
-    leave:   mockPersonnel.filter(p => p.status === 'leave').length,
-  }), [])
+    online:  personnel.filter(p => p.status === 'online').length,
+    offline: personnel.filter(p => p.status === 'offline').length,
+    busy:    personnel.filter(p => p.status === 'busy').length,
+    leave:   personnel.filter(p => p.status === 'leave').length,
+  }), [personnel])
 
   const handleWsSelect = (ws: NewWorkstation, person?: Person) => {
     setSelectedWs(ws)
@@ -66,7 +75,7 @@ export default function PersonnelPage() {
   const handlePersonSelect = (person: Person) => {
     setSelectedPerson(person)
     let found: NewWorkstation | null = null
-    for (const floor of mockFloors) {
+    for (const floor of floors) {
       for (const zone of floor.zones) {
         const ws = zone.workstations.find(w => w.personId === person.id)
         if (ws) { found = ws; break }
@@ -74,6 +83,15 @@ export default function PersonnelPage() {
       if (found) break
     }
     setSelectedWs(found)
+  }
+
+  if (!personnelResp || !floorData) {
+    return (
+      <div className="space-y-4 py-2">
+        <h1 className="text-xl font-semibold tracking-tight">人员与工位</h1>
+        <p className="text-sm text-muted-foreground">加载中...</p>
+      </div>
+    )
   }
 
   return (
@@ -99,7 +117,7 @@ export default function PersonnelPage() {
           className="h-8 text-xs"
           onClick={() => setStatusFilter(null)}
         >
-          全部 ({mockPersonnel.length})
+          全部 ({personnel.length})
         </Button>
         {statusFilters.map(s => (
           <Button
@@ -122,7 +140,7 @@ export default function PersonnelPage() {
             <span className="text-sm font-medium">工位平面图</span>
             <div className="ml-auto">
               <FloorTabs
-                floors={mockFloors}
+                floors={floors}
                 activeFloorId={activeFloorId}
                 onFloorChange={setActiveFloorId}
               />

@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { mockNews } from '@/lib/mock-data'
+import { useNews } from '@/lib/api'
 import type { NewsItem, NewsType } from '@/lib/types'
 import { MarkdownContent } from '@/components/dashboard/markdown-content'
 import { cn } from '@/lib/utils'
@@ -43,11 +43,14 @@ const typeColors: Record<NewsType, string> = {
 }
 
 export default function NewsPage() {
+  const { data: newsResp } = useNews({ pageSize: 1000 })
+  const news = newsResp?.data?.items ?? []
+
   const [search, setSearch]             = useState('')
   const [typeFilter, setTypeFilter]     = useState<NewsType | null>(null)
   const [selected, setSelected]         = useState<NewsItem | null>(null)
 
-  const filtered = useMemo(() => mockNews.filter(n => {
+  const filtered = useMemo(() => news.filter(n => {
     const matchSearch = !search ||
       n.title.toLowerCase().includes(search.toLowerCase()) ||
       n.content.toLowerCase().includes(search.toLowerCase()) ||
@@ -58,13 +61,22 @@ export default function NewsPage() {
     if (a.pinned && !b.pinned) return -1
     if (!a.pinned && b.pinned) return 1
     return new Date(b.date).getTime() - new Date(a.date).getTime()
-  }), [search, typeFilter])
+  }), [search, typeFilter, news])
 
   const counts = useMemo(() => {
     const c: Record<NewsType, number> = { paper: 0, notice: 0, event: 0, achievement: 0 }
-    mockNews.forEach(n => c[n.type]++)
+    news.forEach(n => c[n.type]++)
     return c
-  }, [])
+  }, [news])
+
+  if (!newsResp) {
+    return (
+      <div className="space-y-4 py-2">
+        <h1 className="text-xl font-semibold tracking-tight">最新动态</h1>
+        <p className="text-sm text-muted-foreground">加载中...</p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4 py-2">
@@ -90,7 +102,7 @@ export default function NewsPage() {
           size="sm" className="h-8 text-xs"
           onClick={() => setTypeFilter(null)}
         >
-          全部 ({mockNews.length})
+          全部 ({news.length})
         </Button>
         {(Object.keys(typeLabels) as NewsType[]).map(type => {
           const Icon = typeIcons[type]

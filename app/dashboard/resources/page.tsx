@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { mockResources } from '@/lib/mock-data'
+import { useResources } from '@/lib/api'
 import type { Resource, ResourceType } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import {
@@ -47,23 +47,35 @@ const accessLabels: Record<string, string> = {
 }
 
 export default function ResourcesPage() {
+  const { data: resourcesResp } = useResources({ pageSize: 1000 })
+  const resources = resourcesResp?.data?.items ?? []
+
   const [search, setSearch]                         = useState('')
   const [typeFilter, setTypeFilter]                 = useState<ResourceType | null>(null)
   const [selected, setSelected]                     = useState<Resource | null>(null)
 
-  const filtered = useMemo(() => mockResources.filter(r => {
+  const filtered = useMemo(() => resources.filter(r => {
     const matchSearch = !search ||
       r.name.toLowerCase().includes(search.toLowerCase()) ||
       r.description.toLowerCase().includes(search.toLowerCase())
     const matchType = !typeFilter || r.type === typeFilter
     return matchSearch && matchType
-  }), [search, typeFilter])
+  }), [search, typeFilter, resources])
 
   const typeCounts = useMemo(() => {
     const c: Record<ResourceType, number> = { compute: 0, storage: 0, code: 0, docs: 0, other: 0 }
-    mockResources.forEach(r => c[r.type]++)
+    resources.forEach(r => c[r.type]++)
     return c
-  }, [])
+  }, [resources])
+
+  if (!resourcesResp) {
+    return (
+      <div className="space-y-4 py-2">
+        <h1 className="text-xl font-semibold tracking-tight">资源聚合</h1>
+        <p className="text-sm text-muted-foreground">加载中...</p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4 py-2">
@@ -89,7 +101,7 @@ export default function ResourcesPage() {
           size="sm" className="h-8 text-xs"
           onClick={() => setTypeFilter(null)}
         >
-          全部 ({mockResources.length})
+          全部 ({resources.length})
         </Button>
         {(Object.keys(typeLabels) as ResourceType[]).map(type => {
           const Icon = typeIcons[type]
