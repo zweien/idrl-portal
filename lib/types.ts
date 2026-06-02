@@ -36,14 +36,19 @@ export interface Floor {
   zones: Zone[]
 }
 
+export type ZoneMode = 'grid' | 'free'
+
 export interface Zone {
   id: string
   name: string
   floorId: string
   color: string
   order: number
-  rows: number
-  cols: number
+  mode: ZoneMode
+  rows: number      // grid 模式：行数；free 模式：闲置（保留 0）
+  cols: number      // grid 模式：列数；free 模式：闲置（保留 0）
+  maxRows: number   // free 模式：栅格行上限；grid 模式：闲置（默认等于 rows）
+  maxCols: number   // free 模式：栅格列上限；grid 模式：闲置（默认等于 cols）
   workstations: NewWorkstation[]
 }
 
@@ -58,6 +63,7 @@ export interface NewWorkstation {
   col: number
   personId?: string
   status: WorkstationStatus
+  nameCustomized?: boolean
 }
 
 export interface AttendanceRecord {
