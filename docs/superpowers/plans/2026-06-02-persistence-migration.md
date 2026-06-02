@@ -240,7 +240,7 @@ Create `lib/db/index.ts`:
 
 ```ts
 import { PrismaClient } from '@prisma/client'
-import { PrismaBetterSQLite3 } from '@prisma/adapter-better-sqlite3'
+import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3'
 
 declare global {
   var prisma: PrismaClient | undefined
@@ -249,7 +249,7 @@ declare global {
 export const prisma =
   global.prisma ??
   new PrismaClient({
-    adapter: new PrismaBetterSQLite3({ url: 'file:prisma/db.sqlite' }),
+    adapter: new PrismaBetterSqlite3({ url: 'file:prisma/db.sqlite' }),
     log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
   })
 
