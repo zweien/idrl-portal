@@ -14,29 +14,18 @@ import {
 } from '@/components/ui/tooltip'
 import { Badge } from '@/components/ui/badge'
 import { ZoomIn, ZoomOut } from 'lucide-react'
-
-const CELL_W = 70
-const CELL_H = 50
-const CELL_GAP = 6
-const ZONE_PAD = 16
-const ZONE_TITLE_H = 24
-const ZONE_GAP_X = 20
-const ZONE_GAP_Y = 20
-const ZONES_PER_ROW = 3
-
-const statusColors: Record<string, string> = {
-  online: 'fill-[oklch(0.7_0.2_145)]',
-  offline: 'fill-[oklch(0.4_0.02_260)]',
-  busy: 'fill-[oklch(0.65_0.2_45)]',
-  leave: 'fill-[oklch(0.5_0.15_300)]',
-}
-
-const statusLabels: Record<string, string> = {
-  online: '在位',
-  offline: '离开',
-  busy: '忙碌',
-  leave: '请假',
-}
+import {
+  CELL_W,
+  CELL_H,
+  CELL_GAP,
+  ZONE_PAD,
+  ZONE_TITLE_H,
+  ZONE_GAP_X,
+  ZONE_GAP_Y,
+  ZONES_PER_ROW,
+  statusColors,
+  statusLabels,
+} from '@/lib/floor-constants'
 
 interface ZoneLayout {
   id: string
