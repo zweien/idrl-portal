@@ -30,7 +30,7 @@ interface NewsDialogProps {
 
 export function NewsDialog({ initialData, trigger, onSubmit }: NewsDialogProps) {
   const isEdit = !!initialData
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(!!initialData)
   const [form, setForm] = useState({
     title: initialData?.title ?? '',
     type: initialData?.type ?? ('notice' as NewsType),

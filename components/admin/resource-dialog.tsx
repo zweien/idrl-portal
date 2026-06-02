@@ -41,7 +41,7 @@ interface ResourceDialogProps {
 
 export function ResourceDialog({ initialData, trigger, onSubmit }: ResourceDialogProps) {
   const isEdit = !!initialData
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(!!initialData)
   const [form, setForm] = useState({
     name: initialData?.name ?? '',
     type: initialData?.type ?? ('compute' as ResourceType),

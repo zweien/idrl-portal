@@ -12,7 +12,7 @@ import { PersonDialog } from '@/components/admin/person-dialog'
 import { ResourceDialog } from '@/components/admin/resource-dialog'
 import { NewsDialog } from '@/components/admin/news-dialog'
 import {
-  Users, Server, Newspaper, Trash2,
+  Users, Server, Newspaper, Pencil, Trash2,
   Database, RefreshCw, AlertTriangle, CheckCircle, Info,
   ShieldAlert, MapPin,
 } from 'lucide-react'

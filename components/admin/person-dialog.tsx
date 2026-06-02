@@ -36,7 +36,7 @@ interface PersonDialogProps {
 
 export function PersonDialog({ initialData, trigger, onSubmit }: PersonDialogProps) {
   const isEdit = !!initialData
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(!!initialData)
   const [form, setForm] = useState({
     name: initialData?.name ?? '',
     email: initialData?.email ?? '',
