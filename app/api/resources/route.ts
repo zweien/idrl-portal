@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server'
-import { mockResources } from '@/lib/mock-data'
+import { prisma } from '@/lib/db'
+import { toResource } from '@/lib/db/serialize'
 import type { Resource, ApiResponse, PaginatedResponse } from '@/lib/types'
-
-// In-memory storage (would be replaced with database)
-let resources = [...mockResources]
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -13,82 +11,31 @@ export async function GET(request: Request) {
   const status = searchParams.get('status')
   const search = searchParams.get('search')
 
-  let filtered = [...resources]
-
-  // Filter by type
-  if (type) {
-    filtered = filtered.filter(r => r.type === type)
-  }
-
-  // Filter by status
-  if (status) {
-    filtered = filtered.filter(r => r.status === status)
-  }
-
-  // Filter by search query
+  const where: { type?: string; status?: string; OR?: Array<Record<string, unknown>> } = {}
+  if (type) where.type = type
+  if (status) where.status = status
   if (search) {
-    const query = search.toLowerCase()
-    filtered = filtered.filter(r => 
-      r.name.toLowerCase().includes(query) ||
-      r.description.toLowerCase().includes(query)
-    )
+    const q = { contains: search }
+    where.OR = [{ name: q }, { description: q }]
   }
 
-  // Paginate
-  const total = filtered.length
+  const rows = (await prisma.resource.findMany({ where })).map(toResource)
+
+  const total = rows.length
   const totalPages = Math.ceil(total / pageSize)
   const start = (page - 1) * pageSize
-  const items = filtered.slice(start, start + pageSize)
+  const items = rows.slice(start, start + pageSize)
 
   const response: ApiResponse<PaginatedResponse<Resource>> = {
     success: true,
-    data: {
-      items,
-      total,
-      page,
-      pageSize,
-      totalPages,
-    },
+    data: { items, total, page, pageSize, totalPages },
   }
-
   return NextResponse.json(response)
 }
 
-export async function POST(request: Request) {
-  try {
-    const body = await request.json()
-    
-    if (!body.name || !body.type) {
-      return NextResponse.json(
-        { success: false, error: 'Name and type are required' },
-        { status: 400 }
-      )
-    }
-
-    const newResource: Resource = {
-      id: `r-${Date.now()}`,
-      name: body.name,
-      type: body.type,
-      description: body.description || '',
-      url: body.url,
-      status: body.status || 'available',
-      specs: body.specs || {},
-      accessLevel: body.accessLevel || 'member',
-    }
-
-    resources.push(newResource)
-
-    const response: ApiResponse<Resource> = {
-      success: true,
-      data: newResource,
-      message: 'Resource created successfully',
-    }
-
-    return NextResponse.json(response, { status: 201 })
-  } catch (error) {
-    return NextResponse.json(
-      { success: false, error: 'Invalid request body' },
-      { status: 400 }
-    )
-  }
+export async function POST() {
+  return NextResponse.json(
+    { success: false, error: 'POST /api/resources disabled. Use PUT /api/admin-data.' },
+    { status: 405 },
+  )
 }

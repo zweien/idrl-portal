@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server'
-import { mockNews } from '@/lib/mock-data'
+import { prisma } from '@/lib/db'
+import { toNewsItem } from '@/lib/db/serialize'
 import type { NewsItem, ApiResponse, PaginatedResponse } from '@/lib/types'
-
-// In-memory storage (would be replaced with database)
-let news = [...mockNews]
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -13,93 +11,53 @@ export async function GET(request: Request) {
   const pinned = searchParams.get('pinned')
   const search = searchParams.get('search')
 
-  let filtered = [...news]
-
-  // Filter by type
-  if (type) {
-    filtered = filtered.filter(n => n.type === type)
+  const where: { type?: string; OR?: Array<Record<string, unknown>> } = {}
+  if (type) where.type = type
+  if (search) {
+    const q = { contains: search }
+    where.OR = [{ title: q }, { content: q }]
+    // tags filter in memory (JSON column)
   }
 
-  // Filter by pinned
+  let rows = (await prisma.newsItem.findMany({ where })).map(toNewsItem)
+
+  // In-memory: pinned filter
   if (pinned === 'true') {
-    filtered = filtered.filter(n => n.pinned)
+    rows = rows.filter(n => n.pinned)
   }
 
-  // Filter by search query
+  // In-memory: tags search
   if (search) {
     const query = search.toLowerCase()
-    filtered = filtered.filter(n => 
+    rows = rows.filter(n =>
       n.title.toLowerCase().includes(query) ||
       n.content.toLowerCase().includes(query) ||
-      n.tags?.some(tag => tag.toLowerCase().includes(query))
+      n.tags?.some(tag => tag.toLowerCase().includes(query)),
     )
   }
 
-  // Sort by pinned first, then by date
-  filtered.sort((a, b) => {
+  // Sort: pinned first, then date desc
+  rows.sort((a, b) => {
     if (a.pinned && !b.pinned) return -1
     if (!a.pinned && b.pinned) return 1
     return new Date(b.date).getTime() - new Date(a.date).getTime()
   })
 
-  // Paginate
-  const total = filtered.length
+  const total = rows.length
   const totalPages = Math.ceil(total / pageSize)
   const start = (page - 1) * pageSize
-  const items = filtered.slice(start, start + pageSize)
+  const items = rows.slice(start, start + pageSize)
 
   const response: ApiResponse<PaginatedResponse<NewsItem>> = {
     success: true,
-    data: {
-      items,
-      total,
-      page,
-      pageSize,
-      totalPages,
-    },
+    data: { items, total, page, pageSize, totalPages },
   }
-
   return NextResponse.json(response)
 }
 
-export async function POST(request: Request) {
-  try {
-    const body = await request.json()
-    
-    if (!body.title || !body.type || !body.content) {
-      return NextResponse.json(
-        { success: false, error: 'Title, type, and content are required' },
-        { status: 400 }
-      )
-    }
-
-    const newNews: NewsItem = {
-      id: `n-${Date.now()}`,
-      type: body.type,
-      title: body.title,
-      content: body.content,
-      summary: body.summary,
-      author: body.author,
-      date: body.date || new Date().toISOString().split('T')[0],
-      tags: body.tags || [],
-      imageUrl: body.imageUrl,
-      link: body.link,
-      pinned: body.pinned || false,
-    }
-
-    news.unshift(newNews) // Add to beginning
-
-    const response: ApiResponse<NewsItem> = {
-      success: true,
-      data: newNews,
-      message: 'News item created successfully',
-    }
-
-    return NextResponse.json(response, { status: 201 })
-  } catch (error) {
-    return NextResponse.json(
-      { success: false, error: 'Invalid request body' },
-      { status: 400 }
-    )
-  }
+export async function POST() {
+  return NextResponse.json(
+    { success: false, error: 'POST /api/news disabled. Use PUT /api/admin-data.' },
+    { status: 405 },
+  )
 }
