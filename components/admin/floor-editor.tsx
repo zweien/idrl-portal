@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { Plus, Trash2, ChevronUp, ChevronDown, Lock } from 'lucide-react'
 import { ZoneFreeCanvas } from './zone-free-canvas'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip'
 
 interface FloorEditorProps {
   floors: Floor[]
@@ -80,8 +80,11 @@ export function FloorEditor({ floors, onChange }: FloorEditorProps) {
       floorId: selectedFloor.id,
       color: `oklch(0.65 0.15 ${Math.floor(Math.random() * 360)})`,
       order: selectedFloor.zones.length,
+      mode: 'grid' as const,
       rows: 2,
       cols: 3,
+      maxRows: 2,
+      maxCols: 3,
       workstations: [] as typeof selectedFloor.zones[0]['workstations'],
     }
     updateFloors(f =>
@@ -180,15 +183,43 @@ export function FloorEditor({ floors, onChange }: FloorEditorProps) {
     )
   }
 
+  const switchZoneMode = (zoneId: string, fromMode: 'grid' | 'free', toMode: 'grid' | 'free') => {
+    if (!selectedFloor) return
+    if (fromMode === 'free' && toMode === 'grid') return // 不允许
+
+    updateFloors(f =>
+      f.map(fl => fl.id === selectedFloor.id
+        ? {
+            ...fl,
+            zones: fl.zones.map(z => {
+              if (z.id !== zoneId) return z
+              if (fromMode === 'grid' && toMode === 'free') {
+                return {
+                  ...z,
+                  mode: 'free' as const,
+                  maxRows: z.rows,
+                  maxCols: z.cols,
+                  workstations: z.workstations.map(w => ({ ...w, nameCustomized: false })),
+                }
+              }
+              return z
+            }),
+          }
+        : fl,
+      ),
+    )
+  }
+
   const sortedFloors = [...floors].sort((a, b) => a.order - b.order)
   const sortedZones = selectedFloor
     ? [...selectedFloor.zones].sort((a, b) => a.order - b.order)
     : []
 
   return (
-    <div className="space-y-5">
-      <section>
-        <h3 className="text-sm font-medium mb-2">楼层管理</h3>
+    <TooltipProvider delayDuration={200}>
+      <div className="space-y-5">
+        <section>
+          <h3 className="text-sm font-medium mb-2">楼层管理</h3>
         <div className="space-y-1.5">
           {sortedFloors.map(floor => (
             <div
@@ -269,7 +300,37 @@ export function FloorEditor({ floors, onChange }: FloorEditorProps) {
 
       {selectedZone && (
         <section>
-          <h3 className="text-sm font-medium mb-2">工位设置 · {selectedZone.name}</h3>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium">工位设置 · {selectedZone.name}</h3>
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                {selectedZone.mode === 'grid' ? '网格模式' : '自由模式'}
+              </span>
+              {selectedZone.mode === 'grid' ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-6 text-xs"
+                  onClick={() => switchZoneMode(selectedZone.id, 'grid', 'free')}
+                >
+                  切换为自由模式
+                </Button>
+              ) : (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span>
+                      <Button size="sm" variant="outline" className="h-6 text-xs" disabled>
+                        <Lock className="h-3 w-3 mr-1" />切换为网格模式
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    自由模式无法转回网格（会丢失稀疏布局）。请删除区域后重建。
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </div>
+          </div>
 
           <div className="grid grid-cols-2 gap-3 mb-3">
             <div className="space-y-1.5">
@@ -345,6 +406,7 @@ export function FloorEditor({ floors, onChange }: FloorEditorProps) {
           />
         </section>
       )}
-    </div>
+      </div>
+    </TooltipProvider>
   )
 }
