@@ -6,7 +6,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
-import { Plus, Trash2, ChevronUp, ChevronDown } from 'lucide-react'
+import { Plus, Trash2, ChevronUp, ChevronDown, Lock } from 'lucide-react'
+import { ZoneFreeCanvas } from './zone-free-canvas'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 interface FloorEditorProps {
   floors: Floor[]
@@ -136,6 +138,48 @@ export function FloorEditor({ floors, onChange }: FloorEditorProps) {
     )
   }
 
+  const updateMaxSize = (zoneId: string, key: 'maxRows' | 'maxCols', value: number) => {
+    if (!selectedFloor) return
+    updateFloors(f =>
+      f.map(fl => fl.id === selectedFloor.id
+        ? {
+            ...fl,
+            zones: fl.zones.map(z => z.id === zoneId ? { ...z, [key]: value } : z),
+          }
+        : fl,
+      ),
+    )
+  }
+
+  const validateMaxSize = (zoneId: string, key: 'maxRows' | 'maxCols', value: number) => {
+    if (!selectedFloor) return
+    const zone = selectedFloor.zones.find(z => z.id === zoneId)
+    if (!zone) return
+    const workstations = zone.workstations
+    const usedMax = key === 'maxRows'
+      ? Math.max(-1, ...workstations.map(w => w.row)) + 1
+      : Math.max(-1, ...workstations.map(w => w.col)) + 1
+    const safe = Math.max(1, value, usedMax)
+    if (safe !== value) {
+      // 回退到安全值（toast 在下个任务加，这里直接 alert）
+      alert(`无法缩小到 ${value}（现有工位需要至少 ${usedMax}），已自动调整`)
+      updateMaxSize(zoneId, key, safe)
+    }
+  }
+
+  const updateZoneFully = (zoneId: string, updated: typeof selectedFloor.zones[0]) => {
+    if (!selectedFloor) return
+    updateFloors(f =>
+      f.map(fl => fl.id === selectedFloor.id
+        ? {
+            ...fl,
+            zones: fl.zones.map(z => z.id === zoneId ? updated : z),
+          }
+        : fl,
+      ),
+    )
+  }
+
   const sortedFloors = [...floors].sort((a, b) => a.order - b.order)
   const sortedZones = selectedFloor
     ? [...selectedFloor.zones].sort((a, b) => a.order - b.order)
@@ -226,33 +270,79 @@ export function FloorEditor({ floors, onChange }: FloorEditorProps) {
       {selectedZone && (
         <section>
           <h3 className="text-sm font-medium mb-2">工位设置 · {selectedZone.name}</h3>
-          <div className="grid grid-cols-2 gap-3">
+
+          <div className="grid grid-cols-2 gap-3 mb-3">
             <div className="space-y-1.5">
-              <Label className="text-xs">行数</Label>
+              <Label className="text-xs">
+                {selectedZone.mode === 'free' ? '最大行数' : '行数'}
+              </Label>
               <Input
                 type="number"
                 min={1}
-                max={20}
-                value={selectedZone.rows}
-                onChange={e => updateZoneGrid(Number(e.target.value) || 1, selectedZone.cols)}
+                max={50}
+                value={selectedZone.mode === 'free' ? selectedZone.maxRows : selectedZone.rows}
+                onChange={e => {
+                  const v = Number(e.target.value) || 1
+                  if (selectedZone.mode === 'free') {
+                    updateMaxSize(selectedZone.id, 'maxRows', v)
+                  } else {
+                    updateZoneGrid(v, selectedZone.cols)
+                  }
+                }}
+                onBlur={e => {
+                  if (selectedZone.mode === 'free') {
+                    validateMaxSize(selectedZone.id, 'maxRows', Number(e.target.value) || 1)
+                  }
+                }}
                 className="h-8 text-sm"
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">列数</Label>
+              <Label className="text-xs">
+                {selectedZone.mode === 'free' ? '最大列数' : '列数'}
+              </Label>
               <Input
                 type="number"
                 min={1}
-                max={20}
-                value={selectedZone.cols}
-                onChange={e => updateZoneGrid(selectedZone.rows, Number(e.target.value) || 1)}
+                max={50}
+                value={selectedZone.mode === 'free' ? selectedZone.maxCols : selectedZone.cols}
+                onChange={e => {
+                  const v = Number(e.target.value) || 1
+                  if (selectedZone.mode === 'free') {
+                    updateMaxSize(selectedZone.id, 'maxCols', v)
+                  } else {
+                    updateZoneGrid(selectedZone.rows, v)
+                  }
+                }}
+                onBlur={e => {
+                  if (selectedZone.mode === 'free') {
+                    validateMaxSize(selectedZone.id, 'maxCols', Number(e.target.value) || 1)
+                  }
+                }}
                 className="h-8 text-sm"
               />
             </div>
           </div>
-          <p className="text-xs text-muted-foreground mt-2">
-            将生成 {selectedZone.rows} × {selectedZone.cols} = {selectedZone.rows * selectedZone.cols} 个工位
-          </p>
+
+          {selectedZone.mode === 'grid' ? (
+            <p className="text-xs text-muted-foreground">
+              将生成 {selectedZone.rows} × {selectedZone.cols} = {selectedZone.rows * selectedZone.cols} 个工位
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              当前 {selectedZone.workstations.length} / {selectedZone.maxRows * selectedZone.maxCols} 个工位
+            </p>
+          )}
+        </section>
+      )}
+
+      {selectedZone && selectedZone.mode === 'free' && (
+        <section>
+          <h3 className="text-sm font-medium mb-2">自由布局画布 · {selectedZone.name}</h3>
+          <ZoneFreeCanvas
+            zone={selectedZone}
+            onChange={updated => updateZoneFully(selectedZone.id, updated)}
+          />
         </section>
       )}
     </div>
