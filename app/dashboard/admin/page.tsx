@@ -1,11 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-import { mockPersonnel, mockResources, mockNews } from '@/lib/mock-data'
+import { useAdminData, putJSON } from '@/lib/api'
+import { isEqual } from 'lodash-es'
 import type { Person, Resource, NewsItem } from '@/lib/types'
 import { useAuth } from '@/lib/auth-context'
 import { PersonDialog } from '@/components/admin/person-dialog'
@@ -13,8 +14,8 @@ import { ResourceDialog } from '@/components/admin/resource-dialog'
 import { NewsDialog } from '@/components/admin/news-dialog'
 import {
   Users, Server, Newspaper, Pencil, Trash2,
-  Database, RefreshCw, AlertTriangle, CheckCircle, Info,
-  ShieldAlert, MapPin,
+  Database, AlertTriangle, CheckCircle, Info,
+  ShieldAlert, MapPin, Save,
 } from 'lucide-react'
 
 /* ── Labels ─────────────────────────────────────── */
@@ -124,9 +125,64 @@ function ApiCard({ method, endpoint, description }: { method: string; endpoint: 
 /* ── Page ───────────────────────────────────────── */
 export default function AdminPage() {
   const { user } = useAuth()
-  const [personnelData, setPersonnelData] = useState(mockPersonnel)
-  const [resourcesData, setResourcesData] = useState(mockResources)
-  const [newsData, setNewsData]           = useState(mockNews)
+  // Server state via SWR
+  const { data, mutate } = useAdminData()
+
+  // Local draft state (null = not yet loaded)
+  const [personnelData, setPersonnelData] = useState<Person[] | null>(null)
+  const [resourcesData, setResourcesData] = useState<Resource[] | null>(null)
+  const [newsData, setNewsData]           = useState<NewsItem[] | null>(null)
+
+  // Sync server → local on first load
+  useEffect(() => {
+    if (data?.personnel && personnelData === null) setPersonnelData(data.personnel)
+  }, [data?.personnel, personnelData])
+  useEffect(() => {
+    if (data?.resources && resourcesData === null) setResourcesData(data.resources)
+  }, [data?.resources, resourcesData])
+  useEffect(() => {
+    if (data?.news && newsData === null) setNewsData(data.news)
+  }, [data?.news, newsData])
+
+  // Dirty = any of the three differs from server
+  const dirty = useMemo(() => {
+    if (!data) return false
+    return (
+      (!!personnelData && !isEqual(personnelData, data.personnel)) ||
+      (!!resourcesData && !isEqual(resourcesData, data.resources)) ||
+      (!!newsData && !isEqual(newsData, data.news))
+    )
+  }, [data, personnelData, resourcesData, newsData])
+
+  // Save logic
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+
+  async function save() {
+    if (!personnelData || !resourcesData || !newsData || saving) return
+    setSaving(true)
+    setSaveError(null)
+    try {
+      await putJSON('/api/admin-data', {
+        personnel: personnelData,
+        news: newsData,
+        resources: resourcesData,
+      })
+      await mutate()
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // beforeunload guard
+  useEffect(() => {
+    if (!dirty) return
+    const h = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', h)
+    return () => window.removeEventListener('beforeunload', h)
+  }, [dirty])
 
   const [editingPerson, setEditingPerson]     = useState<Person | null>(null)
   const [editingResource, setEditingResource] = useState<Resource | null>(null)
@@ -150,6 +206,15 @@ export default function AdminPage() {
     )
   }
 
+  if (!personnelData || !resourcesData || !newsData) {
+    return (
+      <div className="space-y-4 py-2">
+        <h1 className="text-xl font-semibold tracking-tight">信息管理</h1>
+        <p className="text-sm text-muted-foreground">加载中...</p>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4 py-2">
       {/* Header */}
@@ -158,12 +223,16 @@ export default function AdminPage() {
           <h1 className="text-xl font-semibold tracking-tight">信息管理</h1>
           <p className="text-sm text-muted-foreground mt-0.5">管理人员、资源和动态信息</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-xs font-normal gap-1">
-            <Database className="h-3 w-3" />本地数据
-          </Badge>
-          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
-            <RefreshCw className="h-3.5 w-3.5" />同步数据
+        <div className="flex items-center gap-3">
+          {dirty && (
+            <span className="text-xs text-amber-600 font-medium">● 未保存改动</span>
+          )}
+          {saveError && (
+            <span className="text-xs text-destructive">保存失败：{saveError}</span>
+          )}
+          <Button size="sm" className="h-8 text-xs gap-1.5" onClick={save} disabled={!dirty || saving}>
+            <Save className="h-3.5 w-3.5" />
+            {saving ? '保存中...' : '保存'}
           </Button>
         </div>
       </div>
@@ -206,7 +275,7 @@ export default function AdminPage() {
                 <p className="text-sm font-medium">人员管理</p>
                 <p className="text-xs text-muted-foreground mt-0.5">管理实验室人员信息</p>
               </div>
-              <PersonDialog onSubmit={p => setPersonnelData(prev => [...prev, p])} />
+              <PersonDialog onSubmit={p => setPersonnelData(prev => [...prev!, p])} />
             </div>
             <div className="px-4">
               <DataTable
@@ -222,14 +291,14 @@ export default function AdminPage() {
                   )},
                 ]}
                 onEdit={item => setEditingPerson(item)}
-                onDelete={item => setPersonnelData(prev => prev.filter(p => p.id !== item.id))}
+                onDelete={item => setPersonnelData(prev => prev!.filter(p => p.id !== item.id))}
               />
             </div>
           </div>
           {editingPerson && (
             <PersonDialog
               initialData={editingPerson}
-              onSubmit={updated => { setPersonnelData(prev => prev.map(p => p.id === updated.id ? updated : p)); setEditingPerson(null) }}
+              onSubmit={updated => { setPersonnelData(prev => prev!.map(p => p.id === updated.id ? updated : p)); setEditingPerson(null) }}
             />
           )}
         </TabsContent>
@@ -241,7 +310,7 @@ export default function AdminPage() {
                 <p className="text-sm font-medium">资源管理</p>
                 <p className="text-xs text-muted-foreground mt-0.5">管理实验室资源信息</p>
               </div>
-              <ResourceDialog onSubmit={r => setResourcesData(prev => [...prev, r])} />
+              <ResourceDialog onSubmit={r => setResourcesData(prev => [...prev!, r])} />
             </div>
             <div className="px-4">
               <DataTable
@@ -261,14 +330,14 @@ export default function AdminPage() {
                   ) : <span className="text-muted-foreground">—</span> },
                 ]}
                 onEdit={item => setEditingResource(item)}
-                onDelete={item => setResourcesData(prev => prev.filter(r => r.id !== item.id))}
+                onDelete={item => setResourcesData(prev => prev!.filter(r => r.id !== item.id))}
               />
             </div>
           </div>
           {editingResource && (
             <ResourceDialog
               initialData={editingResource}
-              onSubmit={updated => { setResourcesData(prev => prev.map(r => r.id === updated.id ? updated : r)); setEditingResource(null) }}
+              onSubmit={updated => { setResourcesData(prev => prev!.map(r => r.id === updated.id ? updated : r)); setEditingResource(null) }}
             />
           )}
         </TabsContent>
@@ -280,7 +349,7 @@ export default function AdminPage() {
                 <p className="text-sm font-medium">动态管理</p>
                 <p className="text-xs text-muted-foreground mt-0.5">管理实验室新闻与通知</p>
               </div>
-              <NewsDialog onSubmit={n => setNewsData(prev => [n, ...prev])} />
+              <NewsDialog onSubmit={n => setNewsData(prev => [n, ...prev!])} />
             </div>
             <div className="px-4">
               <DataTable
@@ -301,14 +370,14 @@ export default function AdminPage() {
                   },
                 ]}
                 onEdit={item => setEditingNews(item)}
-                onDelete={item => setNewsData(prev => prev.filter(n => n.id !== item.id))}
+                onDelete={item => setNewsData(prev => prev!.filter(n => n.id !== item.id))}
               />
             </div>
           </div>
           {editingNews && (
             <NewsDialog
               initialData={editingNews}
-              onSubmit={updated => { setNewsData(prev => prev.map(n => n.id === updated.id ? updated : n)); setEditingNews(null) }}
+              onSubmit={updated => { setNewsData(prev => prev!.map(n => n.id === updated.id ? updated : n)); setEditingNews(null) }}
             />
           )}
         </TabsContent>
