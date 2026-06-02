@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import type { Floor } from '@/lib/types'
+import type { Floor, Zone } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -170,7 +170,7 @@ export function FloorEditor({ floors, onChange }: FloorEditorProps) {
     }
   }
 
-  const updateZoneFully = (zoneId: string, updated: typeof selectedFloor.zones[0]) => {
+  const updateZoneFully = (zoneId: string, updated: Zone) => {
     if (!selectedFloor) return
     updateFloors(f =>
       f.map(fl => fl.id === selectedFloor.id
