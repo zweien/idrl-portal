@@ -34,14 +34,16 @@ export async function PUT(req: NextRequest) {
   }
 
   try {
-    // Delete + recreate all three tables
-    await prisma.person.deleteMany({})
-    await prisma.newsItem.deleteMany({})
-    await prisma.resource.deleteMany({})
+    // Atomic replace: delete + recreate all three tables in one transaction.
+    await prisma.$transaction(async (tx) => {
+      await tx.person.deleteMany({})
+      await tx.newsItem.deleteMany({})
+      await tx.resource.deleteMany({})
 
-    await prisma.person.createMany({ data: body.personnel.map(fromPerson) })
-    await prisma.newsItem.createMany({ data: body.news.map(fromNewsItem) })
-    await prisma.resource.createMany({ data: body.resources.map(fromResource) })
+      await tx.person.createMany({ data: body.personnel.map(fromPerson) })
+      await tx.newsItem.createMany({ data: body.news.map(fromNewsItem) })
+      await tx.resource.createMany({ data: body.resources.map(fromResource) })
+    })
 
     return NextResponse.json({ ok: true })
   } catch (e) {

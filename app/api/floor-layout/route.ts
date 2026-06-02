@@ -49,22 +49,21 @@ export async function PUT(req: NextRequest) {
   }
 
   try {
-    // Clear all 3 tables. Same flat pattern as seed.ts: Workstation has two
-    // parent FKs (zoneId + floorId) which makes Prisma nested writes awkward,
-    // so we delete + recreate in three separate calls.
-    await prisma.workstation.deleteMany({})
-    await prisma.zone.deleteMany({})
-    await prisma.floor.deleteMany({})
+    // Atomic replace: delete all then recreate everything in one transaction.
+    await prisma.$transaction(async (tx) => {
+      await tx.workstation.deleteMany({})
+      await tx.zone.deleteMany({})
+      await tx.floor.deleteMany({})
 
-    // Flat re-create (matches seed.ts pattern)
-    await prisma.floor.createMany({
-      data: body.floors.map(f => ({ id: f.id, name: f.name, order: f.order })),
-    })
-    await prisma.zone.createMany({
-      data: body.floors.flatMap(f => f.zones.map(fromZone)),
-    })
-    await prisma.workstation.createMany({
-      data: body.floors.flatMap(f => f.zones.flatMap(z => z.workstations.map(fromWorkstation))),
+      await tx.floor.createMany({
+        data: body.floors.map(f => ({ id: f.id, name: f.name, order: f.order })),
+      })
+      await tx.zone.createMany({
+        data: body.floors.flatMap(f => f.zones.map(fromZone)),
+      })
+      await tx.workstation.createMany({
+        data: body.floors.flatMap(f => f.zones.flatMap(z => z.workstations.map(fromWorkstation))),
+      })
     })
 
     return NextResponse.json({ ok: true })
