@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useRef, useCallback } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import type { Zone, NewWorkstation } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -132,10 +132,8 @@ function CanvasSurface({
 
   const DRAG_THRESHOLD = 4
 
-  const findWsByCell = useCallback(
-    (r: number, c: number) => zone.workstations.find(ws => ws.row === r && ws.col === c),
-    [zone.workstations],
-  )
+  const findWsByCell = (r: number, c: number) =>
+    zone.workstations.find(ws => ws.row === r && ws.col === c)
 
   const pointToCell = (clientX: number, clientY: number): { r: number; c: number } | null => {
     const svg = svgRef.current
@@ -204,7 +202,7 @@ function CanvasSurface({
     setDragStart(cell)
     setDragEnd(cell)
     setHasDragged(false)
-    ;(e.target as Element).setPointerCapture?.(e.pointerId)
+    svgRef.current?.setPointerCapture?.(e.pointerId)
   }
 
   const handlePointerMove = (e: React.PointerEvent) => {
@@ -220,7 +218,7 @@ function CanvasSurface({
   }
 
   const handlePointerUp = (e: React.PointerEvent) => {
-    ;(e.target as Element).releasePointerCapture?.(e.pointerId)
+    svgRef.current?.releasePointerCapture?.(e.pointerId)
     if (!dragStart) return
 
     if (!hasDragged) {
