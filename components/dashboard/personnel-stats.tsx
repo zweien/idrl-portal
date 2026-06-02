@@ -1,16 +1,20 @@
 'use client'
 
 import { useMemo } from 'react'
-import { mockPersonnel } from '@/lib/mock-data'
+import type { Person } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
-export default function PersonnelStats() {
+interface Props {
+  personnel: Person[]
+}
+
+export default function PersonnelStats({ personnel }: Props) {
   const stats = useMemo(() => {
-    const total = mockPersonnel.length
-    const online = mockPersonnel.filter(p => p.status === 'online').length
-    const busy = mockPersonnel.filter(p => p.status === 'busy').length
-    const offline = mockPersonnel.filter(p => p.status === 'offline').length
-    const leave = mockPersonnel.filter(p => p.status === 'leave').length
+    const total = personnel.length
+    const online = personnel.filter(p => p.status === 'online').length
+    const busy = personnel.filter(p => p.status === 'busy').length
+    const offline = personnel.filter(p => p.status === 'offline').length
+    const leave = personnel.filter(p => p.status === 'leave').length
 
     return [
       { label: '总人数', value: total, color: 'text-foreground' },
@@ -19,7 +23,7 @@ export default function PersonnelStats() {
       { label: '离开', value: offline, color: 'text-muted-foreground' },
       { label: '请假', value: leave, color: 'text-[oklch(0.5_0.15_300)]' },
     ]
-  }, [])
+  }, [personnel])
 
   return (
     <div className="flex flex-wrap gap-4">

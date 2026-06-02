@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useMemo, useCallback } from 'react'
-import { mockPersonnel } from '@/lib/mock-data'
 import type { Floor, NewWorkstation, Person } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -44,7 +43,7 @@ interface ZoneLayout {
   }>
 }
 
-function layoutZones(floor: Floor): { zones: ZoneLayout[]; svgW: number; svgH: number } {
+function layoutZones(floor: Floor, personnel: Person[]): { zones: ZoneLayout[]; svgW: number; svgH: number } {
   const sorted = [...floor.zones].sort((a, b) => a.order - b.order)
   const zones: ZoneLayout[] = []
 
@@ -67,7 +66,7 @@ function layoutZones(floor: Floor): { zones: ZoneLayout[]; svgW: number; svgH: n
 
     const wsPositions = zone.workstations.map(ws => ({
       ws,
-      person: ws.personId ? mockPersonnel.find(p => p.id === ws.personId) : undefined,
+      person: ws.personId ? personnel.find(p => p.id === ws.personId) : undefined,
       x: curX + ZONE_PAD + ws.col * (CELL_W + CELL_GAP),
       y: curY + ZONE_TITLE_H + ZONE_PAD + ws.row * (CELL_H + CELL_GAP),
     }))
@@ -96,19 +95,20 @@ function layoutZones(floor: Floor): { zones: ZoneLayout[]; svgW: number; svgH: n
 
 interface FloorPlanProps {
   floor: Floor
+  personnel: Person[]
   onSelectWorkstation?: (workstation: NewWorkstation, person?: Person) => void
   selectedWorkstationId?: string
   readOnly?: boolean
 }
 
-export function FloorPlan({ floor, onSelectWorkstation, selectedWorkstationId, readOnly }: FloorPlanProps) {
+export function FloorPlan({ floor, personnel, onSelectWorkstation, selectedWorkstationId, readOnly }: FloorPlanProps) {
   const [hoveredWs, setHoveredWs] = useState<string | null>(null)
   const [zoom, setZoom] = useState(1)
 
-  const { zones, svgW, svgH } = useMemo(() => layoutZones(floor), [floor])
+  const { zones, svgW, svgH } = useMemo(() => layoutZones(floor, personnel), [floor, personnel])
 
-  const handleZoomIn = useCallback(() => setZoom(z => Math.min(z + 0.15, 2)))
-  const handleZoomOut = useCallback(() => setZoom(z => Math.max(z - 0.15, 0.4)))
+  const handleZoomIn = useCallback(() => setZoom(z => Math.min(z + 0.15, 2)), [])
+  const handleZoomOut = useCallback(() => setZoom(z => Math.max(z - 0.15, 0.4)), [])
 
   return (
     <TooltipProvider delayDuration={200}>

@@ -150,6 +150,7 @@ export default function PersonnelPage() {
             {activeFloor && (
               <FloorPlan
                 floor={activeFloor}
+                personnel={personnel}
                 onSelectWorkstation={handleWsSelect}
                 selectedWorkstationId={selectedWs?.id}
               />
