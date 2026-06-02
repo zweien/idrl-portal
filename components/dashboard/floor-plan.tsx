@@ -35,6 +35,7 @@ interface ZoneLayout {
   y: number
   width: number
   height: number
+  mode: 'grid' | 'free'
   wsPositions: Array<{
     ws: NewWorkstation
     person?: Person
@@ -52,8 +53,11 @@ function layoutZones(floor: Floor): { zones: ZoneLayout[]; svgW: number; svgH: n
   let rowMaxH = 0
 
   for (const zone of sorted) {
-    const zoneW = ZONE_PAD * 2 + zone.cols * (CELL_W + CELL_GAP) - CELL_GAP
-    const zoneH = ZONE_TITLE_H + ZONE_PAD + zone.rows * (CELL_H + CELL_GAP) - CELL_GAP + ZONE_PAD
+    const gridCols = zone.mode === 'free' ? zone.maxCols : zone.cols
+    const gridRows = zone.mode === 'free' ? zone.maxRows : zone.rows
+
+    const zoneW = ZONE_PAD * 2 + gridCols * (CELL_W + CELL_GAP) - CELL_GAP
+    const zoneH = ZONE_TITLE_H + ZONE_PAD + gridRows * (CELL_H + CELL_GAP) - CELL_GAP + ZONE_PAD
 
     if (curX + zoneW + ZONE_GAP_X > ZONES_PER_ROW * (200 + ZONE_GAP_X) && curX > ZONE_GAP_X) {
       curY += rowMaxH + ZONE_GAP_Y
@@ -76,6 +80,7 @@ function layoutZones(floor: Floor): { zones: ZoneLayout[]; svgW: number; svgH: n
       y: curY,
       width: zoneW,
       height: zoneH,
+      mode: zone.mode,
       wsPositions,
     })
 
@@ -147,6 +152,29 @@ export function FloorPlan({ floor, onSelectWorkstation, selectedWorkstationId, r
                     strokeDasharray="6 3"
                     opacity="0.6"
                   />
+                  {zone.mode === 'free' && (() => {
+                    const z = floor.zones.find(zz => zz.id === zone.id)!
+                    const cells = []
+                    for (let r = 0; r < z.maxRows; r++) {
+                      for (let c = 0; c < z.maxCols; c++) {
+                        cells.push(
+                          <rect
+                            key={`g-${zone.id}-${r}-${c}`}
+                            x={zone.x + ZONE_PAD + c * (CELL_W + CELL_GAP)}
+                            y={zone.y + ZONE_TITLE_H + ZONE_PAD + r * (CELL_H + CELL_GAP)}
+                            width={CELL_W}
+                            height={CELL_H}
+                            rx="6"
+                            fill="none"
+                            className="stroke-muted-foreground/15"
+                            strokeWidth="1"
+                            strokeDasharray="3 3"
+                          />,
+                        )
+                      }
+                    }
+                    return <g>{cells}</g>
+                  })()}
                   <text
                     x={zone.x + ZONE_PAD}
                     y={zone.y + ZONE_TITLE_H - 4}
