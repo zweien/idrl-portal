@@ -226,12 +226,21 @@ git commit -m "feat(db): init Prisma with SQLite schema for all mock entities"
 - Create: `lib/db/index.ts`
 - Create: `lib/db/serialize.ts`
 
+- [ ] **Step 0: 装 Prisma 7 SQLite adapter**
+
+Prisma 7 强制 driver adapter。先装：
+
+```bash
+pnpm add @prisma/adapter-better-sqlite3 better-sqlite3
+```
+
 - [ ] **Step 1: 写单例**
 
 Create `lib/db/index.ts`:
 
 ```ts
 import { PrismaClient } from '@prisma/client'
+import { PrismaBetterSQLite3 } from '@prisma/adapter-better-sqlite3'
 
 declare global {
   var prisma: PrismaClient | undefined
@@ -240,6 +249,7 @@ declare global {
 export const prisma =
   global.prisma ??
   new PrismaClient({
+    adapter: new PrismaBetterSQLite3({ url: 'file:prisma/db.sqlite' }),
     log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
   })
 
