@@ -30,3 +30,7 @@ next-env.d.ts
 
 # superpowers brainstorm
 .superpowers/
+
+# prisma local db
+prisma/db.sqlite
+prisma/db.sqlite-journal

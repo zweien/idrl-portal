@@ -1,0 +1,85 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Floor {
+  id           String         @id
+  name         String
+  order        Int
+  zones        Zone[]
+  workstations Workstation[]
+}
+
+model Zone {
+  id           String        @id
+  name         String
+  floorId      String
+  floor        Floor         @relation(fields: [floorId], references: [id], onDelete: Cascade)
+  color        String
+  order        Int
+  mode         String
+  rows         Int
+  cols         Int
+  maxRows      Int
+  maxCols      Int
+  workstations Workstation[]
+}
+
+model Workstation {
+  id             String   @id
+  name           String
+  zoneId         String
+  zone           Zone     @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  floorId        String
+  floor          Floor    @relation(fields: [floorId], references: [id], onDelete: Cascade)
+  row            Int
+  col            Int
+  personId       String?
+  person         Person?  @relation(fields: [personId], references: [id], onDelete: SetNull)
+  status         String
+  nameCustomized Boolean  @default(false)
+}
+
+model Person {
+  id             String        @id
+  name           String
+  role           String
+  email          String?
+  phone          String?
+  dingUserId     String?
+  status         String
+  lastSeen       String?
+  researchAreas  String?
+  avatar         String?
+  workstations   Workstation[]
+}
+
+model NewsItem {
+  id       String  @id
+  type     String
+  title    String
+  content  String
+  summary  String?
+  author   String?
+  date     String
+  tags     String?
+  imageUrl String?
+  link     String?
+  pinned   Boolean @default(false)
+}
+
+model Resource {
+  id          String  @id
+  name        String
+  type        String
+  description String
+  url         String?
+  icon        String?
+  status      String
+  specs       String?
+  accessLevel String
+}
