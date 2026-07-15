@@ -22,8 +22,8 @@ import {
   ZONE_GAP_X,
   ZONE_GAP_Y,
   ZONES_PER_ROW,
-  LEGEND_HEIGHT,
   statusColors,
+  statusBg,
   statusLabels,
 } from '@/lib/floor-constants'
 
@@ -89,7 +89,7 @@ function layoutZones(floor: Floor, personnel: Person[]): { zones: ZoneLayout[]; 
   }
 
   const svgW = Math.max(400, ...zones.map(z => z.x + z.width + ZONE_GAP_X))
-  const svgH = Math.max(300, ...zones.map(z => z.y + z.height + ZONE_GAP_Y)) + LEGEND_HEIGHT
+  const svgH = Math.max(300, ...zones.map(z => z.y + z.height + ZONE_GAP_Y))
 
   return { zones, svgW, svgH }
 }
@@ -122,6 +122,18 @@ export function FloorPlan({ floor, personnel, onSelectWorkstation, selectedWorks
           <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={handleZoomIn}>
             <ZoomIn className="h-3.5 w-3.5" />
           </Button>
+        </div>
+
+        <div className="absolute top-12 right-2 z-10 bg-card/80 backdrop-blur-sm border border-border rounded-md px-2.5 py-1.5 space-y-1 pointer-events-none">
+          <p className="text-[10px] font-medium text-muted-foreground">状态图例</p>
+          <ul className="space-y-0.5">
+            {Object.entries(statusLabels).map(([status, label]) => (
+              <li key={status} className="flex items-center gap-1.5 text-[9px] text-muted-foreground">
+                <span className={cn('inline-block h-2 w-2 rounded-full', statusBg[status])} />
+                {label}
+              </li>
+            ))}
+          </ul>
         </div>
 
         <ScrollArea className="h-[600px] w-full rounded-md">
@@ -281,16 +293,6 @@ export function FloorPlan({ floor, personnel, onSelectWorkstation, selectedWorks
                   })}
                 </g>
               ))}
-
-              <g transform={`translate(${svgW - 90}, ${svgH - 70})`}>
-                <text x="0" y="0" className="fill-muted-foreground text-[10px] font-medium">状态图例</text>
-                {Object.entries(statusLabels).map(([status, label], i) => (
-                  <g key={status} transform={`translate(0, ${15 + i * 14})`}>
-                    <circle cx="6" cy="0" r="4" className={statusColors[status]} />
-                    <text x="16" y="3" className="fill-muted-foreground text-[9px]">{label}</text>
-                  </g>
-                ))}
-              </g>
             </svg>
           </div>
         </ScrollArea>
