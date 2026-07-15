@@ -7,6 +7,10 @@ export const ZONE_GAP_X = 20
 export const ZONE_GAP_Y = 20
 export const ZONES_PER_ROW = 3
 
+// Vertical space reserved below the zones for the in-SVG status legend
+// (title + 4 status rows). Without this the legend overlaps the bottom-right zone.
+export const LEGEND_HEIGHT = 80
+
 export const statusColors: Record<string, string> = {
   online: 'fill-[oklch(0.7_0.2_145)]',
   offline: 'fill-[oklch(0.4_0.02_260)]',

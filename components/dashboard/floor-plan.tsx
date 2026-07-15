@@ -22,6 +22,7 @@ import {
   ZONE_GAP_X,
   ZONE_GAP_Y,
   ZONES_PER_ROW,
+  LEGEND_HEIGHT,
   statusColors,
   statusLabels,
 } from '@/lib/floor-constants'
@@ -88,7 +89,7 @@ function layoutZones(floor: Floor, personnel: Person[]): { zones: ZoneLayout[]; 
   }
 
   const svgW = Math.max(400, ...zones.map(z => z.x + z.width + ZONE_GAP_X))
-  const svgH = Math.max(300, ...zones.map(z => z.y + z.height + ZONE_GAP_Y))
+  const svgH = Math.max(300, ...zones.map(z => z.y + z.height + ZONE_GAP_Y)) + LEGEND_HEIGHT
 
   return { zones, svgW, svgH }
 }
