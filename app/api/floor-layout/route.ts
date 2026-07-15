@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { toFloor, fromZone, fromWorkstation } from '@/lib/db/serialize'
+import { requireUser, requireAdmin } from '@/lib/auth-api'
 import type { Zone, NewWorkstation } from '@/lib/types'
 
 interface FloorLayoutBody {
@@ -25,6 +26,9 @@ interface FloorLayoutBody {
 }
 
 export async function GET() {
+  const auth = await requireUser()
+  if (auth instanceof NextResponse) return auth
+
   const floors = await prisma.floor.findMany({
     orderBy: { order: 'asc' },
     include: {
@@ -38,6 +42,9 @@ export async function GET() {
 }
 
 export async function PUT(req: NextRequest) {
+  const auth = await requireAdmin()
+  if (auth instanceof NextResponse) return auth
+
   let body: FloorLayoutBody
   try {
     body = await req.json()
