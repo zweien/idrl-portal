@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { toNewsItem } from '@/lib/db/serialize'
+import { requireUser, requireAdmin } from '@/lib/auth-api'
 import type { NewsItem, ApiResponse, PaginatedResponse } from '@/lib/types'
 
 export async function GET(request: Request) {
+  const auth = await requireUser()
+  if (auth instanceof NextResponse) return auth
+
   const { searchParams } = new URL(request.url)
   const page = parseInt(searchParams.get('page') || '1')
   const pageSize = parseInt(searchParams.get('pageSize') || '20')
@@ -56,6 +60,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST() {
+  const auth = await requireAdmin()
+  if (auth instanceof NextResponse) return auth
+
   return NextResponse.json(
     { success: false, error: 'POST /api/news disabled. Use PUT /api/admin-data.' },
     { status: 405 },

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { toPerson, toNewsItem, toResource, fromPerson, fromNewsItem, fromResource } from '@/lib/db/serialize'
+import { requireUser, requireAdmin } from '@/lib/auth-api'
 import type { Person, NewsItem, Resource } from '@/lib/types'
 
 interface AdminDataBody {
@@ -10,6 +11,9 @@ interface AdminDataBody {
 }
 
 export async function GET() {
+  const auth = await requireUser()
+  if (auth instanceof NextResponse) return auth
+
   const [persons, news, resources] = await Promise.all([
     prisma.person.findMany(),
     prisma.newsItem.findMany({ orderBy: { date: 'desc' } }),
@@ -23,6 +27,9 @@ export async function GET() {
 }
 
 export async function PUT(req: NextRequest) {
+  const auth = await requireAdmin()
+  if (auth instanceof NextResponse) return auth
+
   let body: AdminDataBody
   try {
     body = await req.json()

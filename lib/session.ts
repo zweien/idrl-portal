@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers'
 import { getIronSession, type SessionOptions } from 'iron-session'
+import type { NextRequest } from 'next/server'
 import type { AuthProvider } from '@/lib/types'
 
 /**
@@ -71,6 +72,30 @@ export type Session = Awaited<ReturnType<typeof getIronSession<SessionData>>>
  */
 export async function getSession() {
   return getIronSession<SessionData>(await cookies(), sessionOptions)
+}
+
+/**
+ * Read the session from a request's cookies. Use this in middleware / API
+ * route handlers where you have a Request (getSession() uses next/headers
+ * cookies() which is server-component only). Read-only: do not call .save()
+ * on the result in middleware — mutations won't reach the response there.
+ */
+export async function getSessionFromRequest(req: NextRequest) {
+  return getIronSession<SessionData>(req.cookies as never, sessionOptions)
+}
+
+/**
+ * Type guard: does a session represent a logged-in user?
+ */
+export function isAuthenticated(session: SessionData): boolean {
+  return Boolean(session.userId)
+}
+
+/**
+ * Type guard: is the session's user an admin?
+ */
+export function isAdmin(session: SessionData): boolean {
+  return session.role === 'admin' && Boolean(session.userId)
 }
 
 /**

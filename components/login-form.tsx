@@ -20,11 +20,27 @@ export function LoginForm() {
     setError('')
     if (!username || !password) { setError('请输入用户名和密码'); return }
     const ok = await login(username, password)
-    if (ok) {
-      window.location.href = '/dashboard'
-    } else {
+    if (!ok) {
       setError('用户名或密码错误')
+      return
     }
+    // #3 introduces server-side route protection (middleware + iron-session),
+    // but the legacy mock login only writes sessionStorage on the client.
+    // In development, mint a real session cookie via the dev-only endpoint so
+    // middleware lets us through. Removed in #6 when real login lands.
+    if (process.env.NODE_ENV === 'development') {
+      try {
+        await fetch('/api/auth/dev-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username }),
+        })
+      } catch {
+        // cookie may still be absent; navigation will surface a redirect loop
+        // visibly rather than failing silently here
+      }
+    }
+    window.location.href = '/dashboard'
   }
 
   const handleSSOLogin = async (provider: 'authentik' | 'dingtalk') => {
