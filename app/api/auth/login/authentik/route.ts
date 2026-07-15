@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server'
-import { buildAuthentikAuthorizeUrl, getAuthentikConfig } from '@/lib/authentik'
+import { NextResponse, type NextRequest } from 'next/server'
+import { buildAuthentikAuthorizeUrl, getAuthentikConfig, getRequestOrigin } from '@/lib/authentik'
 import { randomBytes } from 'crypto'
 
 /**
@@ -7,8 +7,9 @@ import { randomBytes } from 'crypto'
  * Redirects the user to Authentik's OIDC authorize endpoint. A random `state`
  * is stored in a short-lived cookie to validate the callback (CSRF defense).
  */
-export async function GET() {
-  if (!getAuthentikConfig()) {
+export async function GET(req: NextRequest) {
+  const origin = getRequestOrigin(req)
+  if (!getAuthentikConfig(origin)) {
     return NextResponse.json(
       { error: 'Authentik SSO is not configured' },
       { status: 503 },
@@ -16,7 +17,7 @@ export async function GET() {
   }
 
   const state = randomBytes(16).toString('hex')
-  const url = await buildAuthentikAuthorizeUrl(state)
+  const url = await buildAuthentikAuthorizeUrl(state, origin)
 
   const res = NextResponse.redirect(url)
   res.cookies.set('authentik_oauth_state', state, {

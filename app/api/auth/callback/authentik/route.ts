@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { exchangeAuthentikCode, fetchAuthentikUserInfo } from '@/lib/authentik'
+import { exchangeAuthentikCode, fetchAuthentikUserInfo, getRequestOrigin } from '@/lib/authentik'
 import { saveSession } from '@/lib/session'
 import { prisma } from '@/lib/db'
 
@@ -27,7 +27,8 @@ export async function GET(req: NextRequest) {
 
   try {
     // 2. exchange code → token
-    const tokens = await exchangeAuthentikCode(code)
+    const origin = getRequestOrigin(req)
+    const tokens = await exchangeAuthentikCode(code, origin)
 
     // 3. fetch userinfo
     const info = await fetchAuthentikUserInfo(tokens.access_token)
