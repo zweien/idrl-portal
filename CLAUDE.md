@@ -58,3 +58,17 @@ All dashboard pages share `app/dashboard/layout.tsx` which provides `AuthProvide
 - `@/lib/*` — utilities, types, mock data, auth context
 - `@/hooks/*` — custom React hooks
 - `cn()` from `@/lib/utils` for className merging (clsx + tailwind-merge)
+
+## Agent skills
+
+### Issue tracker
+
+Issues 跟踪在 GitHub Issues（用 `gh` CLI）。See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+使用五个 canonical triage labels（needs-triage / needs-info / ready-for-agent / ready-for-human / wontfix）。See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context 布局（根目录 CONTEXT.md + docs/adr/）。See `docs/agents/domain.md`.
