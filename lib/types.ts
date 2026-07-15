@@ -108,7 +108,23 @@ export interface NewsItem {
 }
 
 // ============ Authentication ============
+
+// Login identity (auth): one per (provider, externalId). Linked to a Person profile.
+export type AuthProvider = 'authentik' | 'dingtalk' | 'local'
+
 export interface User {
+  id: string
+  provider: AuthProvider
+  externalId: string // SSO subject/userId; local username for provider="local"
+  role: 'admin' | 'member'
+  personId?: string
+  createdAt: string
+  updatedAt: string
+}
+
+// Legacy client-side mock auth shape (to be removed in auth slice #6).
+// Kept only so the current mock auth-context keeps compiling until #6 lands.
+export interface LegacyUser {
   id: string
   username: string
   email: string
@@ -119,7 +135,7 @@ export interface User {
 }
 
 export interface AuthState {
-  user: User | null
+  user: LegacyUser | null
   isAuthenticated: boolean
   isLoading: boolean
 }

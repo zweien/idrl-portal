@@ -1,9 +1,10 @@
 import type {
-  Floor, Zone, NewWorkstation, Person, NewsItem, Resource,
+  Floor, Zone, NewWorkstation, Person, NewsItem, Resource, User,
 } from '@/lib/types'
 import type {
   Floor as DBFloor, Zone as DBZone, Workstation as DBWorkstation,
   Person as DBPerson, NewsItem as DBNews, Resource as DBResource,
+  User as DBUser,
 } from '@prisma/client'
 
 // ===== DB → TS =====
@@ -50,6 +51,18 @@ export function toResource(r: DBResource): Resource {
     status: r.status as Resource['status'],
     specs: r.specs ? JSON.parse(r.specs) : undefined,
     accessLevel: r.accessLevel as Resource['accessLevel'],
+  }
+}
+
+export function toUser(u: DBUser): User {
+  return {
+    id: u.id,
+    provider: u.provider as User['provider'],
+    externalId: u.externalId,
+    role: u.role as User['role'],
+    personId: u.personId ?? undefined,
+    createdAt: u.createdAt.toISOString(),
+    updatedAt: u.updatedAt.toISOString(),
   }
 }
 
@@ -138,6 +151,16 @@ export function fromResource(r: Resource) {
     status: r.status,
     specs: r.specs ? JSON.stringify(r.specs) : null,
     accessLevel: r.accessLevel,
+  }
+}
+
+export function fromUser(u: Omit<User, 'createdAt' | 'updatedAt'>) {
+  return {
+    id: u.id,
+    provider: u.provider,
+    externalId: u.externalId,
+    role: u.role,
+    personId: u.personId ?? null,
   }
 }
 

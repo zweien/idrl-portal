@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react'
-import type { User, AuthState } from './types'
+import type { LegacyUser, AuthState } from './types'
 import { mockUser } from './mock-data'
 
 const AUTH_STORAGE_KEY = 'idrl_auth'
@@ -52,11 +52,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 1000))
     
-    let user: User | null = null
+    let user: LegacyUser | null = null
     
     // Mock validation - in production, this would call your API
     if (username === 'admin' && password === 'admin') {
-      user = mockUser as User
+      user = mockUser as LegacyUser
     } else if (username && password) {
       // For demo, accept any non-empty credentials
       user = {

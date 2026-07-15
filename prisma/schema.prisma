@@ -56,6 +56,20 @@ model Person {
   researchAreas  String?
   avatar         String?
   workstations   Workstation[]
+  users          User[]
+}
+
+model User {
+  id         String   @id @default(cuid())
+  provider   String // "authentik" | "dingtalk" | "local"
+  externalId String // SSO subject/userId; local username for provider="local"
+  role       String // "admin" | "member"
+  personId   String?
+  person     Person? @relation(fields: [personId], references: [id], onDelete: Restrict)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([provider, externalId])
 }
 
 model NewsItem {
