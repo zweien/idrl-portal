@@ -18,6 +18,14 @@ export const statusColors: Record<string, string> = {
   leave: 'fill-[oklch(0.5_0.15_300)]',
 }
 
+// Same colors as statusColors but as CSS background (for HTML dots, not SVG fill)
+export const statusBg: Record<string, string> = {
+  online: 'bg-[oklch(0.7_0.2_145)]',
+  offline: 'bg-[oklch(0.4_0.02_260)]',
+  busy: 'bg-[oklch(0.65_0.2_45)]',
+  leave: 'bg-[oklch(0.5_0.15_300)]',
+}
+
 export const statusLabels: Record<string, string> = {
   online: '在位',
   offline: '离开',
