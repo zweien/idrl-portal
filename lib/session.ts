@@ -45,6 +45,10 @@ function getSessionSecret(): string {
 export const sessionOptions: SessionOptions = {
   password: getSessionSecret(),
   cookieName: SESSION_COOKIE_NAME,
+  // Server-side expiry of the sealed payload. iron-session defaults to 14d,
+  // which would let a copied cookie be replayed past the browser cookie
+  // lifetime — keep ttl aligned with the cookie maxAge so both expire at 7d.
+  ttl: 60 * 60 * 24 * 7, // 7 days
   cookieOptions: {
     httpOnly: true, // not readable by client JS
     sameSite: 'lax', // defend against CSRF on cross-site requests
