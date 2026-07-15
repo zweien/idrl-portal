@@ -18,10 +18,14 @@ export default function FloorLayoutPage() {
   const [localFloors, setLocalFloors] = useState<Floor[] | null>(null)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [selectedFloorId, setSelectedFloorId] = useState<string>('')
 
-  // 初始加载时把 server 数据复制到 local
+  // 初始加载时把 server 数据复制到 local，并初始化选中楼层
   useEffect(() => {
-    if (serverFloors && localFloors === null) setLocalFloors(serverFloors)
+    if (serverFloors && localFloors === null) {
+      setLocalFloors(serverFloors)
+      setSelectedFloorId(serverFloors[0]?.id ?? '')
+    }
   }, [serverFloors, localFloors])
 
   const dirty = useMemo(() => {
@@ -78,7 +82,7 @@ export default function FloorLayoutPage() {
     )
   }
 
-  const previewFloor = localFloors[0] ?? null
+  const previewFloor = localFloors.find(f => f.id === selectedFloorId) ?? null
 
   return (
     <div className="space-y-4 py-2">
@@ -113,7 +117,12 @@ export default function FloorLayoutPage() {
             <p className="text-xs text-muted-foreground mt-0.5">添加楼层、区域，设置工位行列数</p>
           </div>
           <div className="p-4">
-            <FloorEditor floors={localFloors} onChange={setLocalFloors} />
+            <FloorEditor
+              floors={localFloors}
+              onChange={setLocalFloors}
+              selectedFloorId={selectedFloorId}
+              onSelectedFloorIdChange={setSelectedFloorId}
+            />
           </div>
         </div>
 

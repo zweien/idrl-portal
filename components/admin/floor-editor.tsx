@@ -13,6 +13,8 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/comp
 interface FloorEditorProps {
   floors: Floor[]
   onChange: (floors: Floor[]) => void
+  selectedFloorId: string
+  onSelectedFloorIdChange: (floorId: string) => void
 }
 
 let nextId = 100
@@ -20,8 +22,7 @@ function genId(prefix: string) {
   return `${prefix}-${nextId++}`
 }
 
-export function FloorEditor({ floors, onChange }: FloorEditorProps) {
-  const [selectedFloorId, setSelectedFloorId] = useState<string>(floors[0]?.id ?? '')
+export function FloorEditor({ floors, onChange, selectedFloorId, onSelectedFloorIdChange }: FloorEditorProps) {
   const [selectedZoneId, setSelectedZoneId] = useState<string>('')
   const [newFloorName, setNewFloorName] = useState('')
   const [newZoneName, setNewZoneName] = useState('')
@@ -43,7 +44,7 @@ export function FloorEditor({ floors, onChange }: FloorEditorProps) {
       zones: [],
     }
     updateFloors(f => [...f, newFloor])
-    setSelectedFloorId(id)
+    onSelectedFloorIdChange(id)
     setSelectedZoneId('')
     setNewFloorName('')
   }
@@ -52,7 +53,7 @@ export function FloorEditor({ floors, onChange }: FloorEditorProps) {
     updateFloors(f => f.filter(fl => fl.id !== floorId))
     if (selectedFloorId === floorId) {
       const remaining = floors.filter(f => f.id !== floorId)
-      setSelectedFloorId(remaining[0]?.id ?? '')
+      onSelectedFloorIdChange(remaining[0]?.id ?? '')
       setSelectedZoneId('')
     }
   }
@@ -230,7 +231,7 @@ export function FloorEditor({ floors, onChange }: FloorEditorProps) {
                   ? 'border-primary/50 bg-primary/5'
                   : 'border-border hover:bg-accent',
               )}
-              onClick={() => { setSelectedFloorId(floor.id); setSelectedZoneId('') }}
+              onClick={() => { onSelectedFloorIdChange(floor.id); setSelectedZoneId('') }}
             >
               <span className="flex-1 font-medium">{floor.name}</span>
               <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={e => { e.stopPropagation(); moveFloor(floor.id, -1) }}>

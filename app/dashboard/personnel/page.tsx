@@ -10,7 +10,9 @@ import { FloorTabs } from '@/components/dashboard/floor-tabs'
 import { usePersonnel, useFloorLayout } from '@/lib/api'
 import type { Person, NewWorkstation } from '@/lib/types'
 import { cn } from '@/lib/utils'
-import { Search, MapPin, Mail, User } from 'lucide-react'
+import Link from 'next/link'
+import { useAuth } from '@/lib/auth-context'
+import { Search, MapPin, Mail, User, Settings } from 'lucide-react'
 
 const roleLabels: Record<Person['role'], string> = {
   professor:     '教授',
@@ -31,6 +33,7 @@ const statusConfig = {
 const statusFilters = ['online', 'offline', 'busy', 'leave'] as const
 
 export default function PersonnelPage() {
+  const { user } = useAuth()
   const { data: personnelResp } = usePersonnel({ pageSize: 1000 })
   const { data: floorData } = useFloorLayout()
   const personnel = personnelResp?.data?.items ?? []
@@ -131,6 +134,14 @@ export default function PersonnelPage() {
             {statusConfig[s].label} ({counts[s]})
           </Button>
         ))}
+        {user?.role === 'admin' && (
+          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 ml-auto" asChild>
+            <Link href="/dashboard/admin/floor-layout">
+              <Settings className="h-3.5 w-3.5" />
+              工位布局配置
+            </Link>
+          </Button>
+        )}
       </div>
 
       <div className="grid lg:grid-cols-3 gap-4">
