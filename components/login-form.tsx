@@ -50,8 +50,8 @@ export function LoginForm() {
       window.location.href = '/api/auth/login/authentik'
       return
     }
-    // dingtalk: not yet implemented (#5)
-    setSsoMessage('钉钉扫码登录尚未配置，请联系管理员')
+    // Server-side OAuth2 redirect: full-page navigation to DingTalk scan-code authorize.
+    window.location.href = '/api/auth/login/dingtalk'
   }
 
   return (
