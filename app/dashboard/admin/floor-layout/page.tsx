@@ -6,7 +6,7 @@ import { FloorEditor } from '@/components/admin/floor-editor'
 import { FloorPreview } from '@/components/admin/floor-preview'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/lib/auth-context'
-import { useFloorLayout, putJSON } from '@/lib/api'
+import { useFloorLayout, putJSON, usePersonnel } from '@/lib/api'
 import type { Floor } from '@/lib/types'
 import { ShieldAlert, Save } from 'lucide-react'
 
@@ -14,6 +14,8 @@ export default function FloorLayoutPage() {
   const { user } = useAuth()
   const { data, mutate } = useFloorLayout()
   const serverFloors = data?.floors
+  const { data: personnelResp } = usePersonnel({ pageSize: 1000 })
+  const personnel = personnelResp?.data?.items ?? []
 
   const [localFloors, setLocalFloors] = useState<Floor[] | null>(null)
   const [saving, setSaving] = useState(false)
@@ -122,6 +124,7 @@ export default function FloorLayoutPage() {
               onChange={setLocalFloors}
               selectedFloorId={selectedFloorId}
               onSelectedFloorIdChange={setSelectedFloorId}
+              personnel={personnel}
             />
           </div>
         </div>

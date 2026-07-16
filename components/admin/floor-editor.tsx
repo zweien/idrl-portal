@@ -1,13 +1,21 @@
 'use client'
 
 import { useState } from 'react'
-import type { Floor, Zone } from '@/lib/types'
+import type { Floor, Zone, Person } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { Plus, Trash2, ChevronUp, ChevronDown, Lock } from 'lucide-react'
 import { ZoneFreeCanvas } from './zone-free-canvas'
+import { WorkstationAssigner } from './workstation-assigner'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip'
 
 interface FloorEditorProps {
@@ -15,6 +23,7 @@ interface FloorEditorProps {
   onChange: (floors: Floor[]) => void
   selectedFloorId: string
   onSelectedFloorIdChange: (floorId: string) => void
+  personnel: Person[]
 }
 
 let nextId = 100
@@ -22,10 +31,11 @@ function genId(prefix: string) {
   return `${prefix}-${nextId++}`
 }
 
-export function FloorEditor({ floors, onChange, selectedFloorId, onSelectedFloorIdChange }: FloorEditorProps) {
+export function FloorEditor({ floors, onChange, selectedFloorId, onSelectedFloorIdChange, personnel }: FloorEditorProps) {
   const [selectedZoneId, setSelectedZoneId] = useState<string>('')
   const [newFloorName, setNewFloorName] = useState('')
   const [newZoneName, setNewZoneName] = useState('')
+  const [selectedGridWsId, setSelectedGridWsId] = useState<string>('')
 
   const selectedFloor = floors.find(f => f.id === selectedFloorId)
   const selectedZone = selectedFloor?.zones.find(z => z.id === selectedZoneId)
@@ -395,6 +405,58 @@ export function FloorEditor({ floors, onChange, selectedFloorId, onSelectedFloor
               当前 {selectedZone.workstations.length} / {selectedZone.maxRows * selectedZone.maxCols} 个工位
             </p>
           )}
+
+          {selectedZone.mode === 'grid' && selectedZone.workstations.length > 0 && (
+            <div className="mt-3 rounded-md border border-border p-3 space-y-2">
+              <p className="text-xs font-medium">单工位分配</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">选择工位</Label>
+                  <Select
+                    value={selectedGridWsId || undefined}
+                    onValueChange={setSelectedGridWsId}
+                  >
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue placeholder="选择工位" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {selectedZone.workstations.map(w => (
+                        <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">分配人员</Label>
+                  <WorkstationAssigner
+                    value={selectedZone.workstations.find(w => w.id === selectedGridWsId)?.personId}
+                    personnel={personnel}
+                    disabled={!selectedGridWsId}
+                    onChange={personId => {
+                      if (!selectedGridWsId || !selectedZone || !selectedFloor) return
+                      updateFloors(f =>
+                        f.map(fl => fl.id === selectedFloor.id
+                          ? {
+                            ...fl,
+                            zones: fl.zones.map(z => z.id === selectedZone.id
+                              ? {
+                                ...z,
+                                workstations: z.workstations.map(w =>
+                                  w.id === selectedGridWsId ? { ...w, personId: personId ?? undefined } : w,
+                                ),
+                              }
+                              : z,
+                            ),
+                          }
+                          : fl,
+                        ),
+                      )
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </section>
       )}
 
@@ -403,6 +465,7 @@ export function FloorEditor({ floors, onChange, selectedFloorId, onSelectedFloor
           <h3 className="text-sm font-medium mb-2">自由布局画布 · {selectedZone.name}</h3>
           <ZoneFreeCanvas
             zone={selectedZone}
+            personnel={personnel}
             onChange={updated => updateZoneFully(selectedZone.id, updated)}
           />
         </section>
