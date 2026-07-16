@@ -15,6 +15,10 @@ import {
   GitBranch,
   BookOpen,
   Box,
+  Cloud,
+  Globe,
+  Terminal,
+  FileText,
   ExternalLink,
   Settings,
   X,
@@ -26,6 +30,17 @@ const typeIcons: Record<ResourceType, React.ElementType> = {
   code:    GitBranch,
   docs:    BookOpen,
   other:   Box,
+}
+
+/** Name → lucide component, matching the admin icon picker choices. */
+const iconByName: Record<string, React.ElementType> = {
+  Cpu, Database, GitBranch, BookOpen, Box, Server, Cloud, Globe, Terminal, FileText,
+}
+
+/** Prefer a custom icon stored on the resource, fall back to the type default. */
+function resolveIcon(resource: { icon?: string; type: ResourceType }): React.ElementType {
+  if (resource.icon && iconByName[resource.icon]) return iconByName[resource.icon]
+  return typeIcons[resource.type]
 }
 
 const typeLabels: Record<ResourceType, string> = {
@@ -131,7 +146,7 @@ export default function ResourcesPage() {
             </div>
           )}
           {filtered.map(resource => {
-            const Icon = typeIcons[resource.type]
+            const Icon = resolveIcon(resource)
             const sc   = statusConfig[resource.status]
             const isSelected = selected?.id === resource.id
             return (
@@ -190,7 +205,7 @@ export default function ResourcesPage() {
           </div>
           <div className="p-4">
             {selected ? (() => {
-              const Icon = typeIcons[selected.type]
+              const Icon = resolveIcon(selected)
               const sc   = statusConfig[selected.status]
               return (
                 <div className="space-y-4">
