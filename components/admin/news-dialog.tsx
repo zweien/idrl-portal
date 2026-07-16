@@ -145,7 +145,13 @@ export function NewsDialog({ initialData, trigger, onSubmit }: NewsDialogProps) 
           {form.imageUrl && (
             <div className="rounded-md border border-border overflow-hidden">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={form.imageUrl} alt="配图预览" className="w-full max-h-40 object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+              <img
+                key={form.imageUrl}
+                src={form.imageUrl}
+                alt="配图预览"
+                className="w-full max-h-40 object-cover"
+                onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+              />
             </div>
           )}
           <div className="flex items-center gap-2">
