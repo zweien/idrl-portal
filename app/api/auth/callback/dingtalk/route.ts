@@ -16,7 +16,10 @@ const LOGIN_ERROR_URL = '/login?error=dingtalk_failed'
  */
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
-  const code = searchParams.get('code')
+  // DingTalk's new OAuth2 (login.dingtalk.com/oauth2/auth) returns the
+  // authorization code as `authCode`; the legacy oapi flow used `code`.
+  // Accept both for safety, prefer the new-style param.
+  const code = searchParams.get('authCode') ?? searchParams.get('code')
   const state = searchParams.get('state')
 
   // 1. CSRF: state must match the cookie we set at login.
