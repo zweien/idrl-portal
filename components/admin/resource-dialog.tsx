@@ -7,6 +7,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -15,11 +22,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { Plus, Pencil } from 'lucide-react'
+import { Plus, Pencil, Trash2 } from 'lucide-react'
 
 const typeLabels: Record<ResourceType, string> = {
   compute: '计算资源', storage: '存储资源', code: '代码仓库', docs: '文档资料', other: '其他',
 }
+
+/** Icon names admins can pick from. Read-side maps name → lucide component. */
+const iconChoices = ['Cpu', 'Database', 'GitBranch', 'BookOpen', 'Box', 'Server', 'Cloud', 'Globe', 'Terminal', 'FileText'] as const
 
 const statusOptions: { value: Resource['status']; label: string }[] = [
   { value: 'available', label: '可用' },
@@ -49,10 +59,28 @@ export function ResourceDialog({ initialData, trigger, onSubmit }: ResourceDialo
     url: initialData?.url ?? '',
     status: initialData?.status ?? ('available' as Resource['status']),
     accessLevel: initialData?.accessLevel ?? ('member' as Resource['accessLevel']),
+    icon: initialData?.icon ?? '',
   })
+  // specs edited as key/value rows (blank rows are dropped on submit)
+  const [specRows, setSpecRows] = useState<{ k: string; v: string }[]>(
+    initialData?.specs ? Object.entries(initialData.specs).map(([k, v]) => ({ k, v })) : [],
+  )
+
+  const setSpecRow = (idx: number, key: 'k' | 'v', value: string) =>
+    setSpecRows(rows => rows.map((r, i) => (i === idx ? { ...r, [key]: value } : r)))
+  const addSpecRow = () => setSpecRows(rows => [...rows, { k: '', v: '' }])
+  const removeSpecRow = (idx: number) => setSpecRows(rows => rows.filter((_, i) => i !== idx))
 
   const handleSubmit = () => {
     if (!form.name) return
+    const specsObj: Record<string, string> = {}
+    for (const { k, v } of specRows) {
+      const key = k.trim()
+      if (key) specsObj[key] = v
+    }
+    // Send explicit null when cleared so the PATCH path can distinguish
+    // "clear" from "omit" (JSON.stringify drops undefined, and the merge
+    // would otherwise keep the previously-saved value).
     onSubmit({
       id: initialData?.id ?? `r-${Date.now()}`,
       name: form.name,
@@ -61,6 +89,8 @@ export function ResourceDialog({ initialData, trigger, onSubmit }: ResourceDialo
       url: form.url || undefined,
       status: form.status,
       accessLevel: form.accessLevel,
+      icon: form.icon || null,
+      specs: Object.keys(specsObj).length > 0 ? specsObj : null,
     })
     setOpen(false)
   }
@@ -75,7 +105,9 @@ export function ResourceDialog({ initialData, trigger, onSubmit }: ResourceDialo
         url: initialData.url ?? '',
         status: initialData.status,
         accessLevel: initialData.accessLevel,
+        icon: initialData.icon ?? '',
       })
+      setSpecRows(initialData.specs ? Object.entries(initialData.specs).map(([k, v]) => ({ k, v })) : [])
     }
   }
 
@@ -136,6 +168,62 @@ export function ResourceDialog({ initialData, trigger, onSubmit }: ResourceDialo
                 </Button>
               ))}
             </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">图标（覆盖类型默认）</Label>
+            <Select
+              value={form.icon || '__default__'}
+              onValueChange={v => setForm({ ...form, icon: v === '__default__' ? '' : v })}
+            >
+              <SelectTrigger className="h-9 text-sm">
+                <SelectValue placeholder="使用类型默认图标" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__default__">使用类型默认图标</SelectItem>
+                {iconChoices.map(name => (
+                  <SelectItem key={name} value={name}>{name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">配置规格</Label>
+              <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs gap-1" onClick={addSpecRow}>
+                <Plus className="h-3 w-3" />添加规格
+              </Button>
+            </div>
+            {specRows.length === 0 ? (
+              <p className="text-xs text-muted-foreground">暂无规格，点击"添加规格"新建键值对</p>
+            ) : (
+              <div className="space-y-1.5">
+                {specRows.map((row, idx) => (
+                  <div key={idx} className="flex items-center gap-1.5">
+                    <Input
+                      value={row.k}
+                      onChange={e => setSpecRow(idx, 'k', e.target.value)}
+                      placeholder="键（如 CPU）"
+                      className="h-8 text-sm flex-1"
+                    />
+                    <Input
+                      value={row.v}
+                      onChange={e => setSpecRow(idx, 'v', e.target.value)}
+                      placeholder="值（如 64核）"
+                      className="h-8 text-sm flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                      onClick={() => removeSpecRow(idx)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
         <DialogFooter>
