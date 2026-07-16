@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { resolvePersonId } from '@/lib/floor-layout'
+import { resolvePersonId, findDuplicateIds } from '@/lib/floor-layout'
 
 const db = {
   id: 'ws-1', personId: 'p-1', row: 0, col: 1, zoneId: 'zone-9a', floorId: 'floor-9',
@@ -32,5 +32,34 @@ describe('resolvePersonId (floor-layout personId protection)', () => {
 
   it('returns null when DB row has no personId', () => {
     expect(resolvePersonId({ ...db, personId: undefined }, { ...db, personId: null })).toBeNull()
+  })
+})
+
+describe('findDuplicateIds (floor-layout payload validation)', () => {
+  const ok = [
+    { id: 'floor-9', zones: [{ id: 'zone-9a', workstations: [{ id: 'ws-1' }] }] },
+    { id: 'floor-10', zones: [{ id: 'zone-10a', workstations: [{ id: 'ws-2' }] }] },
+  ]
+  it('returns null when all ids are unique', () => {
+    expect(findDuplicateIds(ok)).toBeNull()
+  })
+  it('rejects a duplicate floor id', () => {
+    expect(findDuplicateIds([{ ...ok[0] }, { ...ok[0] }])).toMatch(/duplicate floor id/)
+  })
+  it('rejects a duplicate zone id (across floors)', () => {
+    const floors = [
+      { id: 'f1', zones: [{ id: 'zdup', workstations: [{ id: 'w1' }] }] },
+      { id: 'f2', zones: [{ id: 'zdup', workstations: [{ id: 'w2' }] }] },
+    ]
+    expect(findDuplicateIds(floors)).toMatch(/duplicate zone id/)
+  })
+  it('rejects a duplicate workstation id', () => {
+    const floors = [
+      { id: 'f1', zones: [
+        { id: 'z1', workstations: [{ id: 'wdup' }] },
+        { id: 'z2', workstations: [{ id: 'wdup' }] },
+      ] },
+    ]
+    expect(findDuplicateIds(floors)).toMatch(/duplicate workstation id/)
   })
 })

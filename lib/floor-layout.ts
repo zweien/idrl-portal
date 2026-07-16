@@ -5,6 +5,8 @@
  * existing Workstation.personId assignment. Used by PUT /api/floor-layout.
  */
 
+import type { Zone, NewWorkstation } from '@/lib/types'
+
 interface DbWorkstation {
   id: string
   personId: string | null
@@ -21,6 +23,33 @@ interface PayloadWorkstation {
   col: number
   zoneId: string
   floorId: string
+}
+
+/**
+ * Detect duplicate ids at each level of a floor-layout payload.
+ * Returns an error message describing the first collision, or null if none.
+ * (The editor's nextId resets per page load, so saved ids can collide with
+ * newly added ones; the upsert loop would silently collapse them.)
+ */
+export function findDuplicateIds(
+  floors: Array<{ id: string; zones: Array<{ id: string; workstations: Array<{ id: string }> }> }>,
+): string | null {
+  const seenFloors = new Set<string>()
+  for (const f of floors) {
+    if (seenFloors.has(f.id)) return `duplicate floor id: ${f.id}`
+    seenFloors.add(f.id)
+  }
+  const seenZones = new Set<string>()
+  for (const f of floors) for (const z of f.zones) {
+    if (seenZones.has(z.id)) return `duplicate zone id: ${z.id}`
+    seenZones.add(z.id)
+  }
+  const seenWs = new Set<string>()
+  for (const f of floors) for (const z of f.zones) for (const w of z.workstations) {
+    if (seenWs.has(w.id)) return `duplicate workstation id: ${w.id}`
+    seenWs.add(w.id)
+  }
+  return null
 }
 
 /**

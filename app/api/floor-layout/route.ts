@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { toFloor, fromZone, fromWorkstation } from '@/lib/db/serialize'
-import { resolvePersonId } from '@/lib/floor-layout'
+import { resolvePersonId, findDuplicateIds } from '@/lib/floor-layout'
 import { requireUser, requireAdmin } from '@/lib/auth-api'
 import type { Zone, NewWorkstation } from '@/lib/types'
 
@@ -54,6 +54,15 @@ export async function PUT(req: NextRequest) {
   }
   if (!body?.floors || !Array.isArray(body.floors)) {
     return NextResponse.json({ error: 'floors required' }, { status: 400 })
+  }
+
+  // Reject duplicate ids at each level before diffing — the editor's nextId
+  // resets per page load, so a saved floor-100 + a newly added floor can
+  // collide. Upsert-in-a-loop would silently collapse duplicates (the old
+  // delete/create flow failed loudly on the PK); fail loud here instead.
+  const dupErr = findDuplicateIds(body.floors)
+  if (dupErr) {
+    return NextResponse.json({ error: dupErr }, { status: 400 })
   }
 
   try {
