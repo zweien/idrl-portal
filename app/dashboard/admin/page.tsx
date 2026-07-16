@@ -168,6 +168,8 @@ export default function AdminPage() {
       const saved = await createPerson(data)
       setPersonnelData(prev => prev!.map(x => x.id === p.id ? saved : x))
       setSaveError(null)
+      // keep the SWR cache in sync so a re-navigation shows server truth
+      void mutate()
     } catch (e) { reportErr(e); setPersonnelData(prev => prev!.filter(x => x.id !== p.id)) }
   }
   async function handlePersonUpdate(p: Person) {
@@ -177,6 +179,7 @@ export default function AdminPage() {
     try {
       await updatePerson(p.id, p)
       setSaveError(null)
+      void mutate()
     } catch (e) { reportErr(e); if (prevPerson) setPersonnelData(prev => prev!.map(x => x.id === p.id ? prevPerson : x)) }
   }
   async function handlePersonDelete(p: Person) {
@@ -185,6 +188,7 @@ export default function AdminPage() {
     try {
       await deletePerson(p.id)
       setSaveError(null)
+      void mutate()
     } catch (e) { reportErr(e); if (snapshot) setPersonnelData(snapshot) }
   }
 
@@ -196,6 +200,7 @@ export default function AdminPage() {
       const saved = await createResource(data)
       setResourcesData(prev => prev!.map(x => x.id === r.id ? saved : x))
       setSaveError(null)
+      void mutate()
     } catch (e) { reportErr(e); setResourcesData(prev => prev!.filter(x => x.id !== r.id)) }
   }
   async function handleResourceUpdate(r: Resource) {
@@ -205,6 +210,7 @@ export default function AdminPage() {
     try {
       await updateResource(r.id, r)
       setSaveError(null)
+      void mutate()
     } catch (e) { reportErr(e); if (prevRes) setResourcesData(prev => prev!.map(x => x.id === r.id ? prevRes : x)) }
   }
   async function handleResourceDelete(r: Resource) {
@@ -213,6 +219,7 @@ export default function AdminPage() {
     try {
       await deleteResource(r.id)
       setSaveError(null)
+      void mutate()
     } catch (e) { reportErr(e); if (snapshot) setResourcesData(snapshot) }
   }
 
@@ -224,6 +231,7 @@ export default function AdminPage() {
       const saved = await createNews(data)
       setNewsData(prev => prev!.map(x => x.id === n.id ? saved : x))
       setSaveError(null)
+      void mutate()
     } catch (e) { reportErr(e); setNewsData(prev => prev!.filter(x => x.id !== n.id)) }
   }
   async function handleNewsUpdate(n: NewsItem) {
@@ -233,6 +241,7 @@ export default function AdminPage() {
     try {
       await updateNews(n.id, n)
       setSaveError(null)
+      void mutate()
     } catch (e) { reportErr(e); if (prevNews) setNewsData(prev => prev!.map(x => x.id === n.id ? prevNews : x)) }
   }
   async function handleNewsDelete(n: NewsItem) {
@@ -241,6 +250,7 @@ export default function AdminPage() {
     try {
       await deleteNews(n.id)
       setSaveError(null)
+      void mutate()
     } catch (e) { reportErr(e); if (snapshot) setNewsData(snapshot) }
   }
 

@@ -47,8 +47,8 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'invalid json' }, { status: 400 })
   }
-  if (!body?.name || !body?.type || !body?.accessLevel) {
-    return NextResponse.json({ error: 'name, type, accessLevel required' }, { status: 400 })
+  if (!body?.name || !body?.type || !body?.description || !body?.status || !body?.accessLevel) {
+    return NextResponse.json({ error: 'name, type, description, status, accessLevel required' }, { status: 400 })
   }
 
   const id = `r-${Date.now()}`

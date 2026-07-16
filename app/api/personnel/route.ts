@@ -62,8 +62,8 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'invalid json' }, { status: 400 })
   }
-  if (!body?.name) {
-    return NextResponse.json({ error: 'name required' }, { status: 400 })
+  if (!body?.name || !body?.role || !body?.status) {
+    return NextResponse.json({ error: 'name, role, status required' }, { status: 400 })
   }
 
   const id = `p-${Date.now()}`

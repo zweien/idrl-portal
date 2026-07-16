@@ -69,8 +69,8 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'invalid json' }, { status: 400 })
   }
-  if (!body?.title || !body?.type || !body?.date) {
-    return NextResponse.json({ error: 'title, type, date required' }, { status: 400 })
+  if (!body?.title || !body?.type || !body?.content || !body?.date) {
+    return NextResponse.json({ error: 'title, type, content, date required' }, { status: 400 })
   }
 
   const id = `n-${Date.now()}`
