@@ -40,6 +40,8 @@ export function NewsDialog({ initialData, trigger, onSubmit }: NewsDialogProps) 
     date: initialData?.date ?? new Date().toISOString().slice(0, 10),
     tags: initialData?.tags?.join(', ') ?? '',
     pinned: initialData?.pinned ?? false,
+    link: initialData?.link ?? '',
+    imageUrl: initialData?.imageUrl ?? '',
   })
 
   const handleSubmit = () => {
@@ -54,6 +56,8 @@ export function NewsDialog({ initialData, trigger, onSubmit }: NewsDialogProps) 
       date: form.date,
       tags: form.tags ? form.tags.split(/[,，]/).map(s => s.trim()).filter(Boolean) : undefined,
       pinned: form.pinned || undefined,
+      link: form.link || undefined,
+      imageUrl: form.imageUrl || undefined,
     })
     setOpen(false)
   }
@@ -70,6 +74,8 @@ export function NewsDialog({ initialData, trigger, onSubmit }: NewsDialogProps) 
         date: initialData.date,
         tags: initialData.tags?.join(', ') ?? '',
         pinned: initialData.pinned ?? false,
+        link: initialData.link ?? '',
+        imageUrl: initialData.imageUrl ?? '',
       })
     }
   }
@@ -126,6 +132,28 @@ export function NewsDialog({ initialData, trigger, onSubmit }: NewsDialogProps) 
             <Label className="text-xs">标签（逗号分隔）</Label>
             <Input value={form.tags} onChange={e => setForm({ ...form, tags: e.target.value })} placeholder="论文, NeurIPS, 强化学习" className="h-9" />
           </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs">原文链接</Label>
+              <Input value={form.link} onChange={e => setForm({ ...form, link: e.target.value })} placeholder="https://…（可选）" className="h-9" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">配图 URL</Label>
+              <Input value={form.imageUrl} onChange={e => setForm({ ...form, imageUrl: e.target.value })} placeholder="https://…/cover.jpg（可选）" className="h-9" />
+            </div>
+          </div>
+          {form.imageUrl && (
+            <div className="rounded-md border border-border overflow-hidden">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                key={form.imageUrl}
+                src={form.imageUrl}
+                alt="配图预览"
+                className="w-full max-h-40 object-cover"
+                onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+              />
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <Switch checked={form.pinned} onCheckedChange={val => setForm({ ...form, pinned: val })} />
             <Label className="text-xs">置顶</Label>
