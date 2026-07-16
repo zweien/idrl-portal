@@ -85,8 +85,8 @@ export function DashboardNav() {
   const { collapsed, toggle } = useSidebar()
   const [mobileOpen, setMobileOpen] = useState(false)
 
-  const handleLogout = () => {
-    logout()
+  const handleLogout = async () => {
+    await logout()
     window.location.href = '/login'
   }
 

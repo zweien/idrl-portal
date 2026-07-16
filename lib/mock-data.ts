@@ -380,15 +380,6 @@ GPT-4  → ~1.8T MoE (2023)
   },
 ]
 
-// ============ Auth Mock ============
-export const mockUser = {
-  id: 'u1',
-  username: 'admin',
-  email: 'admin@idrl.edu.cn',
-  name: '管理员',
-  role: 'admin' as const,
-}
-
 // Helper to get person by workstation
 export function getPersonByWorkstation(workstationId: string): Person | undefined {
   const workstation = mockWorkstations.find(ws => ws.id === workstationId)
