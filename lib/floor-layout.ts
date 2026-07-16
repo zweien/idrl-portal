@@ -1,8 +1,11 @@
 /**
- * PersonId-protection rule for floor-layout saves.
+ * PersonId-persistence rule for floor-layout saves.
  *
- * A geometry-only edit arriving from a stale snapshot must not null out an
- * existing Workstation.personId assignment. Used by PUT /api/floor-layout.
+ * Distinguishes an explicit unassign (payload personId === null, from the
+ * assignment UI's "未分配") from a stale-snapshot omission (personId ===
+ * undefined, e.g. an editor that didn't carry the field). An explicit null
+ * always clears; an undefined at unchanged geometry keeps the DB assignment.
+ * Used by PUT /api/floor-layout.
  */
 
 import type { Zone, NewWorkstation } from '@/lib/types'
@@ -55,21 +58,28 @@ export function findDuplicateIds(
 /**
  * Decide the personId to persist for a payload workstation.
  *
- * - If the payload carries an explicit personId, it wins (assignment or
- *   explicit unassign are honored).
- * - If the payload omits/empties personId but a DB row exists at the SAME
- *   geometry (row/col/zone/floor), keep the DB personId — the save is a
- *   geometry-only edit and must not wipe an assignment from a stale snapshot.
- * - Otherwise (payload empty, geometry changed, or no DB row) the empty
- *   value wins.
+ * Three distinct payload signals:
+ * - a string id → assign to that person
+ * - `null` → EXPLICIT unassign: clear the assignment (a user picked
+ *   "未分配"). Honored even when geometry is unchanged.
+ * - `undefined` (omitted) → stale-snapshot edit: keep the DB personId when
+ *   the geometry is unchanged so a geometry-only save from a stale snapshot
+ *   can't wipe an assignment.
+ *
+ * Otherwise (omitted + geometry changed, or no DB row) the empty value wins.
  */
 export function resolvePersonId(
   payload: PayloadWorkstation,
   db: DbWorkstation | undefined,
 ): string | null {
-  if (payload.personId !== undefined && payload.personId !== null) {
+  if (payload.personId) {
     return payload.personId
   }
+  // explicit unassign — always clear
+  if (payload.personId === null) {
+    return null
+  }
+  // omitted (undefined) — protect an existing assignment at the same geometry
   if (
     db &&
     db.personId &&
@@ -80,5 +90,5 @@ export function resolvePersonId(
   ) {
     return db.personId
   }
-  return payload.personId ?? null
+  return null
 }

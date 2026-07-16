@@ -5,19 +5,23 @@ const db = {
   id: 'ws-1', personId: 'p-1', row: 0, col: 1, zoneId: 'zone-9a', floorId: 'floor-9',
 }
 
-describe('resolvePersonId (floor-layout personId protection)', () => {
+describe('resolvePersonId (floor-layout personId persistence)', () => {
   it('honors an explicit personId in the payload (assign)', () => {
     expect(resolvePersonId({ ...db, personId: 'p-9' }, db)).toBe('p-9')
   })
 
-  it('honors an explicit null in the payload when geometry changed (intentional unassign via move)', () => {
-    // payload moved the workstation AND set null → treat as deliberate
+  it('honors an explicit null even when geometry is unchanged (unassign via UI)', () => {
+    // The assignment UI's "未分配" sends null at unchanged geometry — this is a
+    // deliberate unassign and must clear the assignment, not be protected.
+    expect(resolvePersonId({ ...db, personId: null }, db)).toBeNull()
+  })
+
+  it('honors an explicit null when geometry changed', () => {
     expect(resolvePersonId({ ...db, personId: null, row: 2 }, db)).toBeNull()
   })
 
-  it('keeps the DB personId when payload omits it and geometry is unchanged (stale snapshot)', () => {
+  it('keeps the DB personId when payload OMITS it (undefined) and geometry is unchanged (stale snapshot)', () => {
     expect(resolvePersonId({ ...db, personId: undefined }, db)).toBe('p-1')
-    expect(resolvePersonId({ ...db, personId: null }, db)).toBe('p-1')
   })
 
   it('wipes personId when payload omits it but geometry differs', () => {

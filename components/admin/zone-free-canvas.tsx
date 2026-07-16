@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useMemo, useRef } from 'react'
-import type { Zone, NewWorkstation } from '@/lib/types'
+import type { Zone, NewWorkstation, Person } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { WorkstationAssigner } from './workstation-assigner'
 import {
   Tooltip,
   TooltipContent,
@@ -27,6 +28,7 @@ type BrushMode = 'add' | 'remove'
 interface ZoneFreeCanvasProps {
   zone: Zone
   onChange: (zone: Zone) => void
+  personnel: Person[]
 }
 
 function nextSeq(workstations: NewWorkstation[]): number {
@@ -50,7 +52,7 @@ function defaultWsName(zone: Zone, seq: number) {
   return `${prefix}-${String(seq).padStart(2, '0')}`
 }
 
-export function ZoneFreeCanvas({ zone, onChange }: ZoneFreeCanvasProps) {
+export function ZoneFreeCanvas({ zone, onChange, personnel }: ZoneFreeCanvasProps) {
   const [brush, setBrush] = useState<BrushMode>('add')
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
@@ -79,6 +81,7 @@ export function ZoneFreeCanvas({ zone, onChange }: ZoneFreeCanvasProps) {
       <RenameRow
         ws={selectedWs}
         zone={zone}
+        personnel={personnel}
         onChange={onChange}
       />
     </div>
@@ -365,16 +368,18 @@ function CanvasSurface({
 function RenameRow({
   ws,
   zone,
+  personnel,
   onChange,
 }: {
   ws: NewWorkstation | null
   zone: Zone
+  personnel: Person[]
   onChange: (zone: Zone) => void
 }) {
   if (!ws) {
     return (
       <div className="text-xs text-muted-foreground">
-        提示：点击工位可选中改名；拖拽可批量添加/清除
+        提示：点击工位可选中改名/分配；拖拽可批量添加/清除
       </div>
     )
   }
@@ -401,8 +406,17 @@ function RenameRow({
     })
   }
 
+  const handleAssign = (personId: string | null) => {
+    onChange({
+      ...zone,
+      workstations: zone.workstations.map(w =>
+        w.id === ws.id ? { ...w, personId: personId ?? null } : w,
+      ),
+    })
+  }
+
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <span className="text-xs text-muted-foreground shrink-0">改名：</span>
       <Input
         key={ws.id}
@@ -417,6 +431,10 @@ function RenameRow({
       {ws.nameCustomized && (
         <span className="text-[10px] text-muted-foreground/70">自定义</span>
       )}
+      <span className="text-xs text-muted-foreground shrink-0 ml-2">分配：</span>
+      <div className="w-[160px]">
+        <WorkstationAssigner value={ws.personId} personnel={personnel} onChange={handleAssign} />
+      </div>
     </div>
   )
 }
