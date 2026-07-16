@@ -84,7 +84,7 @@ function IntegrationCard({ name, status, description }: {
   description: string
 }) {
   const cfg = {
-    connected: { icon: CheckCircle, color: 'text-[var(--status-online)]', label: '已连接' },
+    connected: { icon: CheckCircle, color: 'text-[var(--status-present)]', label: '已连接' },
     pending:   { icon: Info,         color: 'text-muted-foreground',        label: '待配置' },
     error:     { icon: AlertTriangle,color: 'text-destructive',             label: '连接失败' },
     mock:      { icon: Database,     color: 'text-primary',                 label: '模拟数据' },

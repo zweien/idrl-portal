@@ -296,7 +296,7 @@ export default function DashboardPage() {
               </span>
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
                 resource.status === 'available'
-                  ? 'bg-[var(--status-online)]/15 text-[var(--status-online)]'
+                  ? 'bg-[var(--status-present)]/15 text-[var(--status-present)]'
                   : 'bg-muted text-muted-foreground'
               }`}>
                 {resource.status === 'available' ? '可用' : '维护'}
