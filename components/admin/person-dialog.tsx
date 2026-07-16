@@ -22,10 +22,10 @@ const roleLabels: Record<Person['role'], string> = {
 }
 
 const statusOptions: { value: Person['status']; label: string }[] = [
-  { value: 'online', label: '在位' },
-  { value: 'offline', label: '离开' },
-  { value: 'busy', label: '忙碌' },
+  { value: 'present', label: '在位' },
   { value: 'leave', label: '请假' },
+  { value: 'trip', label: '出差' },
+  { value: 'absent', label: '未到' },
 ]
 
 interface PersonDialogProps {
@@ -42,7 +42,7 @@ export function PersonDialog({ initialData, trigger, onSubmit }: PersonDialogPro
     email: initialData?.email ?? '',
     role: initialData?.role ?? ('master' as Person['role']),
     phone: initialData?.phone ?? '',
-    status: initialData?.status ?? ('offline' as Person['status']),
+    status: initialData?.status ?? ('absent' as Person['status']),
     researchAreas: initialData?.researchAreas?.join(', ') ?? '',
   })
 

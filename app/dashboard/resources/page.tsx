@@ -52,8 +52,8 @@ const typeLabels: Record<ResourceType, string> = {
 }
 
 const statusConfig = {
-  available:   { label: '可用',   className: 'bg-[var(--status-online)]/15 text-[var(--status-online)]' },
-  maintenance: { label: '维护中', className: 'bg-[var(--status-busy)]/15 text-[var(--status-busy)]' },
+  available:   { label: '可用',   className: 'bg-[var(--status-present)]/15 text-[var(--status-present)]' },
+  maintenance: { label: '维护中', className: 'bg-[var(--status-absent)]/15 text-[var(--status-absent)]' },
   restricted:  { label: '受限',   className: 'bg-muted text-muted-foreground' },
 }
 

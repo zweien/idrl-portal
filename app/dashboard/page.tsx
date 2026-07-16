@@ -172,10 +172,10 @@ export default function DashboardPage() {
 
   const personnelStats = useMemo(() => ({
     total: personnel.length,
-    online: personnel.filter(p => p.status === 'online').length,
-    offline: personnel.filter(p => p.status === 'offline').length,
-    busy: personnel.filter(p => p.status === 'busy').length,
+    present: personnel.filter(p => p.status === 'present').length,
+    trip: personnel.filter(p => p.status === 'trip').length,
     leave: personnel.filter(p => p.status === 'leave').length,
+    absent: personnel.filter(p => p.status === 'absent').length,
   }), [personnel])
 
   const availableCount = useMemo(
@@ -216,7 +216,7 @@ export default function DashboardPage() {
 
       {/* Stats row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard icon={Users}   label="在位人员" value={`${personnelStats.online}/${personnelStats.total}`} />
+        <StatCard icon={Users}   label="在位人员" value={`${personnelStats.present}/${personnelStats.total}`} />
         <StatCard icon={Monitor} label="工位使用" value="查看详情" sub="→ 人员工位" />
         <StatCard icon={Server}  label="可用资源" value={`${availableCount}/${resources.length}`} />
         <StatCard icon={Pin}     label="置顶动态" value={String(pinnedNews.length)} />
@@ -296,7 +296,7 @@ export default function DashboardPage() {
               </span>
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
                 resource.status === 'available'
-                  ? 'bg-[var(--status-online)]/15 text-[var(--status-online)]'
+                  ? 'bg-[var(--status-present)]/15 text-[var(--status-present)]'
                   : 'bg-muted text-muted-foreground'
               }`}>
                 {resource.status === 'available' ? '可用' : '维护'}

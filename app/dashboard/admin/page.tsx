@@ -22,7 +22,7 @@ const roleLabels: Record<Person['role'], string> = {
   professor: '教授', postdoc: '博士后', phd: '博士生',
   master: '硕士生', undergraduate: '本科生', staff: '行政人员',
 }
-const statusLabels = { online: '在位', offline: '离开', busy: '忙碌', leave: '请假' }
+const statusLabels = { present: '在位', trip: '出差', leave: '请假', absent: '未到' }
 const typeLabels   = { compute: '计算资源', storage: '存储资源', code: '代码仓库', docs: '文档资料', other: '其他' }
 const newsLabels   = { paper: '论文发表', notice: '实验室通知', event: '最新活动', achievement: '荣誉成就' }
 
@@ -84,7 +84,7 @@ function IntegrationCard({ name, status, description }: {
   description: string
 }) {
   const cfg = {
-    connected: { icon: CheckCircle, color: 'text-[var(--status-online)]', label: '已连接' },
+    connected: { icon: CheckCircle, color: 'text-[var(--status-present)]', label: '已连接' },
     pending:   { icon: Info,         color: 'text-muted-foreground',        label: '待配置' },
     error:     { icon: AlertTriangle,color: 'text-destructive',             label: '连接失败' },
     mock:      { icon: Database,     color: 'text-primary',                 label: '模拟数据' },
@@ -346,7 +346,7 @@ export default function AdminPage() {
                   { key: 'role',   label: '角色',  render: v => roleLabels[v as Person['role']] },
                   { key: 'email',  label: '邮箱' },
                   { key: 'status', label: '状态',  render: v => (
-                    <Badge variant={v === 'online' ? 'default' : 'secondary'} className="text-[10px] font-normal">
+                    <Badge variant={v === 'present' ? 'default' : 'secondary'} className="text-[10px] font-normal">
                       {statusLabels[v as keyof typeof statusLabels]}
                     </Badge>
                   )},
