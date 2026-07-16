@@ -1,37 +1,17 @@
 'use client'
 
-import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { AuthProvider, useAuth } from '@/lib/auth-context'
-import { SidebarProvider, useSidebar } from '@/lib/sidebar-context'
+import { AuthProvider } from '@/lib/auth-context'
+import { SidebarProvider } from '@/lib/sidebar-context'
 import { DashboardNav } from '@/components/dashboard/nav'
 import { cn } from '@/lib/utils'
 
 function DashboardContent({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth()
-  const { collapsed } = useSidebar()
-  const router = useRouter()
-
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.push('/login')
-    }
-  }, [isAuthenticated, isLoading, router])
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-6 h-6 rounded bg-primary animate-pulse" />
-          <p className="text-sm text-muted-foreground">加载中…</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (!isAuthenticated) {
-    return null
-  }
+  // NOTE: route protection lives in middleware.ts (server-side iron-session),
+  // which is the single source of truth. The previous client-side
+  // isAuthenticated gate read sessionStorage (the legacy mock-auth store),
+  // which SSO logins never populate — it would bounce valid SSO sessions back
+  // to /login. AuthProvider is retained for UI that reads `user` (e.g. the
+  // admin-only button); authz is enforced by middleware.
 
   return (
     <div className="flex min-h-screen">

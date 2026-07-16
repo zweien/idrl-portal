@@ -13,7 +13,7 @@ export function LoginForm() {
   const [password, setPassword]     = useState('')
   const [error, setError]           = useState('')
   const [ssoMessage, setSsoMessage] = useState('')
-  const { login, loginWithSSO, isLoading } = useAuth()
+  const { login, isLoading } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -45,14 +45,13 @@ export function LoginForm() {
 
   const handleSSOLogin = async (provider: 'authentik' | 'dingtalk') => {
     setSsoMessage('')
-    const ok = await loginWithSSO(provider)
-    if (!ok) {
-      setSsoMessage(
-        provider === 'authentik'
-          ? 'Authentik SSO 尚未配置，请联系管理员'
-          : '钉钉扫码登录尚未配置，请联系管理员'
-      )
+    if (provider === 'authentik') {
+      // Server-side OIDC redirect: full-page navigation to Authentik authorize.
+      window.location.href = '/api/auth/login/authentik'
+      return
     }
+    // dingtalk: not yet implemented (#5)
+    setSsoMessage('钉钉扫码登录尚未配置，请联系管理员')
   }
 
   return (

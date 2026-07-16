@@ -40,10 +40,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isLoading: true, // Start with loading true to check storage
   })
 
-  // Check sessionStorage on mount
+  // Check sessionStorage on mount (legacy mock-login path)
   useEffect(() => {
     const initial = getInitialState()
     setAuthState({ ...initial, isLoading: false })
+  }, [])
+
+  // Hydrate identity from the server-side session. SSO logins (Authentik /
+  // DingTalk) only sign an iron-session cookie and never touch sessionStorage,
+  // so the admin-only UI (which reads user.role) must learn the role from
+  // /api/auth/me. Server session is authoritative; sessionStorage is only the
+  // legacy dev-login fast path.
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/auth/me', { cache: 'no-store' })
+      .then(r => r.json())
+      .then((data: { user?: { userId?: string; provider?: string; role?: 'admin' | 'member' } }) => {
+        if (cancelled || !data?.user) return
+        const serverUser: LegacyUser = {
+          id: data.user.userId ?? 'sso',
+          username: data.user.provider ?? 'sso',
+          email: '',
+          name: '',
+          role: data.user.role ?? 'member',
+        }
+        setAuthState({ user: serverUser, isAuthenticated: true, isLoading: false })
+      })
+      .catch(() => { /* network/SSR errors are non-fatal here */ })
+    return () => { cancelled = true }
   }, [])
 
   const login = useCallback(async (username: string, password: string): Promise<boolean> => {
