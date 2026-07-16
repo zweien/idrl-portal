@@ -156,6 +156,14 @@ export default function NewsPage() {
           </div>
           <div className="px-6 py-6 max-w-none">
             <h2 className="text-lg font-semibold leading-snug mb-4">{selected.title}</h2>
+            {selected.imageUrl && (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={selected.imageUrl}
+                alt={selected.title}
+                className="w-full max-h-80 object-cover rounded-md mb-4"
+              />
+            )}
             <MarkdownContent content={selected.content} />
             {selected.tags && selected.tags.length > 0 && (
               <div className="pt-4 mt-6 border-t border-border flex items-center gap-1.5 flex-wrap">
