@@ -244,10 +244,10 @@ export default function AdminPage() {
           <p className="text-xs text-muted-foreground mt-0.5">外部系统对接状态</p>
         </div>
         <div className="p-4 grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <IntegrationCard name="Authentik SSO" status="pending" description="单点登录认证" />
-          <IntegrationCard name="钉钉扫码"     status="pending" description="扫码登录与考勤" />
-          <IntegrationCard name="钉钉考勤"     status="pending" description="人员考勤数据同步" />
-          <IntegrationCard name="数据库"       status="mock"    description="SQLite / PostgreSQL" />
+          <IntegrationCard name="Authentik SSO" status="connected" description="单点登录认证（内网 OIDC）" />
+          <IntegrationCard name="钉钉扫码"     status="connected" description="扫码登录（互联网 OAuth2）" />
+          <IntegrationCard name="钉钉考勤"     status="pending"   description="人员考勤数据同步" />
+          <IntegrationCard name="数据库"       status="connected" description="SQLite（Prisma）" />
         </div>
       </div>
 
