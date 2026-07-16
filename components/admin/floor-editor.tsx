@@ -442,7 +442,7 @@ export function FloorEditor({ floors, onChange, selectedFloorId, onSelectedFloor
                               ? {
                                 ...z,
                                 workstations: z.workstations.map(w =>
-                                  w.id === selectedGridWsId ? { ...w, personId: personId ?? undefined } : w,
+                                  w.id === selectedGridWsId ? { ...w, personId: personId ?? null } : w,
                                 ),
                               }
                               : z,

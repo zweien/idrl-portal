@@ -10,8 +10,8 @@ import {
 } from '@/components/ui/select'
 
 interface WorkstationAssignerProps {
-  /** Current personId of the workstation (undefined = unassigned). */
-  value?: string
+  /** Current personId of the workstation (null/undefined = unassigned). */
+  value?: string | null
   /** All selectable people. */
   personnel: Person[]
   /** Called with the chosen personId, or null to unassign. */

@@ -61,7 +61,8 @@ export interface NewWorkstation {
   floorId: string
   row: number
   col: number
-  personId?: string
+  /** string = assigned id; null = explicitly unassigned (clears DB); undefined = omitted (stale-snapshot edit, protected) */
+  personId?: string | null
   status: WorkstationStatus
   nameCustomized?: boolean
 }

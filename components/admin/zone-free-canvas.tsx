@@ -410,7 +410,7 @@ function RenameRow({
     onChange({
       ...zone,
       workstations: zone.workstations.map(w =>
-        w.id === ws.id ? { ...w, personId: personId ?? undefined } : w,
+        w.id === ws.id ? { ...w, personId: personId ?? null } : w,
       ),
     })
   }
