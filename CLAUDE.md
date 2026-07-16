@@ -45,8 +45,8 @@ All dashboard pages share `app/dashboard/layout.tsx` which provides `AuthProvide
 
 ### Key Patterns
 
-- **Auth**: Client-side only via `lib/auth-context.tsx` (React Context). Uses `sessionStorage` for persistence. Mock login accepts any credentials; `admin/admin` gets admin role. SSO (Authentik, DingTalk) stubs exist but are not implemented.
-- **Data**: All data is mock/static from `lib/mock-data.ts`. API routes in `app/api/` (`/api/personnel`, `/api/news`, `/api/resources`) serve mock data with pagination/filtering — in-memory, no database.
+- **Auth**: Server-side, iron-session signed cookie (`lib/session.ts`) as the single source of truth; `middleware.ts` protects `/dashboard/*` (`/dashboard/admin/*` requires admin role). Three login paths all funnel to the same cookie: **Authentik SSO** (intranet, OIDC) and **DingTalk scan-code OAuth** (internet) via full-page server redirects (`/api/auth/login/<provider>` → `/api/auth/callback/<provider>`); **dev-only local login** (`/api/auth/dev-login`, 404 in production) upserts a `User(provider="local")`. `User` (login identity, per-provider `externalId`) is separate from `Person` (profile); `AuthProvider` (`lib/auth-context.tsx`) hydrates the current user from `/api/auth/me` — it does NOT validate credentials or store identity client-side. Roles live on `User.role`; `pnpm db:seed` provisions a `local/admin` (admin) for dev login. Config in `.env` (`AUTHENTIK_*`, `DINGTALK_*`, `SESSION_SECRET`).
+- **Data**: persisted in SQLite via Prisma (`prisma/schema.prisma`, `lib/db/`). API routes in `app/api/` (`/api/personnel`, `/api/news`, `/api/resources`, `/api/admin-data`, `/api/floor-layout`) read/write the DB with pagination/filtering; write endpoints require admin (`lib/auth-api.ts` `requireAdmin`), read endpoints require a session (`requireUser`). Seed data lives in `lib/mock-data.ts` (consumed only by `lib/db/seed.ts`).
 - **Types**: Centralized in `lib/types.ts` — `Person`, `Workstation`, `Resource`, `NewsItem`, `User`, `ApiResponse<T>`, `PaginatedResponse<T>`, plus DingTalk/SSO config interfaces for future integration.
 - **Floor Plan**: `components/dashboard/floor-plan.tsx` renders an SVG interactive lab floor plan with zones A–D, workstation status indicators, and tooltips.
 - **Design System**: Custom CSS variables in `globals.css` using oklch colors. Status tokens (`--status-online`, etc.) for attendance states. Light and dark themes fully defined. Radius uses a single `--radius` token (0.375rem) with computed variants.
@@ -55,7 +55,7 @@ All dashboard pages share `app/dashboard/layout.tsx` which provides `AuthProvide
 
 - `@/components/ui/*` — shadcn/ui primitives
 - `@/components/dashboard/*` — domain-specific dashboard components
-- `@/lib/*` — utilities, types, mock data, auth context
+- `@/lib/*` — utilities, types, auth/session, API hooks
 - `@/hooks/*` — custom React hooks
 - `cn()` from `@/lib/utils` for className merging (clsx + tailwind-merge)
 

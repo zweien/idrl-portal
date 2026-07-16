@@ -128,6 +128,16 @@ export default function AdminPage() {
   // Server state via SWR
   const { data, mutate } = useAdminData()
 
+  // SSO provider availability (derived from env config server-side) so the
+  // integration cards reflect real availability rather than a hardcoded status.
+  const [providers, setProviders] = useState<{ authentik: boolean; dingtalk: boolean }>({ authentik: false, dingtalk: false })
+  useEffect(() => {
+    fetch('/api/auth/providers', { cache: 'no-store' })
+      .then(r => r.json())
+      .then((p: { authentik?: boolean; dingtalk?: boolean }) => setProviders({ authentik: !!p.authentik, dingtalk: !!p.dingtalk }))
+      .catch(() => {})
+  }, [])
+
   // Local draft state (null = not yet loaded)
   const [personnelData, setPersonnelData] = useState<Person[] | null>(null)
   const [resourcesData, setResourcesData] = useState<Resource[] | null>(null)
@@ -244,10 +254,10 @@ export default function AdminPage() {
           <p className="text-xs text-muted-foreground mt-0.5">外部系统对接状态</p>
         </div>
         <div className="p-4 grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <IntegrationCard name="Authentik SSO" status="pending" description="单点登录认证" />
-          <IntegrationCard name="钉钉扫码"     status="pending" description="扫码登录与考勤" />
-          <IntegrationCard name="钉钉考勤"     status="pending" description="人员考勤数据同步" />
-          <IntegrationCard name="数据库"       status="mock"    description="SQLite / PostgreSQL" />
+          <IntegrationCard name="Authentik SSO" status={providers.authentik ? 'connected' : 'pending'} description="单点登录认证（内网 OIDC）" />
+          <IntegrationCard name="钉钉扫码"     status={providers.dingtalk ? 'connected' : 'pending'} description="扫码登录（互联网 OAuth2）" />
+          <IntegrationCard name="钉钉考勤"     status="pending"   description="人员考勤数据同步" />
+          <IntegrationCard name="数据库"       status="connected" description="SQLite（Prisma）" />
         </div>
       </div>
 
