@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { toNewsItem } from '@/lib/db/serialize'
+import { toNewsItem, fromNewsItem } from '@/lib/db/serialize'
 import { requireUser, requireAdmin } from '@/lib/auth-api'
 import type { NewsItem, ApiResponse, PaginatedResponse } from '@/lib/types'
 
@@ -59,12 +59,23 @@ export async function GET(request: Request) {
   return NextResponse.json(response)
 }
 
-export async function POST() {
+export async function POST(req: NextRequest) {
   const auth = await requireAdmin()
   if (auth instanceof NextResponse) return auth
 
-  return NextResponse.json(
-    { success: false, error: 'POST /api/news disabled. Use PUT /api/admin-data.' },
-    { status: 405 },
-  )
+  let body: Partial<NewsItem>
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'invalid json' }, { status: 400 })
+  }
+  if (!body?.title || !body?.type || !body?.date) {
+    return NextResponse.json({ error: 'title, type, date required' }, { status: 400 })
+  }
+
+  const id = `n-${Date.now()}`
+  const created = await prisma.newsItem.create({
+    data: fromNewsItem({ ...(body as NewsItem), id }),
+  })
+  return NextResponse.json(toNewsItem(created), { status: 201 })
 }

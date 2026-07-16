@@ -27,6 +27,61 @@ export async function putJSON<T>(url: string, body: T): Promise<void> {
   }
 }
 
+/** POST JSON, returning the parsed body (for create endpoints that return the saved entity). */
+async function postJSON<T>(url: string, body: unknown): Promise<T> {
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({ error: r.statusText }))
+    throw new Error(err.error || `POST ${url} failed: ${r.status}`)
+  }
+  return r.json() as Promise<T>
+}
+
+/** PATCH JSON, returning the parsed body (for update endpoints). */
+async function patchJSON<T>(url: string, body: unknown): Promise<T> {
+  const r = await fetch(url, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({ error: r.statusText }))
+    throw new Error(err.error || `PATCH ${url} failed: ${r.status}`)
+  }
+  return r.json() as Promise<T>
+}
+
+/** DELETE, throwing on non-ok. */
+async function deleteJSON(url: string): Promise<void> {
+  const r = await fetch(url, { method: 'DELETE' })
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({ error: r.statusText }))
+    throw new Error(err.error || `DELETE ${url} failed: ${r.status}`)
+  }
+}
+
+// ===== Single-item CRUD (Person) =====
+
+export const createPerson = (data: Omit<Person, 'id'>) => postJSON<Person>('/api/personnel', data)
+export const updatePerson = (id: string, data: Partial<Person>) => patchJSON<Person>(`/api/personnel/${id}`, data)
+export const deletePerson = (id: string) => deleteJSON(`/api/personnel/${id}`)
+
+// ===== Single-item CRUD (NewsItem) =====
+
+export const createNews = (data: Omit<NewsItem, 'id'>) => postJSON<NewsItem>('/api/news', data)
+export const updateNews = (id: string, data: Partial<NewsItem>) => patchJSON<NewsItem>(`/api/news/${id}`, data)
+export const deleteNews = (id: string) => deleteJSON(`/api/news/${id}`)
+
+// ===== Single-item CRUD (Resource) =====
+
+export const createResource = (data: Omit<Resource, 'id'>) => postJSON<Resource>('/api/resources', data)
+export const updateResource = (id: string, data: Partial<Resource>) => patchJSON<Resource>(`/api/resources/${id}`, data)
+export const deleteResource = (id: string) => deleteJSON(`/api/resources/${id}`)
+
 // ===== Floor layout =====
 
 export function useFloorLayout() {
