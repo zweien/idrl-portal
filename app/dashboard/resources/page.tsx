@@ -38,7 +38,7 @@ const iconByName: Record<string, React.ElementType> = {
 }
 
 /** Prefer a custom icon stored on the resource, fall back to the type default. */
-function resolveIcon(resource: { icon?: string; type: ResourceType }): React.ElementType {
+function resolveIcon(resource: { icon?: string | null; type: ResourceType }): React.ElementType {
   if (resource.icon && iconByName[resource.icon]) return iconByName[resource.icon]
   return typeIcons[resource.type]
 }

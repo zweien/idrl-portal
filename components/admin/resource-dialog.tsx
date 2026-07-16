@@ -78,6 +78,9 @@ export function ResourceDialog({ initialData, trigger, onSubmit }: ResourceDialo
       const key = k.trim()
       if (key) specsObj[key] = v
     }
+    // Send explicit null when cleared so the PATCH path can distinguish
+    // "clear" from "omit" (JSON.stringify drops undefined, and the merge
+    // would otherwise keep the previously-saved value).
     onSubmit({
       id: initialData?.id ?? `r-${Date.now()}`,
       name: form.name,
@@ -86,8 +89,8 @@ export function ResourceDialog({ initialData, trigger, onSubmit }: ResourceDialo
       url: form.url || undefined,
       status: form.status,
       accessLevel: form.accessLevel,
-      icon: form.icon || undefined,
-      specs: Object.keys(specsObj).length > 0 ? specsObj : undefined,
+      icon: form.icon || null,
+      specs: Object.keys(specsObj).length > 0 ? specsObj : null,
     })
     setOpen(false)
   }

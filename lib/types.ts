@@ -85,9 +85,11 @@ export interface Resource {
   type: ResourceType
   description: string
   url?: string
-  icon?: string
+  /** string = custom icon name; null = explicitly cleared; undefined = omitted (keep existing) */
+  icon?: string | null
   status: 'available' | 'maintenance' | 'restricted'
-  specs?: Record<string, string>
+  /** Record = specs; null = explicitly cleared; undefined = omitted (keep existing) */
+  specs?: Record<string, string> | null
   accessLevel: 'public' | 'member' | 'admin'
 }
 
