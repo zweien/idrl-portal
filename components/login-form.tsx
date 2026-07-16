@@ -9,36 +9,21 @@ import { Separator } from '@/components/ui/separator'
 import { Loader2, ShieldCheck, QrCode, AlertCircle } from 'lucide-react'
 
 export function LoginForm() {
+  const isDev = process.env.NODE_ENV === 'development'
   const [username, setUsername]     = useState('')
   const [password, setPassword]     = useState('')
   const [error, setError]           = useState('')
   const [ssoMessage, setSsoMessage] = useState('')
-  const { login, isLoading } = useAuth()
+  const { devLogin, isLoading } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     if (!username || !password) { setError('请输入用户名和密码'); return }
-    const ok = await login(username, password)
+    const ok = await devLogin(username)
     if (!ok) {
-      setError('用户名或密码错误')
+      setError('登录失败')
       return
-    }
-    // #3 introduces server-side route protection (middleware + iron-session),
-    // but the legacy mock login only writes sessionStorage on the client.
-    // In development, mint a real session cookie via the dev-only endpoint so
-    // middleware lets us through. Removed in #6 when real login lands.
-    if (process.env.NODE_ENV === 'development') {
-      try {
-        await fetch('/api/auth/dev-login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username }),
-        })
-      } catch {
-        // cookie may still be absent; navigation will surface a redirect loop
-        // visibly rather than failing silently here
-      }
     }
     window.location.href = '/dashboard'
   }
@@ -101,66 +86,70 @@ export function LoginForm() {
         </div>
       )}
 
-      <div className="flex items-center gap-3">
-        <Separator className="flex-1" />
-        <span className="text-xs text-muted-foreground">或</span>
-        <Separator className="flex-1" />
-      </div>
-
-      {/* Credentials form */}
-      <form onSubmit={handleSubmit} className="space-y-3">
-        <div className="space-y-1.5">
-          <Label htmlFor="username" className="text-xs font-medium">
-            用户名
-          </Label>
-          <Input
-            id="username"
-            type="text"
-            placeholder="请输入用户名"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            className="h-9 text-sm"
-            disabled={isLoading}
-            autoComplete="username"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="password" className="text-xs font-medium">
-            密码
-          </Label>
-          <Input
-            id="password"
-            type="password"
-            placeholder="请输入密码"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="h-9 text-sm"
-            disabled={isLoading}
-            autoComplete="current-password"
-          />
-        </div>
-
-        {error && (
-          <div className="flex items-center gap-1.5 text-xs text-destructive">
-            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-            {error}
+      {isDev && (
+        <>
+          <div className="flex items-center gap-3">
+            <Separator className="flex-1" />
+            <span className="text-xs text-muted-foreground">或</span>
+            <Separator className="flex-1" />
           </div>
-        )}
 
-        <Button
-          type="submit"
-          className="w-full h-9 text-sm"
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />登录中...</>
-          ) : '登录'}
-        </Button>
-      </form>
+          {/* Dev-only credentials form. Production shows SSO buttons only. */}
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="username" className="text-xs font-medium">
+                用户名
+              </Label>
+              <Input
+                id="username"
+                type="text"
+                placeholder="请输入用户名"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="h-9 text-sm"
+                disabled={isLoading}
+                autoComplete="username"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="password" className="text-xs font-medium">
+                密码
+              </Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="请输入密码"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="h-9 text-sm"
+                disabled={isLoading}
+                autoComplete="current-password"
+              />
+            </div>
 
-      <p className="text-xs text-center text-muted-foreground">
-        演示账号：<code className="font-mono">admin</code> / <code className="font-mono">admin</code>
-      </p>
+            {error && (
+              <div className="flex items-center gap-1.5 text-xs text-destructive">
+                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                {error}
+              </div>
+            )}
+
+            <Button
+              type="submit"
+              className="w-full h-9 text-sm"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />登录中...</>
+              ) : '登录'}
+            </Button>
+          </form>
+
+          <p className="text-xs text-center text-muted-foreground">
+            演示账号：<code className="font-mono">admin</code> / <code className="font-mono">admin</code>
+          </p>
+        </>
+      )}
     </div>
   )
 }

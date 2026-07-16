@@ -55,6 +55,19 @@ async function seedIfEmpty() {
   } else {
     console.log('• floors already present, skip')
   }
+
+  // Dev-only local login identity (provider="local"). Lets `pnpm db:seed`
+  // provision an admin account for the dev login form (admin/admin). The dev
+  // login route reads role from this User record rather than hardcoding it.
+  // Idempotently upsert the specific local/admin record so the demo admin
+  // account exists (as admin) regardless of any other local users created
+  // earlier via the dev login form (which defaults new usernames to member).
+  const adminUser = await prisma.user.upsert({
+    where: { provider_externalId: { provider: 'local', externalId: 'admin' } },
+    update: { role: 'admin' },
+    create: { provider: 'local', externalId: 'admin', role: 'admin' },
+  })
+  console.log(`✓ ensured dev local admin user (admin, role=${adminUser.role})`)
 }
 
 seedIfEmpty()

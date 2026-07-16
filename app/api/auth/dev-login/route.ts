@@ -3,18 +3,16 @@ import { prisma } from '@/lib/db'
 import { saveSession } from '@/lib/session'
 
 /**
- * DEVELOPMENT ONLY server-side session issuer.
+ * DEVELOPMENT ONLY local-login session issuer.
  *
- * Until auth slices #4/#5/#6 land, the legacy mock login (auth-context.tsx)
- * only writes sessionStorage on the client — which middleware can't see, so
- * the dashboard was unreachable (Codex P1 on #10). This dev-only endpoint
- * gives the mock login a real iron-session cookie so the protection layer
- * can be exercised end-to-end in development.
+ * Gives the dev login form a real iron-session cookie so middleware lets the
+ * session through. Production is 404 — real auth is SSO (Authentik/DingTalk).
  *
  * - 404 in production.
- * - Accepts { username } and upserts a local User (admin role for "admin",
- *   member otherwise), then signs the session cookie.
- * - No password check: this is a dev convenience, not real auth. Removed in #6.
+ * - Accepts { username }, upserts a local User. Role comes from the User
+ *   record (seeded admin via `pnpm db:seed`; new usernames default to member),
+ *   NOT from a hardcoded `username === 'admin'` check.
+ * - No password check: dev convenience only.
  */
 export async function POST(req: NextRequest) {
   if (process.env.NODE_ENV === 'production') {
@@ -32,15 +30,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'username required' }, { status: 400 })
   }
 
-  const role = username === 'admin' ? 'admin' : 'member'
-
   const user = await prisma.user.upsert({
     where: { provider_externalId: { provider: 'local', externalId: username } },
-    update: { role },
-    create: { provider: 'local', externalId: username, role },
+    // never overwrite an existing user's role on dev login
+    update: {},
+    create: { provider: 'local', externalId: username, role: 'member' },
   })
 
-  await saveSession({ userId: user.id, provider: 'local', role })
+  await saveSession({ userId: user.id, provider: 'local', role: user.role as 'admin' | 'member' })
 
-  return NextResponse.json({ ok: true, role })
+  return NextResponse.json({ ok: true, role: user.role })
 }
+
