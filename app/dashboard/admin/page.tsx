@@ -1,12 +1,11 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-import { useAdminData, putJSON } from '@/lib/api'
-import { isEqual } from 'lodash-es'
+import { useAdminData, createPerson, updatePerson, deletePerson, createResource, updateResource, deleteResource, createNews, updateNews, deleteNews } from '@/lib/api'
 import type { Person, Resource, NewsItem } from '@/lib/types'
 import { useAuth } from '@/lib/auth-context'
 import { PersonDialog } from '@/components/admin/person-dialog'
@@ -15,7 +14,7 @@ import { NewsDialog } from '@/components/admin/news-dialog'
 import {
   Users, Server, Newspaper, Pencil, Trash2,
   Database, AlertTriangle, CheckCircle, Info,
-  ShieldAlert, MapPin, Save,
+  ShieldAlert, MapPin,
 } from 'lucide-react'
 
 /* ── Labels ─────────────────────────────────────── */
@@ -155,44 +154,105 @@ export default function AdminPage() {
   }, [data?.news, newsData])
 
   // Dirty = any of the three differs from server
-  const dirty = useMemo(() => {
-    if (!data) return false
-    return (
-      (!!personnelData && !isEqual(personnelData, data.personnel)) ||
-      (!!resourcesData && !isEqual(resourcesData, data.resources)) ||
-      (!!newsData && !isEqual(newsData, data.news))
-    )
-  }, [data, personnelData, resourcesData, newsData])
-
-  // Save logic
-  const [saving, setSaving] = useState(false)
+  // Per-action persistence (single-item endpoints). Each mutation is optimistic:
+  // update local state immediately, call the endpoint, and surface errors.
   const [saveError, setSaveError] = useState<string | null>(null)
+  const reportErr = (e: unknown) =>
+    setSaveError(e instanceof Error ? e.message : String(e))
 
-  async function save() {
-    if (!personnelData || !resourcesData || !newsData || saving) return
-    setSaving(true)
-    setSaveError(null)
+  // ---- Person ----
+  async function handlePersonCreate(p: Person) {
+    const { id: _omit, ...data } = p
+    setPersonnelData(prev => [...(prev ?? []), p])
     try {
-      await putJSON('/api/admin-data', {
-        personnel: personnelData,
-        news: newsData,
-        resources: resourcesData,
-      })
-      await mutate()
-    } catch (e) {
-      setSaveError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setSaving(false)
-    }
+      const saved = await createPerson(data)
+      setPersonnelData(prev => prev!.map(x => x.id === p.id ? saved : x))
+      setSaveError(null)
+      // keep the SWR cache in sync so a re-navigation shows server truth
+      void mutate()
+    } catch (e) { reportErr(e); setPersonnelData(prev => prev!.filter(x => x.id !== p.id)) }
+  }
+  async function handlePersonUpdate(p: Person) {
+    const prevPerson = personnelData?.find(x => x.id === p.id)
+    setPersonnelData(prev => prev!.map(x => x.id === p.id ? p : x))
+    setEditingPerson(null)
+    try {
+      await updatePerson(p.id, p)
+      setSaveError(null)
+      void mutate()
+    } catch (e) { reportErr(e); if (prevPerson) setPersonnelData(prev => prev!.map(x => x.id === p.id ? prevPerson : x)) }
+  }
+  async function handlePersonDelete(p: Person) {
+    const snapshot = personnelData
+    setPersonnelData(prev => prev!.filter(x => x.id !== p.id))
+    try {
+      await deletePerson(p.id)
+      setSaveError(null)
+      void mutate()
+    } catch (e) { reportErr(e); if (snapshot) setPersonnelData(snapshot) }
   }
 
-  // beforeunload guard
-  useEffect(() => {
-    if (!dirty) return
-    const h = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = '' }
-    window.addEventListener('beforeunload', h)
-    return () => window.removeEventListener('beforeunload', h)
-  }, [dirty])
+  // ---- Resource ----
+  async function handleResourceCreate(r: Resource) {
+    const { id: _omit, ...data } = r
+    setResourcesData(prev => [...(prev ?? []), r])
+    try {
+      const saved = await createResource(data)
+      setResourcesData(prev => prev!.map(x => x.id === r.id ? saved : x))
+      setSaveError(null)
+      void mutate()
+    } catch (e) { reportErr(e); setResourcesData(prev => prev!.filter(x => x.id !== r.id)) }
+  }
+  async function handleResourceUpdate(r: Resource) {
+    const prevRes = resourcesData?.find(x => x.id === r.id)
+    setResourcesData(prev => prev!.map(x => x.id === r.id ? r : x))
+    setEditingResource(null)
+    try {
+      await updateResource(r.id, r)
+      setSaveError(null)
+      void mutate()
+    } catch (e) { reportErr(e); if (prevRes) setResourcesData(prev => prev!.map(x => x.id === r.id ? prevRes : x)) }
+  }
+  async function handleResourceDelete(r: Resource) {
+    const snapshot = resourcesData
+    setResourcesData(prev => prev!.filter(x => x.id !== r.id))
+    try {
+      await deleteResource(r.id)
+      setSaveError(null)
+      void mutate()
+    } catch (e) { reportErr(e); if (snapshot) setResourcesData(snapshot) }
+  }
+
+  // ---- News ----
+  async function handleNewsCreate(n: NewsItem) {
+    const { id: _omit, ...data } = n
+    setNewsData(prev => [n, ...(prev ?? [])])
+    try {
+      const saved = await createNews(data)
+      setNewsData(prev => prev!.map(x => x.id === n.id ? saved : x))
+      setSaveError(null)
+      void mutate()
+    } catch (e) { reportErr(e); setNewsData(prev => prev!.filter(x => x.id !== n.id)) }
+  }
+  async function handleNewsUpdate(n: NewsItem) {
+    const prevNews = newsData?.find(x => x.id === n.id)
+    setNewsData(prev => prev!.map(x => x.id === n.id ? n : x))
+    setEditingNews(null)
+    try {
+      await updateNews(n.id, n)
+      setSaveError(null)
+      void mutate()
+    } catch (e) { reportErr(e); if (prevNews) setNewsData(prev => prev!.map(x => x.id === n.id ? prevNews : x)) }
+  }
+  async function handleNewsDelete(n: NewsItem) {
+    const snapshot = newsData
+    setNewsData(prev => prev!.filter(x => x.id !== n.id))
+    try {
+      await deleteNews(n.id)
+      setSaveError(null)
+      void mutate()
+    } catch (e) { reportErr(e); if (snapshot) setNewsData(snapshot) }
+  }
 
   const [editingPerson, setEditingPerson]     = useState<Person | null>(null)
   const [editingResource, setEditingResource] = useState<Resource | null>(null)
@@ -233,18 +293,9 @@ export default function AdminPage() {
           <h1 className="text-xl font-semibold tracking-tight">信息管理</h1>
           <p className="text-sm text-muted-foreground mt-0.5">管理人员、资源和动态信息</p>
         </div>
-        <div className="flex items-center gap-3">
-          {dirty && (
-            <span className="text-xs text-amber-600 font-medium">● 未保存改动</span>
-          )}
-          {saveError && (
-            <span className="text-xs text-destructive">保存失败：{saveError}</span>
-          )}
-          <Button size="sm" className="h-8 text-xs gap-1.5" onClick={save} disabled={!dirty || saving}>
-            <Save className="h-3.5 w-3.5" />
-            {saving ? '保存中...' : '保存'}
-          </Button>
-        </div>
+        {saveError && (
+          <span className="text-xs text-destructive">操作失败：{saveError}</span>
+        )}
       </div>
 
       {/* Integration status */}
@@ -285,7 +336,7 @@ export default function AdminPage() {
                 <p className="text-sm font-medium">人员管理</p>
                 <p className="text-xs text-muted-foreground mt-0.5">管理实验室人员信息</p>
               </div>
-              <PersonDialog onSubmit={p => setPersonnelData(prev => [...prev!, p])} />
+              <PersonDialog onSubmit={handlePersonCreate} />
             </div>
             <div className="px-4">
               <DataTable
@@ -301,14 +352,14 @@ export default function AdminPage() {
                   )},
                 ]}
                 onEdit={item => setEditingPerson(item)}
-                onDelete={item => setPersonnelData(prev => prev!.filter(p => p.id !== item.id))}
+                onDelete={handlePersonDelete}
               />
             </div>
           </div>
           {editingPerson && (
             <PersonDialog
               initialData={editingPerson}
-              onSubmit={updated => { setPersonnelData(prev => prev!.map(p => p.id === updated.id ? updated : p)); setEditingPerson(null) }}
+              onSubmit={handlePersonUpdate}
             />
           )}
         </TabsContent>
@@ -320,7 +371,7 @@ export default function AdminPage() {
                 <p className="text-sm font-medium">资源管理</p>
                 <p className="text-xs text-muted-foreground mt-0.5">管理实验室资源信息</p>
               </div>
-              <ResourceDialog onSubmit={r => setResourcesData(prev => [...prev!, r])} />
+              <ResourceDialog onSubmit={handleResourceCreate} />
             </div>
             <div className="px-4">
               <DataTable
@@ -340,14 +391,14 @@ export default function AdminPage() {
                   ) : <span className="text-muted-foreground">—</span> },
                 ]}
                 onEdit={item => setEditingResource(item)}
-                onDelete={item => setResourcesData(prev => prev!.filter(r => r.id !== item.id))}
+                onDelete={handleResourceDelete}
               />
             </div>
           </div>
           {editingResource && (
             <ResourceDialog
               initialData={editingResource}
-              onSubmit={updated => { setResourcesData(prev => prev!.map(r => r.id === updated.id ? updated : r)); setEditingResource(null) }}
+              onSubmit={handleResourceUpdate}
             />
           )}
         </TabsContent>
@@ -359,7 +410,7 @@ export default function AdminPage() {
                 <p className="text-sm font-medium">动态管理</p>
                 <p className="text-xs text-muted-foreground mt-0.5">管理实验室新闻与通知</p>
               </div>
-              <NewsDialog onSubmit={n => setNewsData(prev => [n, ...prev!])} />
+              <NewsDialog onSubmit={handleNewsCreate} />
             </div>
             <div className="px-4">
               <DataTable
@@ -380,14 +431,14 @@ export default function AdminPage() {
                   },
                 ]}
                 onEdit={item => setEditingNews(item)}
-                onDelete={item => setNewsData(prev => prev!.filter(n => n.id !== item.id))}
+                onDelete={handleNewsDelete}
               />
             </div>
           </div>
           {editingNews && (
             <NewsDialog
               initialData={editingNews}
-              onSubmit={updated => { setNewsData(prev => prev!.map(n => n.id === updated.id ? updated : n)); setEditingNews(null) }}
+              onSubmit={handleNewsUpdate}
             />
           )}
         </TabsContent>
@@ -419,12 +470,15 @@ export default function AdminPage() {
           </p>
         </div>
         <div className="p-4 grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          <ApiCard method="GET"  endpoint="/api/personnel" description="获取人员列表" />
-          <ApiCard method="POST" endpoint="/api/personnel" description="添加新人员" />
-          <ApiCard method="GET"  endpoint="/api/resources"  description="获取资源列表" />
-          <ApiCard method="POST" endpoint="/api/resources"  description="添加新资源" />
-          <ApiCard method="GET"  endpoint="/api/news"       description="获取动态列表" />
-          <ApiCard method="POST" endpoint="/api/news"       description="发布新动态" />
+          <ApiCard method="GET"   endpoint="/api/personnel"      description="获取人员列表（分页/筛选）" />
+          <ApiCard method="POST"  endpoint="/api/personnel"      description="添加新人员（单条）" />
+          <ApiCard method="PATCH" endpoint="/api/personnel/:id"  description="更新单个人员" />
+          <ApiCard method="GET"   endpoint="/api/resources"      description="获取资源列表（分页/筛选）" />
+          <ApiCard method="POST"  endpoint="/api/resources"      description="添加新资源（单条）" />
+          <ApiCard method="PATCH" endpoint="/api/resources/:id"  description="更新单个资源" />
+          <ApiCard method="GET"   endpoint="/api/news"           description="获取动态列表（分页/筛选）" />
+          <ApiCard method="POST"  endpoint="/api/news"           description="发布新动态（单条）" />
+          <ApiCard method="PATCH" endpoint="/api/news/:id"       description="更新单条动态" />
         </div>
       </div>
     </div>

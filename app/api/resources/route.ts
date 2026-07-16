@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { toResource } from '@/lib/db/serialize'
+import { toResource, fromResource } from '@/lib/db/serialize'
 import { requireUser, requireAdmin } from '@/lib/auth-api'
 import type { Resource, ApiResponse, PaginatedResponse } from '@/lib/types'
 
@@ -37,12 +37,23 @@ export async function GET(request: Request) {
   return NextResponse.json(response)
 }
 
-export async function POST() {
+export async function POST(req: NextRequest) {
   const auth = await requireAdmin()
   if (auth instanceof NextResponse) return auth
 
-  return NextResponse.json(
-    { success: false, error: 'POST /api/resources disabled. Use PUT /api/admin-data.' },
-    { status: 405 },
-  )
+  let body: Partial<Resource>
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'invalid json' }, { status: 400 })
+  }
+  if (!body?.name || !body?.type || !body?.description || !body?.status || !body?.accessLevel) {
+    return NextResponse.json({ error: 'name, type, description, status, accessLevel required' }, { status: 400 })
+  }
+
+  const id = `r-${Date.now()}`
+  const created = await prisma.resource.create({
+    data: fromResource({ ...(body as Resource), id }),
+  })
+  return NextResponse.json(toResource(created), { status: 201 })
 }
