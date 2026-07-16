@@ -24,13 +24,13 @@ const roleLabels: Record<Person['role'], string> = {
 }
 
 const statusConfig = {
-  online:  { label: '在位', dot: 'status-dot-online' },
-  offline: { label: '离开', dot: 'status-dot-offline' },
-  busy:    { label: '忙碌', dot: 'status-dot-busy' },
+  present: { label: '在位', dot: 'status-dot-present' },
+  trip:    { label: '出差', dot: 'status-dot-trip' },
   leave:   { label: '请假', dot: 'status-dot-leave' },
+  absent:  { label: '未到', dot: 'status-dot-absent' },
 }
 
-const statusFilters = ['online', 'offline', 'busy', 'leave'] as const
+const statusFilters = ['present', 'trip', 'leave', 'absent'] as const
 
 export default function PersonnelPage() {
   const { user } = useAuth()
@@ -64,10 +64,10 @@ export default function PersonnelPage() {
   }), [search, statusFilter, personnel])
 
   const counts = useMemo(() => ({
-    online:  personnel.filter(p => p.status === 'online').length,
-    offline: personnel.filter(p => p.status === 'offline').length,
-    busy:    personnel.filter(p => p.status === 'busy').length,
+    present: personnel.filter(p => p.status === 'present').length,
+    trip:    personnel.filter(p => p.status === 'trip').length,
     leave:   personnel.filter(p => p.status === 'leave').length,
+    absent:  personnel.filter(p => p.status === 'absent').length,
   }), [personnel])
 
   const handleWsSelect = (ws: NewWorkstation, person?: Person) => {

@@ -48,9 +48,9 @@
   --sidebar-ring:           oklch(0.47 0.18 264);
 
   /* Status tokens */
-  --status-online:  oklch(0.62 0.19 145);
-  --status-busy:    oklch(0.65 0.18 45);
-  --status-offline: oklch(0.72 0.01 260);
+  --status-present: oklch(0.62 0.19 145);
+  --status-absent:  oklch(0.72 0.01 260);
+  --status-trip:    oklch(0.60 0.15 240);
   --status-leave:   oklch(0.62 0.15 300);
 }
 
@@ -92,9 +92,9 @@
   --sidebar-ring:           oklch(0.62 0.2 264);
 
   /* Status tokens */
-  --status-online:  oklch(0.65 0.19 145);
-  --status-busy:    oklch(0.68 0.18 45);
-  --status-offline: oklch(0.42 0.01 260);
+  --status-present: oklch(0.65 0.19 145);
+  --status-absent:  oklch(0.42 0.01 260);
+  --status-trip:    oklch(0.58 0.15 240);
   --status-leave:   oklch(0.58 0.15 300);
 }
 
@@ -161,9 +161,9 @@
   .status-dot {
     @apply inline-block w-2 h-2 rounded-full shrink-0;
   }
-  .status-dot-online  { background-color: var(--status-online); }
-  .status-dot-busy    { background-color: var(--status-busy); }
-  .status-dot-offline { background-color: var(--status-offline); }
+  .status-dot-present { background-color: var(--status-present); }
+  .status-dot-absent  { background-color: var(--status-absent); }
+  .status-dot-trip    { background-color: var(--status-trip); }
   .status-dot-leave   { background-color: var(--status-leave); }
 }
 

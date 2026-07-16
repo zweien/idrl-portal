@@ -7,7 +7,7 @@ export const mockPersonnel: Person[] = [
     name: '张教授',
     role: 'professor',
     email: 'zhang@idrl.edu.cn',
-    status: 'online',
+    status: 'present',
     workstationId: 'ws-a1',
     researchAreas: ['深度学习', '计算机视觉'],
     avatar: '',
@@ -17,7 +17,7 @@ export const mockPersonnel: Person[] = [
     name: '李明',
     role: 'postdoc',
     email: 'liming@idrl.edu.cn',
-    status: 'online',
+    status: 'present',
     workstationId: 'ws-a2',
     researchAreas: ['强化学习', '机器人'],
   },
@@ -26,7 +26,7 @@ export const mockPersonnel: Person[] = [
     name: '王小红',
     role: 'phd',
     email: 'wxh@idrl.edu.cn',
-    status: 'busy',
+    status: 'absent',
     workstationId: 'ws-b1',
     researchAreas: ['自然语言处理'],
   },
@@ -35,7 +35,7 @@ export const mockPersonnel: Person[] = [
     name: '刘强',
     role: 'phd',
     email: 'liuqiang@idrl.edu.cn',
-    status: 'offline',
+    status: 'absent',
     workstationId: 'ws-b2',
     researchAreas: ['图神经网络'],
   },
@@ -44,7 +44,7 @@ export const mockPersonnel: Person[] = [
     name: '陈思',
     role: 'master',
     email: 'chensi@idrl.edu.cn',
-    status: 'online',
+    status: 'present',
     workstationId: 'ws-c1',
     researchAreas: ['多模态学习'],
   },
@@ -62,7 +62,7 @@ export const mockPersonnel: Person[] = [
     name: '周杰',
     role: 'undergraduate',
     email: 'zhoujie@idrl.edu.cn',
-    status: 'online',
+    status: 'present',
     workstationId: 'ws-d1',
     researchAreas: ['数据挖掘'],
   },
@@ -71,7 +71,7 @@ export const mockPersonnel: Person[] = [
     name: '吴芳',
     role: 'staff',
     email: 'wufang@idrl.edu.cn',
-    status: 'online',
+    status: 'present',
     workstationId: 'ws-d2',
     researchAreas: [],
   },
@@ -395,12 +395,12 @@ export function getWorkstationByPerson(personId: string): Workstation | undefine
 // Statistics helpers
 export function getPersonnelStats() {
   const total = mockPersonnel.length
-  const online = mockPersonnel.filter(p => p.status === 'online').length
-  const busy = mockPersonnel.filter(p => p.status === 'busy').length
-  const offline = mockPersonnel.filter(p => p.status === 'offline').length
+  const present = mockPersonnel.filter(p => p.status === 'present').length
+  const absent = mockPersonnel.filter(p => p.status === 'absent').length
+  const trip = mockPersonnel.filter(p => p.status === 'trip').length
   const leave = mockPersonnel.filter(p => p.status === 'leave').length
-  
-  return { total, online, busy, offline, leave }
+
+  return { total, present, absent, trip, leave }
 }
 
 export function getWorkstationStats() {

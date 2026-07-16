@@ -11,17 +11,17 @@ interface Props {
 export default function PersonnelStats({ personnel }: Props) {
   const stats = useMemo(() => {
     const total = personnel.length
-    const online = personnel.filter(p => p.status === 'online').length
-    const busy = personnel.filter(p => p.status === 'busy').length
-    const offline = personnel.filter(p => p.status === 'offline').length
+    const present = personnel.filter(p => p.status === 'present').length
+    const absent = personnel.filter(p => p.status === 'absent').length
+    const trip = personnel.filter(p => p.status === 'trip').length
     const leave = personnel.filter(p => p.status === 'leave').length
 
     return [
       { label: '总人数', value: total, color: 'text-foreground' },
-      { label: '在位', value: online, color: 'text-[oklch(0.7_0.2_145)]' },
-      { label: '忙碌', value: busy, color: 'text-[oklch(0.65_0.2_45)]' },
-      { label: '离开', value: offline, color: 'text-muted-foreground' },
+      { label: '在位', value: present, color: 'text-[oklch(0.7_0.2_145)]' },
+      { label: '出差', value: trip, color: 'text-[oklch(0.6_0.15_240)]' },
       { label: '请假', value: leave, color: 'text-[oklch(0.5_0.15_300)]' },
+      { label: '未到', value: absent, color: 'text-muted-foreground' },
     ]
   }, [personnel])
 
