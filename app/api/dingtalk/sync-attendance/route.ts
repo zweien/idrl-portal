@@ -43,7 +43,7 @@ export async function POST() {
     }
 
     // Fetch all three data sources in parallel
-    const [attendanceMap, leaveSet, tripSet] = await Promise.all([
+    const [attendanceMap, leaveSet, tripMap] = await Promise.all([
       fetchAttendance(token, userids),
       fetchLeaveStatus(token, userids),
       fetchTripStatus(token, userids),
@@ -52,11 +52,19 @@ export async function POST() {
     // Map statuses and batch update
     const stats = { present: 0, leave: 0, trip: 0, absent: 0 }
     for (const [userid, personId] of useridToPersonId) {
-      const status = mapStatus(userid, tripSet, leaveSet, attendanceMap)
+      const status = mapStatus(userid, tripMap, leaveSet, attendanceMap)
       stats[status]++
+      const att = attendanceMap.get(userid)
+      const tripReason = tripMap.get(userid)
       await prisma.person.update({
         where: { id: personId },
-        data: { status },
+        data: {
+          status,
+          // lastSeen = punch time (e.g. "08:01"), cleared if no punch
+          ...(att?.checkTime ? { lastSeen: att.checkTime } : { lastSeen: null }),
+          // avatar repurposed as trip reason (cleared if not on trip)
+          ...(tripReason ? { avatar: tripReason } : { avatar: null }),
+        },
       })
     }
 

@@ -12,7 +12,7 @@ import type { Person, NewWorkstation } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
-import { Search, MapPin, Mail, User, Settings } from 'lucide-react'
+import { Search, MapPin, Mail, User, Settings, Clock, Plane } from 'lucide-react'
 
 const roleLabels: Record<Person['role'], string> = {
   professor:     '教授',
@@ -200,6 +200,18 @@ export default function PersonnelPage() {
                     <span className={cn('status-dot', statusConfig[selectedPerson.status].dot)} />
                     <span>{statusConfig[selectedPerson.status].label}</span>
                   </div>
+                  {selectedPerson.lastSeen && (
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Clock className="h-3.5 w-3.5 shrink-0" />
+                      <span>打卡 {selectedPerson.lastSeen}</span>
+                    </div>
+                  )}
+                  {selectedPerson.status === 'trip' && selectedPerson.avatar && (
+                    <div className="flex items-start gap-2 text-muted-foreground">
+                      <Plane className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                      <span className="text-xs">{selectedPerson.avatar}</span>
+                    </div>
+                  )}
                   {selectedPerson.email && (
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Mail className="h-3.5 w-3.5 shrink-0" />

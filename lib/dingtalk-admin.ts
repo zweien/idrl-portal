@@ -244,11 +244,16 @@ function todayInShanghai(): { dateStr: string; startMs: number; endMs: number } 
  *
  * Throws on DingTalk API failure (don't silently treat errors as absence).
  */
+export interface AttendanceDetail {
+  timeResult: string
+  checkTime?: string // ISO string of the OnDuty punch
+}
+
 export async function fetchAttendance(
   accessToken: string,
   userids: string[],
-): Promise<Map<string, string>> {
-  const result = new Map<string, string>()
+): Promise<Map<string, AttendanceDetail>> {
+  const result = new Map<string, AttendanceDetail>()
   if (userids.length === 0) return result
 
   const { dateStr } = todayInShanghai()
@@ -256,8 +261,6 @@ export async function fetchAttendance(
   const workDateTo = `${dateStr} 23:59:59`
 
   // attendance/list accepts max 50 userids per call; paginate with offset.
-  // Each user generates multiple records (OnDuty + OffDuty), so limit must
-  // be larger than the userid batch to capture all.
   const USER_BATCH = 50
   for (let i = 0; i < userids.length; i += USER_BATCH) {
     const batch = userids.slice(i, i + USER_BATCH)
@@ -283,13 +286,15 @@ export async function fetchAttendance(
         throw new Error(`attendance/list error ${data.errcode}: ${data.errmsg}`)
       }
       for (const r of data.recordresult ?? []) {
-        // DingTalk attendance/list uses camelCase 'userId' (not 'userid')
         const uid = r.userId ?? r.userid
         const checkType = r.checkType
         const timeResult = r.timeResult
         if (uid && checkType === 'OnDuty' && timeResult) {
-          // Use the OnDuty (上班) result as the day's attendance status
-          result.set(String(uid), String(timeResult))
+          const userCheckTime = r.userCheckTime as number | undefined
+          const checkTime = userCheckTime
+            ? new Date(userCheckTime).toLocaleTimeString('zh-CN', { timeZone: 'Asia/Shanghai', hour: '2-digit', minute: '2-digit' })
+            : undefined
+          result.set(String(uid), { timeResult: String(timeResult), checkTime })
         }
       }
       if (!data.hasMore) break
@@ -354,25 +359,23 @@ export async function fetchLeaveStatus(
 const PROCESS_DETAIL_URL = 'https://oapi.dingtalk.com/topapi/processinstance/get'
 
 /**
- * Check if today falls within a trip approval's date range.
- * Handles two form layouts:
- * - 京外 (商旅出差): JSON itinerary with nested startTime/endTime fields
- * - 京内 (因公外出): field named ["开始时间","结束时间"] with array value
- *   like ["2026-07-17 08:30", "2026-07-17 12:00", 3.5, "hour", ...]
+ * Check if today falls within a trip approval's date range, and extract the reason.
+ * Returns { active: boolean, reason?: string }.
  */
-function isTripActiveToday(formValues: unknown[]): boolean {
+function checkTripToday(formValues: unknown[]): { active: boolean; reason?: string } {
   const today = todayInShanghai()
   const todayStart = today.startMs
   const todayEnd = today.endMs
 
   let tripStart: number | null = null
   let tripEnd: number | null = null
+  let reason: string | undefined
 
   for (const fv of formValues) {
     const f = fv as { name?: string; value?: string }
     if (!f.value) continue
 
-    // Format 1: 京内 — field name contains 开始时间/结束时间, value is a JSON array
+    // Format 1: 京内 — field name contains 开始时间/结束时间
     if (f.name && f.name.includes('开始时间') && f.name.includes('结束时间')) {
       try {
         const arr = JSON.parse(f.value)
@@ -384,15 +387,16 @@ function isTripActiveToday(formValues: unknown[]): boolean {
     }
 
     // Format 2: 京外 — 商旅出差 JSON with itinerary table
-    // Structure: [{componentName:"TableField", props:{bizAlias:"itinerary"},
-    //   value: [{rowValue:[{bizAlias:"startTime", value:"2026-07-17 12:00"}, ...]}]}]
     try {
       const parsed = JSON.parse(f.value)
       if (!Array.isArray(parsed)) continue
       for (const item of parsed) {
         const bizAlias = item.props?.bizAlias || ''
+        // Extract reason
+        if (bizAlias === 'reason' && item.value) {
+          reason = String(item.value)
+        }
         if (bizAlias === 'itinerary') {
-          // value may be a JSON string or already parsed array
           const rows = typeof item.value === 'string' ? JSON.parse(item.value) : item.value
           if (Array.isArray(rows)) {
             for (const row of rows) {
@@ -415,11 +419,18 @@ function isTripActiveToday(formValues: unknown[]): boolean {
     } catch { /* not JSON */ }
   }
 
-  // Trip is active if today overlaps [tripStart, tripEnd]
-  if (tripStart !== null && tripEnd !== null) {
-    return tripStart <= todayEnd && tripEnd >= todayStart
+  // Also check for 外出事由 field (京内)
+  for (const fv of formValues) {
+    const f = fv as { name?: string; value?: string }
+    if (f.name === '外出事由' && f.value) {
+      reason = String(f.value)
+    }
   }
-  return false
+
+  if (tripStart !== null && tripEnd !== null) {
+    return { active: tripStart <= todayEnd && tripEnd >= todayStart, reason }
+  }
+  return { active: false }
 }
 
 /**
@@ -433,8 +444,8 @@ function isTripActiveToday(formValues: unknown[]): boolean {
 export async function fetchTripStatus(
   accessToken: string,
   userids: string[],
-): Promise<Set<string>> {
-  const result = new Set<string>()
+): Promise<Map<string, string>> {
+  const result = new Map<string, string>() // userid → reason
   if (userids.length === 0) return result
 
   const rawCodes = process.env.DINGTALK_TRIP_PROCESS_CODE
@@ -445,9 +456,8 @@ export async function fetchTripStatus(
   const startTime = endTime - 30 * 24 * 60 * 60 * 1000
 
   for (const userid of userids) {
-    if (result.has(userid)) continue // already confirmed via a previous code
+    if (result.has(userid)) continue
     for (const processCode of processCodes) {
-      // 1. List instance IDs
       const listRes = await fetch(`${PROCESS_INSTANCE_URL}?access_token=${accessToken}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -459,7 +469,6 @@ export async function fetchTripStatus(
       if (listData.errcode) throw new Error(`processinstance/listids error ${listData.errcode}: ${listData.errmsg}`)
       const instanceIds = listData.result?.list ?? []
 
-      // 2. For each instance, get detail and check if the trip covers today
       for (const instanceId of instanceIds) {
         const detailRes = await fetch(`${PROCESS_DETAIL_URL}?access_token=${accessToken}`, {
           method: 'POST',
@@ -478,13 +487,11 @@ export async function fetchTripStatus(
         }
         const inst = detailData.process_instance
         if (!inst) continue
-        // Only count instances where THIS user is the originator (not approver/CC)
         if (inst.originator_userid !== userid) continue
-        // Only count approved trips
         if (inst.status !== 'COMPLETED' || inst.result !== 'agree') continue
-        // Check if the trip date range covers today
-        if (isTripActiveToday(inst.form_component_values ?? [])) {
-          result.add(userid)
+        const { active, reason } = checkTripToday(inst.form_component_values ?? [])
+        if (active) {
+          result.set(userid, reason ?? '出差')
           break
         }
       }
@@ -503,15 +510,14 @@ export async function fetchTripStatus(
  */
 export function mapStatus(
   userid: string,
-  tripSet: Set<string>,
+  tripMap: Map<string, string>,
   leaveSet: Set<string>,
-  attendanceMap: Map<string, string>,
+  attendanceMap: Map<string, AttendanceDetail>,
 ): AttendanceResult {
-  if (tripSet.has(userid)) return 'trip'
+  if (tripMap.has(userid)) return 'trip'
   if (leaveSet.has(userid)) return 'leave'
-  const timeResult = attendanceMap.get(userid)
-  if (timeResult && timeResult !== 'NotSigned' && timeResult !== 'Absenteeism') {
-    // Has a real punch record (Normal/Late/Early/SeriousLate) → present
+  const att = attendanceMap.get(userid)
+  if (att && att.timeResult !== 'NotSigned' && att.timeResult !== 'Absenteeism') {
     return 'present'
   }
   return 'absent'
