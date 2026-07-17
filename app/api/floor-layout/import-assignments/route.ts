@@ -110,6 +110,13 @@ export async function POST(req: NextRequest) {
           where: { id: ws.id },
           data: { personId: person.id },
         })
+        // This workstation may have previously held a different person; that
+        // person is now freed, so drop them from the existing-assignment map —
+        // otherwise a later row assigning them elsewhere would be incorrectly
+        // skipped as "already assigned".
+        for (const [pid, wName] of existingPersonWs) {
+          if (wName === wsName && pid !== person.id) existingPersonWs.delete(pid)
+        }
         claimedInBatch.add(person.id)
         existingPersonWs.set(person.id, wsName)
         assigned++

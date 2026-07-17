@@ -147,21 +147,39 @@ export async function PUT(req: NextRequest) {
       for (const { id } of dbWsIds) {
         if (!payloadWsIds.has(id)) await tx.workstation.delete({ where: { id } })
       }
-      for (const w of payloadWs) {
-        const data = fromWorkstation(w)
+      // Resolve the final personId for each payload workstation up front. The
+      // personId-protection rule (geometry-only edit from a stale snapshot
+      // keeps the DB personId) is applied here so the unique constraint sees a
+      // consistent final state across all rows.
+      const resolved = payloadWs.map(w => {
         const dbRow = dbWsById.get(w.id)
-        // personId protection: geometry-only edit from a stale snapshot must
-        // not null an assignment. resolvePersonId keeps the DB personId when
-        // the payload omits it AND the geometry is unchanged.
-        data.personId = resolvePersonId(
+        const personId = resolvePersonId(
           { id: w.id, personId: w.personId, row: w.row, col: w.col, zoneId: w.zoneId, floorId: w.floorId },
           dbRow ? { id: dbRow.id, personId: dbRow.personId, row: dbRow.row, col: dbRow.col, zoneId: dbRow.zoneId, floorId: dbRow.floorId } : undefined,
         )
+        return { w, dbRow, personId }
+      })
+      // Two-phase write to honor the @@unique([personId]) constraint even when
+      // a person moves between workstations (e.g. swapping assignments, or
+      // moving P from w1 to w2). If we upserted in payload order and the
+      // destination ran before the source was cleared, the unique index would
+      // reject the destination mid-transaction. Phase 1 clears/structure-writes
+      // every workstation with personId=null; phase 2 applies the resolved
+      // assignments. A workstation whose final personId is null only runs once.
+      // Phase 1: structure + null out personId on every payload workstation.
+      for (const { w } of resolved) {
+        const data = fromWorkstation(w)
+        data.personId = null
         await tx.workstation.upsert({
           where: { id: w.id },
-          update: data,
-          create: data,
+          update: { ...data, personId: null },
+          create: { ...data, personId: null },
         })
+      }
+      // Phase 2: apply the resolved assignments (only where non-null).
+      for (const { w, personId } of resolved) {
+        if (!personId) continue
+        await tx.workstation.update({ where: { id: w.id }, data: { personId } })
       }
     })
 
