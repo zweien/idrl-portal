@@ -78,14 +78,18 @@ export default function PersonnelPage() {
   const handlePersonSelect = (person: Person) => {
     setSelectedPerson(person)
     let found: NewWorkstation | null = null
+    let foundFloorId: string | null = null
     for (const floor of floors) {
       for (const zone of floor.zones) {
         const ws = zone.workstations.find(w => w.personId === person.id)
-        if (ws) { found = ws; break }
+        if (ws) { found = ws; foundFloorId = floor.id; break }
       }
       if (found) break
     }
     setSelectedWs(found)
+    // Auto-switch to the floor where the workstation is, so the floor-plan
+    // shows the highlighted workstation instead of staying on a wrong floor.
+    if (foundFloorId) setActiveFloorId(foundFloorId)
   }
 
   if (!personnelResp || !floorData) {
