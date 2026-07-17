@@ -145,6 +145,7 @@ export async function listDepartmentUsers(accessToken: string, deptId: number): 
       errmsg?: string
       result?: {
         has_more: boolean
+        next_cursor?: number
         list?: Array<Record<string, unknown>>
       }
     }
@@ -167,7 +168,11 @@ export async function listDepartmentUsers(accessToken: string, deptId: number): 
       })
     }
     if (!data.result?.has_more) break
-    cursor += size
+    // Use the server-provided cursor when available (more reliable than
+    // incrementing locally — DingTalk doesn't guarantee contiguous offsets).
+    const next = data.result?.next_cursor
+    if (next === undefined || next === null) break
+    cursor = next
   }
   return all
 }
