@@ -14,7 +14,7 @@ import { NewsDialog } from '@/components/admin/news-dialog'
 import {
   Users, Server, Newspaper, Pencil, Trash2,
   Database, AlertTriangle, CheckCircle, Info,
-  ShieldAlert, MapPin,
+  ShieldAlert, MapPin, RefreshCw,
 } from 'lucide-react'
 
 /* ── Labels ─────────────────────────────────────── */
@@ -257,6 +257,27 @@ export default function AdminPage() {
   const [editingPerson, setEditingPerson]     = useState<Person | null>(null)
   const [editingResource, setEditingResource] = useState<Resource | null>(null)
   const [editingNews, setEditingNews]         = useState<NewsItem | null>(null)
+  const [syncing, setSyncing] = useState(false)
+  const [syncResult, setSyncResult] = useState<string | null>(null)
+
+  async function handleSyncMembers() {
+    if (syncing) return
+    setSyncing(true)
+    setSyncResult(null)
+    try {
+      const r = await fetch('/api/dingtalk/sync-members', { method: 'POST' })
+      const data = await r.json()
+      if (!r.ok) throw new Error(data.error || `同步失败 (${r.status})`)
+      setSyncResult(`同步完成：新增 ${data.created} 人，更新 ${data.updated} 人，关联登录 ${data.linked} 人`)
+      setSaveError(null)
+      void mutate()
+    } catch (e) {
+      setSyncResult(null)
+      reportErr(e)
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   if (user?.role !== 'admin') {
     return (
@@ -336,8 +357,17 @@ export default function AdminPage() {
                 <p className="text-sm font-medium">人员管理</p>
                 <p className="text-xs text-muted-foreground mt-0.5">管理实验室人员信息</p>
               </div>
-              <PersonDialog onSubmit={handlePersonCreate} />
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5" onClick={handleSyncMembers} disabled={syncing}>
+                  <RefreshCw className={cn('h-3.5 w-3.5', syncing && 'animate-spin')} />
+                  {syncing ? '同步中…' : '同步钉钉成员'}
+                </Button>
+                <PersonDialog onSubmit={handlePersonCreate} />
+              </div>
             </div>
+            {syncResult && (
+              <div className="px-4 py-2 border-b border-border bg-primary/5 text-xs text-primary">{syncResult}</div>
+            )}
             <div className="px-4">
               <DataTable
                 data={personnelData}
