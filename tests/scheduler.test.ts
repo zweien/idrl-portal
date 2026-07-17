@@ -22,7 +22,7 @@ vi.mock('@/lib/dingtalk-sync', () => ({
   syncAttendance: vi.fn().mockResolvedValue({ total: 1, stats: { present: 1, leave: 0, trip: 0, absent: 0 } }),
 }))
 
-const { isValidCron, CRON_PRESETS, runJob, registerScheduler, unregisterScheduler } =
+const { isValidCron, CRON_PRESETS, runJob, registerScheduler, unregisterScheduler, cronMatchesMinute } =
   await import('@/lib/scheduler')
 
 describe('isValidCron', () => {
@@ -36,6 +36,28 @@ describe('isValidCron', () => {
     expect(isValidCron('not a cron')).toBe(false)
     expect(isValidCron('')).toBe(false)
     expect(isValidCron('99 * * * *')).toBe(false) // minute 99 out of range
+  })
+})
+
+describe('cronMatchesMinute', () => {
+  it('matches every-minute expression at any time', () => {
+    expect(cronMatchesMinute('* * * * *', new Date('2026-07-17T10:30:00Z'))).toBe(true)
+  })
+
+  it('matches */15 only on the 15-minute boundaries', () => {
+    expect(cronMatchesMinute('*/15 * * * *', new Date('2026-07-17T10:00:00Z'))).toBe(true)
+    expect(cronMatchesMinute('*/15 * * * *', new Date('2026-07-17T10:15:00Z'))).toBe(true)
+    expect(cronMatchesMinute('*/15 * * * *', new Date('2026-07-17T10:07:00Z'))).toBe(false)
+  })
+
+  it('respects hour and weekday', () => {
+    // 0 8-20 * * 1-5 : minute 0, hours 8-20, Mon-Fri
+    // 2026-07-17 is a Friday; 10:00 UTC matches.
+    expect(cronMatchesMinute('0 8-20 * * 1-5', new Date('2026-07-17T10:00:00Z'))).toBe(true)
+    // Saturday at 10:00 → no match (weekday)
+    expect(cronMatchesMinute('0 8-20 * * 1-5', new Date('2026-07-18T10:00:00Z'))).toBe(false)
+    // Friday but minute 30 → no match
+    expect(cronMatchesMinute('0 8-20 * * 1-5', new Date('2026-07-17T10:30:00Z'))).toBe(false)
   })
 })
 
@@ -57,37 +79,32 @@ describe('runJob', () => {
     mockNewsUpdate.mockResolvedValue({})
   })
 
+  // Use '* * * * *' (every minute) so cronMatchesMinute is always true, and
+  // re-read the setting as enabled/valid for the "runs" cases.
   it('skips a disabled job (no syncLog)', async () => {
-    // enabled flag = "false"
-    mockSettingFindUnique.mockResolvedValueOnce({ value: 'false' }) // enableKey
-    // We can't easily pick which JobDef runs by name via runJob; runJob takes a
-    // JobDef. Instead test the publish-news path directly by importing the
-    // internal execute. Simplest: assert that when the enable setting is false,
-    // nothing runs.
-    const { runJob } = await import('@/lib/scheduler')
-    // runJob is the unbound executeJob; find the publish-news def.
-    // Since runJob requires a JobDef, we call it with a fake def.
+    mockSettingFindUnique.mockResolvedValue({ value: 'false' }) // enableKey → disabled
     await runJob({
       job: 'publish-news',
       settingKey: 'cron.publish',
       enableKey: 'cron.enabled.publish',
-      defaultCron: '*/5 * * * *',
+      defaultCron: '* * * * *',
       run: async () => ({ published: 0 }),
     })
     expect(mockSyncLogCreate).not.toHaveBeenCalled()
   })
 
   it('writes a success syncLog when the job runs', async () => {
-    // enabled (default), valid cron
-    mockSettingFindUnique.mockResolvedValue(null) // not found → enabled, default cron
+    // enableKey found true, cron.publish = every minute → matches now
+    mockSettingFindUnique.mockImplementation(({ where }: { where: { key: string } }) =>
+      Promise.resolve(where.key === 'cron.enabled.publish' ? { value: 'true' } : { value: '* * * * *' }),
+    )
     mockNewsFindMany.mockResolvedValue([{ id: 'n1' }])
     await runJob({
       job: 'publish-news',
       settingKey: 'cron.publish',
       enableKey: 'cron.enabled.publish',
-      defaultCron: '*/5 * * * *',
+      defaultCron: '* * * * *',
       run: async () => {
-        // mimic publishDueNews using the mocked prisma
         const due = await mockNewsFindMany()
         for (const n of due) await mockNewsUpdate({ where: { id: n.id } })
         return { published: due.length }
@@ -101,18 +118,35 @@ describe('runJob', () => {
   })
 
   it('writes an error syncLog when the job throws', async () => {
-    mockSettingFindUnique.mockResolvedValue(null)
+    mockSettingFindUnique.mockImplementation(({ where }: { where: { key: string } }) =>
+      Promise.resolve(where.key === 'cron.enabled.publish' ? { value: 'true' } : { value: '* * * * *' }),
+    )
     await runJob({
       job: 'publish-news',
       settingKey: 'cron.publish',
       enableKey: 'cron.enabled.publish',
-      defaultCron: '*/5 * * * *',
+      defaultCron: '* * * * *',
       run: async () => { throw new Error('boom') },
     })
     expect(mockSyncLogCreate).toHaveBeenCalledTimes(1)
     const entry = mockSyncLogCreate.mock.calls[0][0].data
     expect(entry.status).toBe('error')
     expect(entry.message).toBe('boom')
+  })
+
+  it('does not run when the live cron does not match the current minute', async () => {
+    // enable true, but cron = "0 0 1 1 *" (Jan 1 only) → won't match now
+    mockSettingFindUnique.mockImplementation(({ where }: { where: { key: string } }) =>
+      Promise.resolve(where.key === 'cron.enabled.publish' ? { value: 'true' } : { value: '0 0 1 1 *' }),
+    )
+    await runJob({
+      job: 'publish-news',
+      settingKey: 'cron.publish',
+      enableKey: 'cron.enabled.publish',
+      defaultCron: '* * * * *',
+      run: async () => ({ published: 0 }),
+    })
+    expect(mockSyncLogCreate).not.toHaveBeenCalled()
   })
 })
 

@@ -8,6 +8,12 @@ import { syncMembers, syncAttendance } from '@/lib/dingtalk-sync'
  * publish-due-news) on cron expressions stored in the Setting table, so
  * admins can change cadence without a redeploy.
  *
+ * Implementation note: each job ticks every minute on a fixed heartbeat and,
+ * on each tick, re-reads its live cron expression from the Setting table and
+ * checks whether the current minute matches. This makes setting changes take
+ * effect within ≤60s (a full task destroy/recreate isn't needed), at the cost
+ * of one cheap minute-boundary check per job.
+ *
  * Settings keys:
  *   cron.members        — cron expression for sync-members
  *   cron.attendance     — cron expression for sync-attendance
@@ -50,6 +56,54 @@ export function isValidCron(expr: string): boolean {
   return typeof expr === 'string' && expr.trim().length > 0 && cron.validate(expr)
 }
 
+/**
+ * Does the given cron expression match a specific minute? We compare against
+ * the UTC fields of `date` — callers store cron in UTC terms. We expand each
+ * of the 5 cron fields (minute, hour, day-of-month, month, day-of-week) into a
+ * set, supporting star, ranges, comma lists, and step values, then test
+ * whether every field of `date` is in its set.
+ */
+function cronMatchesMinute(expr: string, date: Date): boolean {
+  // node-cron exposes validate; for matching we reconstruct the parsed fields.
+  // Simplest robust approach: parse fields ourselves into sets and compare.
+  const parts = expr.trim().split(/\s+/)
+  if (parts.length !== 5) return false
+  const [minF, hourF, domF, monF, dowF] = parts
+  const expand = (field: string, min: number, max: number): Set<number> => {
+    const out = new Set<number>()
+    for (const token of field.split(',')) {
+      let step = 1
+      let base = token
+      const slashIdx = token.indexOf('/')
+      if (slashIdx >= 0) {
+        step = parseInt(token.slice(slashIdx + 1))
+        base = token.slice(0, slashIdx)
+      }
+      if (base === '*') {
+        for (let v = min; v <= max; v += step) out.add(v)
+      } else if (base.includes('-')) {
+        const [lo, hi] = base.split('-').map(n => parseInt(n))
+        for (let v = lo; v <= hi; v += step) out.add(v)
+      } else {
+        out.add(parseInt(base))
+      }
+    }
+    return out
+  }
+  const mins = expand(minF, 0, 59)
+  const hours = expand(hourF, 0, 23)
+  const doms = expand(domF, 1, 31)
+  const mons = expand(monF, 1, 12)
+  const dows = expand(dowF, 0, 6) // 0 = Sunday
+  return (
+    mins.has(date.getUTCMinutes()) &&
+    hours.has(date.getUTCHours()) &&
+    doms.has(date.getUTCDate()) &&
+    mons.has(date.getUTCMonth() + 1) &&
+    dows.has(date.getUTCDay())
+  )
+}
+
 async function readSetting(key: string): Promise<string | null> {
   const row = await prisma.setting.findUnique({ where: { key } })
   return row?.value ?? null
@@ -62,7 +116,7 @@ async function isEnabled(enableKey: string): Promise<boolean> {
 }
 
 /** Publish any draft news whose publishAt time has passed. */
-async function publishDueNews(): Promise<{ published: number }> {
+export async function publishDueNews(): Promise<{ published: number }> {
   const now = new Date().toISOString()
   const due = await prisma.newsItem.findMany({
     where: { status: 'draft', publishAt: { not: null, lte: now } },
@@ -105,6 +159,8 @@ async function executeJob(def: JobDef) {
   if (!(await isEnabled(def.enableKey))) return
   const expr = (await readSetting(def.settingKey)) ?? def.defaultCron
   if (!isValidCron(expr)) return
+  // Only run when the current minute matches the live expression.
+  if (!cronMatchesMinute(expr, new Date())) return
   try {
     const result = await def.run()
     await prisma.syncLog.create({
@@ -127,19 +183,18 @@ async function executeJob(def: JobDef) {
   }
 }
 
-// One cron task per job. Re-scheduled on the default cadence; each tick
-// re-reads the live expression from the Setting table.
+// Each job ticks every minute on a fixed heartbeat; the live cron expression
+// decides whether the tick actually fires the work.
 const tasks = new Map<CronJob, ScheduledTask>()
 
 let registered = false
 
-/** Register all cron jobs. Safe to call once (idempotent guard). */
+/** Register all cron jobs (minute heartbeat). Safe to call once (idempotent). */
 export function registerScheduler() {
   if (registered) return
   registered = true
   for (const def of JOB_DEFS) {
-    // Schedule on the default cadence; the actual work re-reads settings.
-    const task = cron.schedule(def.defaultCron, () => {
+    const task = cron.schedule('* * * * *', () => {
       void executeJob(def)
     })
     tasks.set(def.job, task)
@@ -153,4 +208,4 @@ export function unregisterScheduler() {
   registered = false
 }
 
-export { executeJob as runJob } // exported for testing
+export { executeJob as runJob, cronMatchesMinute } // exported for testing

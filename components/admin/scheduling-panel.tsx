@@ -78,7 +78,7 @@ export function SchedulingPanel() {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-medium">调度设置</p>
-          <p className="text-xs text-muted-foreground mt-0.5">配置同步与定时发布的执行周期。修改后无需重启，下次执行生效。</p>
+          <p className="text-xs text-muted-foreground mt-0.5">配置同步与定时发布的执行周期。修改后无需重启，约 1 分钟内生效。cron 表达式按 UTC 时间解释（如"工作日 8-20 点"为 UTC 08-20）。</p>
         </div>
         <Button size="sm" className="h-8 text-xs" onClick={handleSave} disabled={saving}>
           {saving ? '保存中…' : '保存设置'}

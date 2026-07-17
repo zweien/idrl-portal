@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { toNewsItem, fromNewsItem } from '@/lib/db/serialize'
-import { requireUser, requireAdmin } from '@/lib/auth-api'
+import { requireUserOrScope, requireScope } from '@/lib/auth-api'
 import type { NewsItem, ApiResponse, PaginatedResponse } from '@/lib/types'
 
 export async function GET(request: Request) {
-  const session = await requireUser()
+  const session = await requireUserOrScope(request, 'news:read')
   if (session instanceof NextResponse) return session
 
   const { searchParams } = new URL(request.url)
@@ -62,7 +62,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireAdmin()
+  const auth = await requireScope(req, 'news:publish')
   if (auth instanceof NextResponse) return auth
 
   let body: Partial<NewsItem>

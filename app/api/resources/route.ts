@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { toResource, fromResource } from '@/lib/db/serialize'
-import { requireUser, requireAdmin } from '@/lib/auth-api'
+import { requireUserOrScope, requireAdmin } from '@/lib/auth-api'
 import type { Resource, ApiResponse, PaginatedResponse } from '@/lib/types'
 
 export async function GET(request: Request) {
-  const session = await requireUser()
+  const session = await requireUserOrScope(request, 'resource:read')
   if (session instanceof NextResponse) return session
 
   const { searchParams } = new URL(request.url)

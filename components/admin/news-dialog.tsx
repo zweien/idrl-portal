@@ -52,10 +52,29 @@ export function NewsDialog({ initialData, trigger, onSubmit }: NewsDialogProps) 
     imageUrl: initialData?.imageUrl ?? '',
   })
 
+  // datetime-local inputs emit a local wall-clock with no timezone
+  // ("YYYY-MM-DDTHH:mm"). Convert to a UTC ISO instant for storage so the
+  // scheduler's publishAt comparison (against new Date().toISOString()) means
+  // what the admin intended. Inverse: isoToLocal fills the input.
+  const localToIso = (local: string): string | null => {
+    if (!local) return null
+    const d = new Date(local)
+    return isNaN(d.getTime()) ? null : d.toISOString()
+  }
+  const isoToLocal = (iso?: string | null): string => {
+    if (!iso) return ''
+    const d = new Date(iso)
+    if (isNaN(d.getTime())) return ''
+    // YYYY-MM-DDTHH:mm in the browser's local zone.
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  }
+
   const handleSubmit = () => {
     if (!form.title) return
-    // status: 'scheduled' is represented as draft + publishAt; the scheduler
-    // flips draft→published once publishAt passes.
+    // 'scheduled' is a UI mode represented as status=draft + publishAt; the
+    // scheduler flips draft→published once publishAt passes. publishAt is
+    // cleared for non-scheduled modes so a draft stays a draft.
     const scheduled = form.status === 'scheduled'
     onSubmit({
       id: initialData?.id ?? `n-${Date.now()}`,
@@ -69,7 +88,7 @@ export function NewsDialog({ initialData, trigger, onSubmit }: NewsDialogProps) 
       link: form.link || undefined,
       imageUrl: form.imageUrl || undefined,
       status: (scheduled ? 'draft' : form.status === 'scheduled' ? 'published' : form.status) as NewsStatus,
-      publishAt: scheduled && form.publishAt ? form.publishAt : (form.publishAt || null),
+      publishAt: scheduled ? localToIso(form.publishAt) : null,
       categoryId: form.categoryId || null,
     })
     setOpen(false)
@@ -82,7 +101,7 @@ export function NewsDialog({ initialData, trigger, onSubmit }: NewsDialogProps) 
         title: initialData.title,
         categoryId: initialData.categoryId ?? '',
         status: (initialData.publishAt && initialData.status === 'draft' ? 'scheduled' : initialData.status) as NewsStatus | 'scheduled',
-        publishAt: initialData.publishAt ?? '',
+        publishAt: isoToLocal(initialData.publishAt),
         content: initialData.content,
         summary: initialData.summary ?? '',
         author: initialData.author ?? '',

@@ -79,6 +79,7 @@ export async function syncMembers(): Promise<{
 export async function syncAttendance(): Promise<{
   total: number
   stats: { present: number; leave: number; trip: number; absent: number }
+  message?: string
 }> {
   const token = await getEnterpriseAccessToken()
 
@@ -96,7 +97,11 @@ export async function syncAttendance(): Promise<{
 
   const userids = [...useridToPersonId.keys()]
   if (userids.length === 0) {
-    return { total: 0, stats: { present: 0, leave: 0, trip: 0, absent: 0 } }
+    return {
+      total: 0,
+      stats: { present: 0, leave: 0, trip: 0, absent: 0 },
+      message: '没有同步的钉钉成员，请先执行成员同步',
+    }
   }
 
   const [attendanceMap, leaveSet, tripMap] = await Promise.all([

@@ -11,13 +11,19 @@ interface AdminDataBody {
 }
 
 export async function GET() {
-  const auth = await requireUser()
-  if (auth instanceof NextResponse) return auth
+  const session = await requireUser()
+  if (session instanceof NextResponse) return session
 
+  const isAdmin = session.role === 'admin'
   const [persons, news, resources] = await Promise.all([
     prisma.person.findMany(),
-    prisma.newsItem.findMany({ orderBy: { date: 'desc' } }),
-    prisma.resource.findMany(),
+    // Non-admins only see published news; admins see drafts too.
+    prisma.newsItem.findMany({
+      where: isAdmin ? undefined : { status: 'published' },
+      orderBy: { date: 'desc' },
+    }),
+    // accessLevel enforcement mirrors /api/resources: non-admins can't see admin-only.
+    prisma.resource.findMany({ where: isAdmin ? undefined : { accessLevel: { not: 'admin' } } }),
   ])
   return NextResponse.json({
     personnel: persons.map(toPerson),

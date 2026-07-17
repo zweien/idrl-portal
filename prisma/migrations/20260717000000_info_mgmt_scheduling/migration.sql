@@ -53,6 +53,22 @@ WHERE "type" IS NOT NULL
 GROUP BY "type"
 ON CONFLICT DO NOTHING;
 
+-- Ensure the full known legacy set always exists, even on databases that
+-- referenced only a subset of types. Uses deterministic ids (matching the
+-- seed) so a partial backfill above and this complete set agree. ON CONFLICT
+-- keeps it idempotent for databases that already have rows.
+INSERT INTO "Category" ("id", "name", "kind", "order") VALUES
+  ('cat_news_paper', 'paper', 'news', 0),
+  ('cat_news_notice', 'notice', 'news', 1),
+  ('cat_news_event', 'event', 'news', 2),
+  ('cat_news_achievement', 'achievement', 'news', 3),
+  ('cat_res_compute', 'compute', 'resource', 0),
+  ('cat_res_storage', 'storage', 'resource', 1),
+  ('cat_res_code', 'code', 'resource', 2),
+  ('cat_res_docs', 'docs', 'resource', 3),
+  ('cat_res_other', 'other', 'resource', 4)
+ON CONFLICT DO NOTHING;
+
 -- RedefineTables: rebuild NewsItem (drop type, add status/publishAt/categoryId)
 PRAGMA defer_foreign_keys=ON;
 PRAGMA foreign_keys=OFF;
