@@ -6,31 +6,33 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { MarkdownContent } from '@/components/dashboard/markdown-content'
-import { useAdminData } from '@/lib/api'
+import { useAdminData, useCategories } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
-import type { NewsItem, NewsType } from '@/lib/types'
+import type { NewsItem, Category } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import {
   Users,
   Monitor,
   Server,
   ArrowRight,
-  FileText,
   Newspaper,
-  Calendar,
-  Award,
   Pin,
   Clock,
   User,
   X,
-  ChevronDown,
 } from 'lucide-react'
 
-const typeConfig: Record<NewsType, { icon: React.ElementType; label: string; color: string; accent: string }> = {
-  paper:       { icon: FileText,    label: '论文发表',   color: 'text-[var(--chart-1)]', accent: 'bg-[var(--chart-1)]/8 border-[var(--chart-1)]/20' },
-  notice:      { icon: Newspaper,   label: '实验室通知', color: 'text-[var(--chart-2)]', accent: 'bg-[var(--chart-2)]/8 border-[var(--chart-2)]/20' },
-  event:       { icon: Calendar,    label: '最新活动',   color: 'text-[var(--chart-3)]', accent: 'bg-[var(--chart-3)]/8 border-[var(--chart-3)]/20' },
-  achievement: { icon: Award,       label: '荣誉成就',   color: 'text-[var(--chart-4)]', accent: 'bg-[var(--chart-4)]/8 border-[var(--chart-4)]/20' },
+// Cycle through chart color tokens for each category (now dynamic).
+const catPalette = [
+  { color: 'text-[var(--chart-1)]', accent: 'bg-[var(--chart-1)]/8 border-[var(--chart-1)]/20' },
+  { color: 'text-[var(--chart-2)]', accent: 'bg-[var(--chart-2)]/8 border-[var(--chart-2)]/20' },
+  { color: 'text-[var(--chart-3)]', accent: 'bg-[var(--chart-3)]/8 border-[var(--chart-3)]/20' },
+  { color: 'text-[var(--chart-4)]', accent: 'bg-[var(--chart-4)]/8 border-[var(--chart-4)]/20' },
+  { color: 'text-[var(--chart-5)]', accent: 'bg-[var(--chart-5)]/8 border-[var(--chart-5)]/20' },
+]
+
+function catConfig(cat: Category, index: number) {
+  return { ...catPalette[index % catPalette.length] }
 }
 
 function StatCard({ label, value, sub, icon: Icon }: {
@@ -49,10 +51,7 @@ function StatCard({ label, value, sub, icon: Icon }: {
   )
 }
 
-function NewsCard({ news, onExpand }: { news: NewsItem; onExpand: (n: NewsItem) => void }) {
-  const cfg = typeConfig[news.type]
-  const Icon = cfg.icon
-
+function NewsCard({ news, catLabel, cfg, onExpand }: { news: NewsItem; catLabel: string; cfg: { color: string; accent: string }; onExpand: (n: NewsItem) => void }) {
   return (
     <button
       onClick={() => onExpand(news)}
@@ -63,12 +62,12 @@ function NewsCard({ news, onExpand }: { news: NewsItem; onExpand: (n: NewsItem) 
     >
       <div className="flex items-start gap-3">
         <div className={cn('w-7 h-7 rounded-md flex items-center justify-center shrink-0 mt-0.5', cfg.accent)}>
-          <Icon className={cn('h-3.5 w-3.5', cfg.color)} />
+          <Newspaper className={cn('h-3.5 w-3.5', cfg.color)} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 mb-1 flex-wrap">
             <Badge variant="outline" className="text-[10px] font-normal h-4 px-1.5">
-              {cfg.label}
+              {catLabel}
             </Badge>
             {news.pinned && (
               <Badge variant="secondary" className="text-[10px] font-normal h-4 px-1.5 gap-0.5">
@@ -96,10 +95,7 @@ function NewsCard({ news, onExpand }: { news: NewsItem; onExpand: (n: NewsItem) 
   )
 }
 
-function NewsExpandModal({ news, onClose }: { news: NewsItem; onClose: () => void }) {
-  const cfg = typeConfig[news.type]
-  const Icon = cfg.icon
-
+function NewsExpandModal({ news, catLabel, cfg, onClose }: { news: NewsItem; catLabel: string; cfg: { color: string; accent: string }; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto">
       {/* Backdrop */}
@@ -110,11 +106,11 @@ function NewsExpandModal({ news, onClose }: { news: NewsItem; onClose: () => voi
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div className="flex items-center gap-2">
             <div className={cn('w-7 h-7 rounded-md flex items-center justify-center', cfg.accent)}>
-              <Icon className={cn('h-3.5 w-3.5', cfg.color)} />
+              <Newspaper className={cn('h-3.5 w-3.5', cfg.color)} />
             </div>
             <div className="flex items-center gap-1.5">
               <Badge variant="outline" className="text-xs font-normal gap-1">
-                {cfg.label}
+                {catLabel}
               </Badge>
               {news.pinned && (
                 <Badge variant="secondary" className="text-xs font-normal gap-1">
@@ -165,9 +161,11 @@ function NewsExpandModal({ news, onClose }: { news: NewsItem; onClose: () => voi
 export default function DashboardPage() {
   const { user } = useAuth()
   const { data } = useAdminData()
+  const { data: catResp } = useCategories('news')
   const personnel = data?.personnel ?? []
   const resources = data?.resources ?? []
   const news = data?.news ?? []
+  const categories = catResp?.data ?? []
   const [expandedNews, setExpandedNews] = useState<NewsItem | null>(null)
 
   const personnelStats = useMemo(() => ({
@@ -185,13 +183,29 @@ export default function DashboardPage() {
 
   const pinnedNews = useMemo(() => news.filter(n => n.pinned), [news])
 
+  // Group non-pinned news by category id (in category order); uncategorized
+  // items fall into an "未分类" bucket shown last.
   const groupedNews = useMemo(() => {
-    const groups: Record<NewsType, NewsItem[]> = { paper: [], notice: [], event: [], achievement: [] }
-    news.forEach(n => { if (!n.pinned) groups[n.type].push(n) })
+    const byCat = new Map<string, NewsItem[]>()
+    const uncategorized: NewsItem[] = []
+    news.forEach(n => {
+      if (n.pinned) return
+      if (n.categoryId) {
+        const arr = byCat.get(n.categoryId) ?? []
+        arr.push(n)
+        byCat.set(n.categoryId, arr)
+      } else {
+        uncategorized.push(n)
+      }
+    })
+    const groups: { id: string; name: string; items: NewsItem[] }[] = []
+    categories.forEach(c => {
+      const items = byCat.get(c.id)
+      if (items && items.length) groups.push({ id: c.id, name: c.name, items })
+    })
+    if (uncategorized.length) groups.push({ id: '_none', name: '未分类', items: uncategorized })
     return groups
-  }, [news])
-
-  const orderedTypes: NewsType[] = ['paper', 'notice', 'event', 'achievement']
+  }, [news, categories])
 
   if (!data) {
     return (
@@ -230,27 +244,27 @@ export default function DashboardPage() {
             <span className="text-sm font-medium">置顶公告</span>
           </div>
           <div className="grid md:grid-cols-2 gap-2">
-            {pinnedNews.map(news => (
-              <NewsCard key={news.id} news={news} onExpand={setExpandedNews} />
-            ))}
+            {pinnedNews.map(news => {
+              const catIndex = categories.findIndex(c => c.id === news.categoryId)
+              const cfg = catPalette[catIndex % catPalette.length] ?? catPalette[0]
+              const catLabel = catIndex >= 0 ? categories[catIndex].name : '未分类'
+              return <NewsCard key={news.id} news={news} cfg={cfg} catLabel={catLabel} onExpand={setExpandedNews} />
+            })}
           </div>
         </div>
       )}
 
       {/* Categorized news */}
       <div className="space-y-6">
-        {orderedTypes.map(type => {
-          const items = groupedNews[type]
-          if (items.length === 0) return null
-          const cfg = typeConfig[type]
-          const Icon = cfg.icon
+        {groupedNews.map((group, index) => {
+          const cfg = group.id === '_none' ? catPalette[0] : catPalette[index % catPalette.length]
           return (
-            <section key={type}>
+            <section key={group.id}>
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <Icon className={cn('h-4 w-4', cfg.color)} />
-                  <span className="text-sm font-medium">{cfg.label}</span>
-                  <span className="text-xs text-muted-foreground tabular-nums">{items.length}</span>
+                  <Newspaper className={cn('h-4 w-4', cfg.color)} />
+                  <span className="text-sm font-medium">{group.name}</span>
+                  <span className="text-xs text-muted-foreground tabular-nums">{group.items.length}</span>
                 </div>
                 <Link href="/dashboard/news">
                   <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-muted-foreground hover:text-foreground">
@@ -259,8 +273,8 @@ export default function DashboardPage() {
                 </Link>
               </div>
               <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-2">
-                {items.map(news => (
-                  <NewsCard key={news.id} news={news} onExpand={setExpandedNews} />
+                {group.items.map(news => (
+                  <NewsCard key={news.id} news={news} cfg={cfg} catLabel={group.name} onExpand={setExpandedNews} />
                 ))}
               </div>
             </section>
@@ -307,9 +321,12 @@ export default function DashboardPage() {
       </div>
 
       {/* Expand modal */}
-      {expandedNews && (
-        <NewsExpandModal news={expandedNews} onClose={() => setExpandedNews(null)} />
-      )}
+      {expandedNews && (() => {
+        const catIndex = categories.findIndex(c => c.id === expandedNews.categoryId)
+        const cfg = catPalette[catIndex % catPalette.length] ?? catPalette[0]
+        const catLabel = catIndex >= 0 ? categories[catIndex].name : '未分类'
+        return <NewsExpandModal news={expandedNews} cfg={cfg} catLabel={catLabel} onClose={() => setExpandedNews(null)} />
+      })()}
     </div>
   )
 }

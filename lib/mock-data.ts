@@ -104,7 +104,7 @@ export const mockResources: Resource[] = [
   {
     id: 'r1',
     name: 'GPU 计算集群',
-    type: 'compute',
+    categoryId: 'cat_res_compute',
     description: '8x NVIDIA A100 GPU 集群，支持大规模深度学习训练',
     url: 'https://cluster.idrl.edu.cn',
     status: 'available',
@@ -119,7 +119,7 @@ export const mockResources: Resource[] = [
   {
     id: 'r2',
     name: 'CPU 计算节点',
-    type: 'compute',
+    categoryId: 'cat_res_compute',
     description: '高性能 CPU 计算节点，适合数据预处理和仿真任务',
     url: 'https://cluster.idrl.edu.cn',
     status: 'available',
@@ -133,7 +133,7 @@ export const mockResources: Resource[] = [
   {
     id: 'r3',
     name: '实验室网盘',
-    type: 'storage',
+    categoryId: 'cat_res_storage',
     description: '团队协作文件存储，支持版本管理和共享',
     url: 'https://drive.idrl.edu.cn',
     status: 'available',
@@ -146,7 +146,7 @@ export const mockResources: Resource[] = [
   {
     id: 'r4',
     name: 'GitLab 代码仓库',
-    type: 'code',
+    categoryId: 'cat_res_code',
     description: '私有代码托管平台，支持 CI/CD 流水线',
     url: 'https://git.idrl.edu.cn',
     status: 'available',
@@ -159,7 +159,7 @@ export const mockResources: Resource[] = [
   {
     id: 'r5',
     name: '知识库文档',
-    type: 'docs',
+    categoryId: 'cat_res_docs',
     description: '实验室内部文档、教程和最佳实践指南',
     url: 'https://docs.idrl.edu.cn',
     status: 'available',
@@ -168,7 +168,7 @@ export const mockResources: Resource[] = [
   {
     id: 'r6',
     name: 'Jupyter Hub',
-    type: 'compute',
+    categoryId: 'cat_res_compute',
     description: '在线 Jupyter 环境，预装常用 ML 框架',
     url: 'https://jupyter.idrl.edu.cn',
     status: 'maintenance',
@@ -184,7 +184,8 @@ export const mockResources: Resource[] = [
 export const mockNews: NewsItem[] = [
   {
     id: 'n1',
-    type: 'paper',
+    categoryId: 'cat_news_paper',
+    status: 'published',
     title: '实验室论文被 NeurIPS 2024 接收',
     content: `恭喜李明博士后的论文 **"Hierarchical Reinforcement Learning with Adaptive Subgoal Discovery"** 被 NeurIPS 2024 接收为 **Spotlight** 论文！
 
@@ -215,7 +216,8 @@ export const mockNews: NewsItem[] = [
   },
   {
     id: 'n2',
-    type: 'notice',
+    categoryId: 'cat_news_notice',
+    status: 'published',
     title: '实验室搬迁通知',
     content: `实验室将于下月初搬迁至 **新科研楼 A 座 5 层**，请各位同学提前整理个人物品。
 
@@ -252,7 +254,8 @@ export const mockNews: NewsItem[] = [
   },
   {
     id: 'n3',
-    type: 'event',
+    categoryId: 'cat_news_event',
+    status: 'published',
     title: '学术沙龙：大语言模型前沿进展',
     content: `本周五下午 3 点，我们邀请了来自某知名企业的研究员为大家分享大语言模型的最新研究进展，欢迎大家踊跃参加！
 
@@ -288,7 +291,8 @@ GPT-4  → ~1.8T MoE (2023)
   },
   {
     id: 'n4',
-    type: 'achievement',
+    categoryId: 'cat_news_achievement',
+    status: 'published',
     title: '王小红获得国家奖学金',
     content: `恭喜博士生 **王小红** 凭借在自然语言处理领域的出色研究成果，获得 **2024 年度国家奖学金**！
 
@@ -312,7 +316,8 @@ GPT-4  → ~1.8T MoE (2023)
   },
   {
     id: 'n5',
-    type: 'paper',
+    categoryId: 'cat_news_paper',
+    status: 'published',
     title: 'CVPR 2024 论文发表',
     content: `实验室在计算机视觉顶会 **CVPR 2024** 发表论文 2 篇，研究方向涵盖视觉问答和图像生成。
 
@@ -339,7 +344,8 @@ GPT-4  → ~1.8T MoE (2023)
   },
   {
     id: 'n6',
-    type: 'event',
+    categoryId: 'cat_news_event',
+    status: 'published',
     title: '实验室年度团建活动',
     content: `一年一度的实验室团建活动将于国庆期间举行，今年我们将前往 **黄山** 进行为期两天的户外活动。
 

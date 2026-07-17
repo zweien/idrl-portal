@@ -1,10 +1,10 @@
 import type {
-  Floor, Zone, NewWorkstation, Person, NewsItem, Resource, User,
+  Floor, Zone, NewWorkstation, Person, NewsItem, Resource, User, Category,
 } from '@/lib/types'
 import type {
   Floor as DBFloor, Zone as DBZone, Workstation as DBWorkstation,
   Person as DBPerson, NewsItem as DBNews, Resource as DBResource,
-  User as DBUser,
+  User as DBUser, Category as DBCategory,
 } from '@prisma/client'
 
 // ===== DB → TS =====
@@ -27,7 +27,6 @@ export function toPerson(p: DBPerson): Person {
 export function toNewsItem(n: DBNews): NewsItem {
   return {
     id: n.id,
-    type: n.type as NewsItem['type'],
     title: n.title,
     content: n.content,
     summary: n.summary ?? undefined,
@@ -37,6 +36,9 @@ export function toNewsItem(n: DBNews): NewsItem {
     imageUrl: n.imageUrl ?? undefined,
     link: n.link ?? undefined,
     pinned: n.pinned,
+    status: n.status as NewsItem['status'],
+    publishAt: n.publishAt ?? undefined,
+    categoryId: n.categoryId ?? undefined,
   }
 }
 
@@ -44,13 +46,22 @@ export function toResource(r: DBResource): Resource {
   return {
     id: r.id,
     name: r.name,
-    type: r.type as Resource['type'],
     description: r.description,
     url: r.url ?? undefined,
     icon: r.icon ?? undefined,
     status: r.status as Resource['status'],
     specs: r.specs ? JSON.parse(r.specs) : undefined,
     accessLevel: r.accessLevel as Resource['accessLevel'],
+    categoryId: r.categoryId ?? undefined,
+  }
+}
+
+export function toCategory(c: DBCategory): Category {
+  return {
+    id: c.id,
+    name: c.name,
+    kind: c.kind as Category['kind'],
+    order: c.order,
   }
 }
 
@@ -127,7 +138,6 @@ export function fromPerson(p: Person) {
 export function fromNewsItem(n: NewsItem) {
   return {
     id: n.id,
-    type: n.type,
     title: n.title,
     content: n.content,
     summary: n.summary ?? null,
@@ -137,6 +147,9 @@ export function fromNewsItem(n: NewsItem) {
     imageUrl: n.imageUrl ?? null,
     link: n.link ?? null,
     pinned: n.pinned ?? false,
+    status: n.status ?? 'published',
+    publishAt: n.publishAt ?? null,
+    categoryId: n.categoryId ?? null,
   }
 }
 
@@ -144,13 +157,13 @@ export function fromResource(r: Resource) {
   return {
     id: r.id,
     name: r.name,
-    type: r.type,
     description: r.description,
     url: r.url ?? null,
     icon: r.icon ?? null,
     status: r.status,
     specs: r.specs ? JSON.stringify(r.specs) : null,
     accessLevel: r.accessLevel,
+    categoryId: r.categoryId ?? null,
   }
 }
 

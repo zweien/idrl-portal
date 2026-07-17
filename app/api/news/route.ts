@@ -5,22 +5,24 @@ import { requireUser, requireAdmin } from '@/lib/auth-api'
 import type { NewsItem, ApiResponse, PaginatedResponse } from '@/lib/types'
 
 export async function GET(request: Request) {
-  const auth = await requireUser()
-  if (auth instanceof NextResponse) return auth
+  const session = await requireUser()
+  if (session instanceof NextResponse) return session
 
   const { searchParams } = new URL(request.url)
   const page = parseInt(searchParams.get('page') || '1')
   const pageSize = parseInt(searchParams.get('pageSize') || '20')
-  const type = searchParams.get('type')
+  const category = searchParams.get('category')
   const pinned = searchParams.get('pinned')
   const search = searchParams.get('search')
+  const isAdmin = session.role === 'admin'
 
-  const where: { type?: string; OR?: Array<Record<string, unknown>> } = {}
-  if (type) where.type = type
+  const where: { categoryId?: string; status?: string; OR?: Array<Record<string, unknown>> } = {}
+  if (category) where.categoryId = category
+  // Non-admins only see published items; admins see drafts too.
+  if (!isAdmin) where.status = 'published'
   if (search) {
     const q = { contains: search }
     where.OR = [{ title: q }, { content: q }]
-    // tags filter in memory (JSON column)
   }
 
   let rows = (await prisma.newsItem.findMany({ where })).map(toNewsItem)
@@ -69,8 +71,8 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'invalid json' }, { status: 400 })
   }
-  if (!body?.title || !body?.type || !body?.content || !body?.date) {
-    return NextResponse.json({ error: 'title, type, content, date required' }, { status: 400 })
+  if (!body?.title || !body?.content || !body?.date) {
+    return NextResponse.json({ error: 'title, content, date required' }, { status: 400 })
   }
 
   const id = `n-${Date.now()}`

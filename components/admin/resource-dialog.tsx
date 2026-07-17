@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import type { Resource, ResourceType } from '@/lib/types'
+import type { Resource } from '@/lib/types'
+import { useCategories } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -23,10 +24,6 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
-
-const typeLabels: Record<ResourceType, string> = {
-  compute: '计算资源', storage: '存储资源', code: '代码仓库', docs: '文档资料', other: '其他',
-}
 
 /** Icon names admins can pick from. Read-side maps name → lucide component. */
 const iconChoices = ['Cpu', 'Database', 'GitBranch', 'BookOpen', 'Box', 'Server', 'Cloud', 'Globe', 'Terminal', 'FileText'] as const
@@ -51,10 +48,12 @@ interface ResourceDialogProps {
 
 export function ResourceDialog({ initialData, trigger, onSubmit }: ResourceDialogProps) {
   const isEdit = !!initialData
+  const { data: catResp } = useCategories('resource')
+  const categories = catResp?.data ?? []
   const [open, setOpen] = useState(!!initialData)
   const [form, setForm] = useState({
     name: initialData?.name ?? '',
-    type: initialData?.type ?? ('compute' as ResourceType),
+    categoryId: initialData?.categoryId ?? '',
     description: initialData?.description ?? '',
     url: initialData?.url ?? '',
     status: initialData?.status ?? ('available' as Resource['status']),
@@ -84,13 +83,13 @@ export function ResourceDialog({ initialData, trigger, onSubmit }: ResourceDialo
     onSubmit({
       id: initialData?.id ?? `r-${Date.now()}`,
       name: form.name,
-      type: form.type,
       description: form.description,
       url: form.url || undefined,
       status: form.status,
       accessLevel: form.accessLevel,
       icon: form.icon || null,
       specs: Object.keys(specsObj).length > 0 ? specsObj : null,
+      categoryId: form.categoryId || null,
     })
     setOpen(false)
   }
@@ -100,7 +99,7 @@ export function ResourceDialog({ initialData, trigger, onSubmit }: ResourceDialo
     if (val && initialData) {
       setForm({
         name: initialData.name,
-        type: initialData.type,
+        categoryId: initialData.categoryId ?? '',
         description: initialData.description,
         url: initialData.url ?? '',
         status: initialData.status,
@@ -132,18 +131,20 @@ export function ResourceDialog({ initialData, trigger, onSubmit }: ResourceDialo
             <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="资源名称" className="h-9" />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">类型</Label>
-            <div className="flex flex-wrap gap-1.5">
-              {(Object.entries(typeLabels) as [ResourceType, string][]).map(([v, l]) => (
-                <Button key={v} type="button" size="sm" variant={form.type === v ? 'default' : 'outline'} className="h-7 text-xs" onClick={() => setForm({ ...form, type: v })}>
-                  {l}
-                </Button>
-              ))}
-            </div>
+            <Label className="text-xs">分类</Label>
+            <Select value={form.categoryId || '__none__'} onValueChange={v => setForm({ ...form, categoryId: v === '__none__' ? '' : v })}>
+              <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="选择分类" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">未分类</SelectItem>
+                {categories.map(c => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">描述</Label>
-            <Textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="资源描述" className="min-h-[80px] text-sm" />
+            <Label className="text-xs">描述（支持 Markdown）</Label>
+            <Textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="资源描述，支持 Markdown" className="min-h-[80px] text-sm" />
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs">URL</Label>
@@ -170,16 +171,16 @@ export function ResourceDialog({ initialData, trigger, onSubmit }: ResourceDialo
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">图标（覆盖类型默认）</Label>
+            <Label className="text-xs">图标</Label>
             <Select
               value={form.icon || '__default__'}
               onValueChange={v => setForm({ ...form, icon: v === '__default__' ? '' : v })}
             >
               <SelectTrigger className="h-9 text-sm">
-                <SelectValue placeholder="使用类型默认图标" />
+                <SelectValue placeholder="使用默认图标" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__default__">使用类型默认图标</SelectItem>
+                <SelectItem value="__default__">使用默认图标</SelectItem>
                 {iconChoices.map(name => (
                   <SelectItem key={name} value={name}>{name}</SelectItem>
                 ))}

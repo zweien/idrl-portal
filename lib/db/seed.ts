@@ -4,6 +4,21 @@ import {
   mockPersonnel, mockNews, mockResources, mockFloors,
 } from '../mock-data'
 
+// Seed categories referenced by mockNews/mockResources categoryId values.
+// Ids are deterministic (cat_<kind>_<name>) so the migration's backfill and a
+// fresh seed agree. Order follows the historical type ordering.
+const seedCategories = [
+  { id: 'cat_news_paper', name: 'paper', kind: 'news', order: 0 },
+  { id: 'cat_news_notice', name: 'notice', kind: 'news', order: 1 },
+  { id: 'cat_news_event', name: 'event', kind: 'news', order: 2 },
+  { id: 'cat_news_achievement', name: 'achievement', kind: 'news', order: 3 },
+  { id: 'cat_res_compute', name: 'compute', kind: 'resource', order: 0 },
+  { id: 'cat_res_storage', name: 'storage', kind: 'resource', order: 1 },
+  { id: 'cat_res_code', name: 'code', kind: 'resource', order: 2 },
+  { id: 'cat_res_docs', name: 'docs', kind: 'resource', order: 3 },
+  { id: 'cat_res_other', name: 'other', kind: 'resource', order: 4 },
+]
+
 async function seedIfEmpty() {
   // Person
   if ((await prisma.person.count()) === 0) {
@@ -11,6 +26,14 @@ async function seedIfEmpty() {
     console.log(`✓ seeded ${mockPersonnel.length} persons`)
   } else {
     console.log('• persons already present, skip')
+  }
+
+  // Category (must precede NewsItem/Resource which reference categoryId)
+  if ((await prisma.category.count()) === 0) {
+    await prisma.category.createMany({ data: seedCategories })
+    console.log(`✓ seeded ${seedCategories.length} categories`)
+  } else {
+    console.log('• categories already present, skip')
   }
 
   // NewsItem
