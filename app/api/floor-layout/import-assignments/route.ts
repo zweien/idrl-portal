@@ -60,20 +60,21 @@ export async function POST(req: NextRequest) {
     }
 
     const wsByName = new Map(allWorkstations.map(w => [w.name, w]))
-    // Existing personId → workstation-name lookup, to detect a person already
-    // assigned elsewhere in the DB (one-person-one-workstation). Build from the
-    // current state; entries are removed as we reassign within this batch.
-    const existingPersonWs = new Map<string, string>()
+    // wsId → display name (for warnings). Two workstations may share a
+    // customized name, so we track ownership by wsId, not name, when freeing
+    // an overwritten occupant — otherwise we'd free occupants of *all*
+    // same-named workstations.
+    const wsIdToName = new Map(allWorkstations.map(w => [w.id, w.name]))
+    // personId → wsId they currently occupy (DB state, updated as we reassign).
+    // Used to detect a person already assigned elsewhere (one-person-one-ws).
+    const personToWs = new Map<string, string>()
     for (const w of allWorkstations) {
-      if (w.personId) existingPersonWs.set(w.personId, w.name)
+      if (w.personId) personToWs.set(w.personId, w.id)
     }
 
     let assigned = 0
     let skipped = 0
     const warnings: string[] = []
-    // Track persons claimed within this batch so a later row for the same
-    // person on a different workstation is skipped (not silently reassigned).
-    const claimedInBatch = new Set<string>()
 
     // One transaction so a mid-batch error rolls back everything written so far.
     await prisma.$transaction(async (tx) => {
@@ -93,32 +94,25 @@ export async function POST(req: NextRequest) {
         if (duplicateNames.has(personName)) {
           warnings.push(`"${personName}" 有同名人员，使用第一个匹配`)
         }
-        // One-person-one-workstation: skip if this person is already assigned
-        // (either earlier in this batch, or to a different workstation in the DB).
-        const existingWsName = existingPersonWs.get(person.id)
-        if (claimedInBatch.has(person.id)) {
+        // One-person-one-workstation: skip if this person is already assigned to
+        // a DIFFERENT workstation (in the DB or earlier in this batch).
+        const occupiedWsId = personToWs.get(person.id)
+        if (occupiedWsId && occupiedWsId !== ws.id) {
           skipped++
-          warnings.push(`"${personName}" 已分配到其他工位，跳过 工位 "${wsName}"`)
+          warnings.push(`"${personName}" 已分配到工位 "${wsIdToName.get(occupiedWsId) ?? occupiedWsId}"，跳过 工位 "${wsName}"`)
           continue
         }
-        if (existingWsName && existingWsName !== wsName) {
-          skipped++
-          warnings.push(`"${personName}" 已分配到工位 "${existingWsName}"，跳过 工位 "${wsName}"`)
-          continue
+        // Overwrite: this workstation may have held a different person. Free
+        // that person so a later row can assign them elsewhere (by wsId, so
+        // same-named workstations don't free each other's occupants).
+        for (const [pid, wId] of personToWs) {
+          if (wId === ws.id && pid !== person.id) personToWs.delete(pid)
         }
         await tx.workstation.update({
           where: { id: ws.id },
           data: { personId: person.id },
         })
-        // This workstation may have previously held a different person; that
-        // person is now freed, so drop them from the existing-assignment map —
-        // otherwise a later row assigning them elsewhere would be incorrectly
-        // skipped as "already assigned".
-        for (const [pid, wName] of existingPersonWs) {
-          if (wName === wsName && pid !== person.id) existingPersonWs.delete(pid)
-        }
-        claimedInBatch.add(person.id)
-        existingPersonWs.set(person.id, wsName)
+        personToWs.set(person.id, ws.id)
         assigned++
       }
     })
