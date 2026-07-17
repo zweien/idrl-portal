@@ -23,12 +23,11 @@ jobs:
 
       - name: Install dependencies
         # pnpm 11 blocks native build scripts (better-sqlite3, @prisma/engines,
-        # esbuild, prisma, sharp) on a fresh CI install unless approved. The
-        # allow-list lives in pnpm-workspace.yaml; approve-builds --all applies
-        # it non-interactively so the install succeeds in CI.
-        run: |
-          pnpm approve-builds --all || true
-          pnpm install --frozen-lockfile
+        # esbuild, prisma, sharp) on a fresh CI install. The allow-list lives in
+        # pnpm-workspace.yaml (onlyBuiltDependencies); the flag below allows the
+        # remaining/unlisted build scripts to run in CI without interactive
+        # approval. Safe here — trusted repo, ephemeral runner.
+        run: pnpm install --frozen-lockfile --config.dangerouslyAllowAllBuilds=true
 
       - name: Type-check
         run: pnpm exec tsc --noEmit
