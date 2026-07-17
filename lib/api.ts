@@ -2,6 +2,7 @@
 import useSWR from 'swr'
 import type {
   Floor, Person, NewsItem, Resource,
+  Category, ApiKey, SyncLog,
   ApiResponse, PaginatedResponse,
 } from '@/lib/types'
 
@@ -125,4 +126,62 @@ export function useResources(params?: Record<string, string | number>) {
     `/api/resources${qs(params)}`,
     fetcher,
   )
+}
+
+// ===== Categories =====
+
+export function useCategories(kind: 'news' | 'resource') {
+  return useSWR<ApiResponse<Category[]>>(`/api/categories?kind=${kind}`, fetcher)
+}
+
+// ===== API keys (admin) =====
+
+export function useApiKeys() {
+  return useSWR<ApiResponse<ApiKey[]>>('/api/api-keys', fetcher)
+}
+
+export async function createApiKey(name: string, scopes: string[]) {
+  const r = await fetch('/api/api-keys', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, scopes }),
+  })
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({ error: r.statusText }))
+    throw new Error(err.error || `POST /api/api-keys failed: ${r.status}`)
+  }
+  return r.json() as Promise<{ id: string; name: string; scopes: string[]; key: string }>
+}
+
+export async function revokeApiKey(id: string) {
+  const r = await fetch(`/api/api-keys/${id}`, { method: 'DELETE' })
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({ error: r.statusText }))
+    throw new Error(err.error || `DELETE /api/api-keys/${id} failed: ${r.status}`)
+  }
+}
+
+// ===== Settings (admin) =====
+
+export function useSettings() {
+  return useSWR<ApiResponse<Record<string, string>>>('/api/settings', fetcher)
+}
+
+export async function patchSettings(values: Record<string, string>) {
+  const r = await fetch('/api/settings', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(values),
+  })
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({ error: r.statusText }))
+    throw new Error(err.error || `PATCH /api/settings failed: ${r.status}`)
+  }
+}
+
+// ===== Sync logs (admin) =====
+
+export function useSyncLogs(job?: string, limit = 50) {
+  const qs = job ? `?job=${job}&limit=${limit}` : `?limit=${limit}`
+  return useSWR<ApiResponse<SyncLog[]>>(`/api/sync-logs${qs}`, fetcher)
 }

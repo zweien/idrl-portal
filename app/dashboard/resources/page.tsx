@@ -4,8 +4,9 @@ import { useState, useMemo } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { useResources } from '@/lib/api'
-import type { Resource, ResourceType } from '@/lib/types'
+import { useResources, useCategories } from '@/lib/api'
+import type { Resource } from '@/lib/types'
+import { MarkdownContent } from '@/components/dashboard/markdown-content'
 import { cn } from '@/lib/utils'
 import {
   Search,
@@ -24,31 +25,15 @@ import {
   X,
 } from 'lucide-react'
 
-const typeIcons: Record<ResourceType, React.ElementType> = {
-  compute: Cpu,
-  storage: Database,
-  code:    GitBranch,
-  docs:    BookOpen,
-  other:   Box,
-}
-
 /** Name → lucide component, matching the admin icon picker choices. */
 const iconByName: Record<string, React.ElementType> = {
   Cpu, Database, GitBranch, BookOpen, Box, Server, Cloud, Globe, Terminal, FileText,
 }
 
-/** Prefer a custom icon stored on the resource, fall back to the type default. */
-function resolveIcon(resource: { icon?: string | null; type: ResourceType }): React.ElementType {
-  if (resource.icon && iconByName[resource.icon]) return iconByName[resource.icon]
-  return typeIcons[resource.type]
-}
-
-const typeLabels: Record<ResourceType, string> = {
-  compute: '计算资源',
-  storage: '存储资源',
-  code:    '代码仓库',
-  docs:    '文档资料',
-  other:   '其他',
+/** Prefer a custom icon stored on the resource, fall back to a generic Server. */
+function resolveIcon(resource: { icon?: string | null } | null): React.ElementType {
+  if (resource?.icon && iconByName[resource.icon]) return iconByName[resource.icon]
+  return Server
 }
 
 const statusConfig = {
@@ -63,23 +48,34 @@ const accessLabels: Record<string, string> = {
 
 export default function ResourcesPage() {
   const { data: resourcesResp } = useResources({ pageSize: 1000 })
+  const { data: catResp } = useCategories('resource')
   const resources = resourcesResp?.data?.items ?? []
+  const categories = catResp?.data ?? []
 
-  const [search, setSearch]                         = useState('')
-  const [typeFilter, setTypeFilter]                 = useState<ResourceType | null>(null)
-  const [selected, setSelected]                     = useState<Resource | null>(null)
+  const [search, setSearch] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
+  const [selected, setSelected] = useState<Resource | null>(null)
+
+  const catName = useMemo(() => {
+    const m = new Map<string, string>()
+    categories.forEach(c => m.set(c.id, c.name))
+    return m
+  }, [categories])
 
   const filtered = useMemo(() => resources.filter(r => {
     const matchSearch = !search ||
       r.name.toLowerCase().includes(search.toLowerCase()) ||
       r.description.toLowerCase().includes(search.toLowerCase())
-    const matchType = !typeFilter || r.type === typeFilter
-    return matchSearch && matchType
-  }), [search, typeFilter, resources])
+    const matchCat = !categoryFilter || r.categoryId === categoryFilter
+    return matchSearch && matchCat
+  }), [search, categoryFilter, resources])
 
-  const typeCounts = useMemo(() => {
-    const c: Record<ResourceType, number> = { compute: 0, storage: 0, code: 0, docs: 0, other: 0 }
-    resources.forEach(r => c[r.type]++)
+  const catCounts = useMemo(() => {
+    const c = new Map<string, number>()
+    resources.forEach(r => {
+      const key = r.categoryId ?? '_none'
+      c.set(key, (c.get(key) ?? 0) + 1)
+    })
     return c
   }, [resources])
 
@@ -112,24 +108,24 @@ export default function ResourcesPage() {
           />
         </div>
         <Button
-          variant={typeFilter === null ? 'secondary' : 'ghost'}
+          variant={categoryFilter === null ? 'secondary' : 'ghost'}
           size="sm" className="h-8 text-xs"
-          onClick={() => setTypeFilter(null)}
+          onClick={() => setCategoryFilter(null)}
         >
           全部 ({resources.length})
         </Button>
-        {(Object.keys(typeLabels) as ResourceType[]).map(type => {
-          const Icon = typeIcons[type]
-          if (!typeCounts[type]) return null
+        {categories.map(cat => {
+          if (!catCounts.get(cat.id)) return null
+          const Icon = resolveIcon(null)
           return (
             <Button
-              key={type}
-              variant={typeFilter === type ? 'secondary' : 'ghost'}
+              key={cat.id}
+              variant={categoryFilter === cat.id ? 'secondary' : 'ghost'}
               size="sm" className="h-8 text-xs gap-1.5"
-              onClick={() => setTypeFilter(typeFilter === type ? null : type)}
+              onClick={() => setCategoryFilter(categoryFilter === cat.id ? null : cat.id)}
             >
               <Icon className="h-3.5 w-3.5" />
-              {typeLabels[type]} ({typeCounts[type]})
+              {cat.name} ({catCounts.get(cat.id) ?? 0})
             </Button>
           )
         })}
@@ -157,7 +153,7 @@ export default function ResourcesPage() {
                   'w-full flex items-start gap-3 p-4 rounded-lg border text-left transition-colors',
                   isSelected
                     ? 'border-primary/50 bg-primary/5'
-                    : 'border-border bg-card hover:bg-accent'
+                    : 'border-border bg-card hover:bg-accent',
                 )}
               >
                 <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
@@ -172,9 +168,11 @@ export default function ResourcesPage() {
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{resource.description}</p>
                   <div className="flex items-center gap-3 mt-2">
-                    <Badge variant="outline" className="text-[10px] font-normal h-4 px-1.5">
-                      {typeLabels[resource.type]}
-                    </Badge>
+                    {resource.categoryId && (
+                      <Badge variant="outline" className="text-[10px] font-normal h-4 px-1.5">
+                        {catName.get(resource.categoryId) ?? '未分类'}
+                      </Badge>
+                    )}
                     {resource.url && (
                       <a
                         href={resource.url}
@@ -221,7 +219,9 @@ export default function ResourcesPage() {
                     </div>
                   </div>
 
-                  <p className="text-sm text-muted-foreground leading-relaxed">{selected.description}</p>
+                  <div className="text-sm text-muted-foreground leading-relaxed">
+                    <MarkdownContent content={selected.description} />
+                  </div>
 
                   {selected.specs && Object.keys(selected.specs).length > 0 && (
                     <div>

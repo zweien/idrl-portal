@@ -77,12 +77,11 @@ export interface AttendanceRecord {
 }
 
 // ============ Resources ============
-export type ResourceType = 'compute' | 'storage' | 'code' | 'docs' | 'other'
+export type AccessLevel = 'public' | 'member' | 'admin'
 
 export interface Resource {
   id: string
   name: string
-  type: ResourceType
   description: string
   url?: string
   /** string = custom icon name; null = explicitly cleared; undefined = omitted (keep existing) */
@@ -90,15 +89,15 @@ export interface Resource {
   status: 'available' | 'maintenance' | 'restricted'
   /** Record = specs; null = explicitly cleared; undefined = omitted (keep existing) */
   specs?: Record<string, string> | null
-  accessLevel: 'public' | 'member' | 'admin'
+  accessLevel: AccessLevel
+  categoryId?: string | null
 }
 
 // ============ News & Updates ============
-export type NewsType = 'paper' | 'notice' | 'event' | 'achievement'
+export type NewsStatus = 'draft' | 'published'
 
 export interface NewsItem {
   id: string
-  type: NewsType
   title: string
   content: string
   summary?: string
@@ -108,6 +107,19 @@ export interface NewsItem {
   imageUrl?: string
   link?: string
   pinned?: boolean
+  status: NewsStatus
+  publishAt?: string | null
+  categoryId?: string | null
+}
+
+// ============ Categories ============
+export type CategoryKind = 'news' | 'resource'
+
+export interface Category {
+  id: string
+  name: string
+  kind: CategoryKind
+  order: number
 }
 
 // ============ Authentication ============
@@ -149,6 +161,45 @@ export interface ApiResponse<T> {
   data?: T
   error?: string
   message?: string
+}
+
+// ============ API Keys & Scheduling ============
+
+/** Scopes assignable to an API key. Admin sessions bypass scope checks. */
+export type ApiScope =
+  | 'sync:members'
+  | 'sync:attendance'
+  | 'news:publish'
+  | 'news:read'
+  | 'resource:read'
+
+/** API key row (never includes the plaintext — only the prefix + hash). */
+export interface ApiKey {
+  id: string
+  name: string
+  prefix: string
+  scopes: ApiScope[]
+  lastUsedAt?: string | null
+  createdAt: string
+  revokedAt?: string | null
+}
+
+export interface Setting {
+  key: string
+  value: string
+}
+
+export type SyncJob = 'sync-members' | 'sync-attendance' | 'publish-news'
+export type SyncSource = 'cron' | 'api' | 'manual'
+
+export interface SyncLog {
+  id: string
+  job: SyncJob
+  source: SyncSource
+  status: 'success' | 'error'
+  message?: string | null
+  stats?: Record<string, unknown> | null
+  createdAt: string
 }
 
 export interface PaginatedResponse<T> {

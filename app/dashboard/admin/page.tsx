@@ -5,16 +5,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-import { useAdminData, createPerson, updatePerson, deletePerson, createResource, updateResource, deleteResource, createNews, updateNews, deleteNews } from '@/lib/api'
+import { useAdminData, useCategories, createPerson, updatePerson, deletePerson, createResource, updateResource, deleteResource, createNews, updateNews, deleteNews } from '@/lib/api'
 import type { Person, Resource, NewsItem } from '@/lib/types'
 import { useAuth } from '@/lib/auth-context'
 import { PersonDialog } from '@/components/admin/person-dialog'
 import { ResourceDialog } from '@/components/admin/resource-dialog'
 import { NewsDialog } from '@/components/admin/news-dialog'
+import { SchedulingPanel } from '@/components/admin/scheduling-panel'
+import { ApiKeysPanel } from '@/components/admin/api-keys-panel'
+import { CategoriesPanel } from '@/components/admin/categories-panel'
 import {
   Users, Server, Newspaper, Pencil, Trash2,
   Database, AlertTriangle, CheckCircle, Info,
-  ShieldAlert, MapPin, RefreshCw, Upload,
+  ShieldAlert, MapPin, RefreshCw, Upload, Key, Clock, Folder,
 } from 'lucide-react'
 
 /* ── Labels ─────────────────────────────────────── */
@@ -23,8 +26,12 @@ const roleLabels: Record<Person['role'], string> = {
   master: '硕士生', undergraduate: '本科生', staff: '行政人员',
 }
 const statusLabels = { present: '在位', trip: '出差', leave: '请假', absent: '未到' }
-const typeLabels   = { compute: '计算资源', storage: '存储资源', code: '代码仓库', docs: '文档资料', other: '其他' }
-const newsLabels   = { paper: '论文发表', notice: '实验室通知', event: '最新活动', achievement: '荣誉成就' }
+
+/** Map a categoryId to a display name using the supplied category list. */
+function catNameOf(categories: { id: string; name: string }[], categoryId?: string | null): string {
+  if (!categoryId) return '未分类'
+  return categories.find(c => c.id === categoryId)?.name ?? '未分类'
+}
 
 /* ── Generic table ──────────────────────────────── */
 function DataTable<T extends { id: string }>({
@@ -141,6 +148,10 @@ export default function AdminPage() {
   const [personnelData, setPersonnelData] = useState<Person[] | null>(null)
   const [resourcesData, setResourcesData] = useState<Resource[] | null>(null)
   const [newsData, setNewsData]           = useState<NewsItem[] | null>(null)
+  const { data: resCatResp } = useCategories('resource')
+  const { data: newsCatResp } = useCategories('news')
+  const resCategories = resCatResp?.data ?? []
+  const newsCategories = newsCatResp?.data ?? []
 
   // Sync server → local on first load
   useEffect(() => {
@@ -390,7 +401,7 @@ export default function AdminPage() {
 
       {/* Data management tabs */}
       <Tabs defaultValue="personnel">
-        <TabsList className="h-9 p-1">
+        <TabsList className="h-9 p-1 flex-wrap">
           <TabsTrigger value="personnel" className="text-xs gap-1.5 h-7">
             <Users className="h-3.5 w-3.5" />人员管理
           </TabsTrigger>
@@ -399,6 +410,15 @@ export default function AdminPage() {
           </TabsTrigger>
           <TabsTrigger value="news" className="text-xs gap-1.5 h-7">
             <Newspaper className="h-3.5 w-3.5" />动态管理
+          </TabsTrigger>
+          <TabsTrigger value="categories" className="text-xs gap-1.5 h-7">
+            <Folder className="h-3.5 w-3.5" />分类管理
+          </TabsTrigger>
+          <TabsTrigger value="scheduling" className="text-xs gap-1.5 h-7">
+            <Clock className="h-3.5 w-3.5" />调度设置
+          </TabsTrigger>
+          <TabsTrigger value="api-keys" className="text-xs gap-1.5 h-7">
+            <Key className="h-3.5 w-3.5" />API 密钥
           </TabsTrigger>
           <TabsTrigger value="floor-layout" className="text-xs gap-1.5 h-7">
             <MapPin className="h-3.5 w-3.5" />工位布局
@@ -470,7 +490,11 @@ export default function AdminPage() {
                 data={resourcesData}
                 columns={[
                   { key: 'name',   label: '名称' },
-                  { key: 'type',   label: '类型', render: v => typeLabels[v as keyof typeof typeLabels] },
+                  { key: 'categoryId', label: '分类', render: v => (
+                    <Badge variant="outline" className="text-[10px] font-normal">
+                      {catNameOf(resCategories, v as string | null | undefined)}
+                    </Badge>
+                  )},
                   { key: 'status', label: '状态', render: v => (
                     <Badge variant={v === 'available' ? 'default' : 'secondary'} className="text-[10px] font-normal">
                       {v === 'available' ? '可用' : v === 'maintenance' ? '维护中' : '受限'}
@@ -511,11 +535,19 @@ export default function AdminPage() {
                   { key: 'title',  label: '标题', render: v => (
                     <span className="truncate max-w-[220px] block text-sm">{String(v)}</span>
                   )},
-                  { key: 'type',   label: '类型', render: v => (
+                  { key: 'categoryId', label: '分类', render: v => (
                     <Badge variant="outline" className="text-[10px] font-normal">
-                      {newsLabels[v as keyof typeof newsLabels]}
+                      {catNameOf(newsCategories, v as string | null | undefined)}
                     </Badge>
                   )},
+                  { key: 'status', label: '状态', render: v => {
+                    const s = v as NewsItem['status']
+                    return (
+                      <Badge variant={s === 'published' ? 'default' : 'secondary'} className="text-[10px] font-normal">
+                        {s === 'published' ? '已发布' : '草稿'}
+                      </Badge>
+                    )
+                  }},
                   { key: 'date',   label: '日期' },
                   { key: 'pinned', label: '置顶', render: v => v
                     ? <Badge className="text-[10px] font-normal">置顶</Badge>
@@ -533,6 +565,20 @@ export default function AdminPage() {
               onSubmit={handleNewsUpdate}
             />
           )}
+        </TabsContent>
+
+        <TabsContent value="categories" className="mt-3">
+          <CategoriesPanel />
+        </TabsContent>
+
+        <TabsContent value="scheduling" className="mt-3">
+          <div className="rounded-lg border border-border bg-card p-4">
+            <SchedulingPanel />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="api-keys" className="mt-3">
+          <ApiKeysPanel />
         </TabsContent>
 
         <TabsContent value="floor-layout" className="mt-3">

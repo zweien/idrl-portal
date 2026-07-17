@@ -73,27 +73,73 @@ model User {
 }
 
 model NewsItem {
-  id       String  @id
-  type     String
-  title    String
-  content  String
-  summary  String?
-  author   String?
-  date     String
-  tags     String?
-  imageUrl String?
-  link     String?
-  pinned   Boolean @default(false)
+  id         String  @id
+  title      String
+  content    String
+  summary    String?
+  author     String?
+  date       String
+  tags       String?
+  imageUrl   String?
+  link       String?
+  pinned     Boolean @default(false)
+  status     String  @default("published") // "draft" | "published"
+  publishAt  String? // ISO datetime; when set + status=draft, scheduler flips to published
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 }
 
 model Resource {
   id          String  @id
   name        String
-  type        String
   description String
   url         String?
   icon        String?
   status      String
   specs       String?
   accessLevel String
+  categoryId  String?
+  category    Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+}
+
+// Unified categories for News (kind="news") and Resources (kind="resource").
+model Category {
+  id        String    @id @default(cuid())
+  name      String
+  kind      String // "news" | "resource"
+  order     Int       @default(0)
+  news      NewsItem[]
+  resources Resource[]
+
+  @@unique([kind, name])
+}
+
+// API keys for machine-to-machine access (sync triggers, publishing, reads).
+// Stored as a sha256 hash; the plaintext is shown once at creation time.
+model ApiKey {
+  id         String    @id @default(cuid())
+  name       String
+  keyHash    String    @unique
+  prefix     String    // first chars of the plaintext, for UI recognition
+  scopes     String    // JSON array: ["sync:attendance", ...]
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+  revokedAt  DateTime? // non-null = revoked
+}
+
+// Key/value app settings (e.g. cron expressions, enable flags).
+model Setting {
+  key   String @id
+  value String
+}
+
+// Audit log for background jobs (sync + scheduled publishing).
+model SyncLog {
+  id        String   @id @default(cuid())
+  job       String // "sync-members" | "sync-attendance" | "publish-news"
+  source    String // "cron" | "api" | "manual"
+  status    String // "success" | "error"
+  message   String?
+  stats     String? // JSON
+  createdAt DateTime @default(now())
 }

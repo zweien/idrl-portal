@@ -1,76 +1,40 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { requireAdmin } from '@/lib/auth-api'
-import {
-  getEnterpriseAccessToken,
-  fetchAttendance,
-  fetchLeaveStatus,
-  fetchTripStatus,
-  mapStatus,
-} from '@/lib/dingtalk-admin'
+import { requireScope } from '@/lib/auth-api'
+import { syncAttendance } from '@/lib/dingtalk-sync'
+import type { SyncSource } from '@/lib/types'
 
 /**
  * POST /api/dingtalk/sync-attendance
- * Admin-triggered: fetch today's attendance/leave/trip for all synced
- * DingTalk persons and update their status per the priority:
- * trip > leave > present(Normal punch) > absent.
+ * Fetch today's attendance/leave/trip for all synced DingTalk persons and
+ * update their status per the priority: trip > leave > present > absent.
  *
- * Returns { total, stats: { present, leave, trip, absent } }.
+ * Auth: admin session OR an API key with the `sync:attendance` scope. The
+ * source of the call (api/manual) is recorded in the SyncLog.
  */
-export async function POST() {
-  const auth = await requireAdmin()
+export async function POST(req: Request) {
+  const auth = await requireScope(req, 'sync:attendance')
   if (auth instanceof NextResponse) return auth
 
+  const source: SyncSource = req.headers.get('authorization')?.startsWith('Bearer ')
+    ? 'api'
+    : 'manual'
   try {
-    const token = await getEnterpriseAccessToken()
-
-    // Find all persons synced from DingTalk (id starts with 'dt-')
-    const dtPersons = await prisma.person.findMany({
-      where: { id: { startsWith: 'dt-' } },
-      select: { id: true },
+    const result = await syncAttendance()
+    await prisma.syncLog.create({
+      data: {
+        job: 'sync-attendance',
+        source,
+        status: 'success',
+        stats: JSON.stringify(result),
+      },
     })
-
-    // Extract DingTalk userids from Person ids (dt-<userid> → <userid>)
-    const useridToPersonId = new Map<string, string>()
-    for (const p of dtPersons) {
-      const userid = p.id.replace(/^dt-/, '')
-      if (userid) useridToPersonId.set(userid, p.id)
-    }
-
-    const userids = [...useridToPersonId.keys()]
-    if (userids.length === 0) {
-      return NextResponse.json({ total: 0, stats: { present: 0, leave: 0, trip: 0, absent: 0 }, message: '没有同步的钉钉成员，请先执行成员同步' })
-    }
-
-    // Fetch all three data sources in parallel
-    const [attendanceMap, leaveSet, tripMap] = await Promise.all([
-      fetchAttendance(token, userids),
-      fetchLeaveStatus(token, userids),
-      fetchTripStatus(token, userids),
-    ])
-
-    // Map statuses and batch update
-    const stats = { present: 0, leave: 0, trip: 0, absent: 0 }
-    for (const [userid, personId] of useridToPersonId) {
-      const status = mapStatus(userid, tripMap, leaveSet, attendanceMap)
-      stats[status]++
-      const att = attendanceMap.get(userid)
-      const tripReason = tripMap.get(userid)
-      await prisma.person.update({
-        where: { id: personId },
-        data: {
-          status,
-          // lastSeen = punch time (e.g. "08:01"), cleared if no punch
-          ...(att?.checkTime ? { lastSeen: att.checkTime } : { lastSeen: null }),
-          // avatar repurposed as trip reason (cleared if not on trip)
-          ...(tripReason ? { avatar: tripReason } : { avatar: null }),
-        },
-      })
-    }
-
-    return NextResponse.json({ total: userids.length, stats })
+    return NextResponse.json(result)
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'unknown error'
+    await prisma.syncLog.create({
+      data: { job: 'sync-attendance', source, status: 'error', message: msg },
+    })
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
