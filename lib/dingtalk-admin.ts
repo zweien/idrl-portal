@@ -212,3 +212,152 @@ export function titleToRole(title?: string): 'professor' | 'postdoc' | 'phd' | '
   if (t.includes('本科') || t.includes('undergraduate')) return 'undergraduate'
   return 'staff'
 }
+
+// ── attendance / leave / trip ─────────────────────────
+
+const ATTENDANCE_LIST_URL = 'https://oapi.dingtalk.com/attendance/list'
+const LEAVE_STATUS_URL = 'https://oapi.dingtalk.com/topapi/attendance/getleavestatus'
+const PROCESS_INSTANCE_URL = 'https://oapi.dingtalk.com/topapi/processinstance/listids'
+
+export type AttendanceResult = 'present' | 'leave' | 'trip' | 'absent'
+
+/**
+ * Fetch today's attendance records for a batch of DingTalk userids.
+ * Returns a Map<userid, timeResult> where timeResult is the DingTalk raw
+ * value (Normal/Late/Early/NotSigned/Absenteeism).
+ */
+export async function fetchAttendance(
+  accessToken: string,
+  userids: string[],
+): Promise<Map<string, string>> {
+  const result = new Map<string, string>()
+  if (userids.length === 0) return result
+
+  // attendance/list accepts max 50 userids per call
+  const BATCH = 50
+  const today = new Date()
+  const dateStr = today.toISOString().slice(0, 10)
+  const workDateFrom = `${dateStr} 00:00:00`
+  const workDateTo = `${dateStr} 23:59:59`
+
+  for (let i = 0; i < userids.length; i += BATCH) {
+    const batch = userids.slice(i, i + BATCH)
+    const res = await fetch(`${ATTENDANCE_LIST_URL}?access_token=${accessToken}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workDateFrom, workDateTo, userIdList: batch, offset: 0, limit: BATCH }),
+      cache: 'no-store',
+    })
+    if (!res.ok) continue // skip failed batches
+    const data = (await res.json()) as { recordresult?: Array<{ userid?: string; timeResult?: string; checkType?: string }> }
+    for (const r of data.recordresult ?? []) {
+      if (r.userid && r.checkType === 'OnDuty' && r.timeResult) {
+        // Use the OnDuty (上班) result as the day's attendance status
+        result.set(r.userid, r.timeResult)
+      }
+    }
+  }
+  return result
+}
+
+/**
+ * Fetch today's leave status for a batch of DingTalk userids.
+ * Returns a Set of userids that are on leave today.
+ */
+export async function fetchLeaveStatus(
+  accessToken: string,
+  userids: string[],
+): Promise<Set<string>> {
+  const result = new Set<string>()
+  if (userids.length === 0) return result
+
+  const startOfDay = new Date()
+  startOfDay.setHours(0, 0, 0, 0)
+  const endOfDay = new Date()
+  endOfDay.setHours(23, 59, 59, 999)
+  const startTime = startOfDay.getTime()
+  const endTime = endOfDay.getTime()
+
+  // getleavestatus accepts comma-separated userid_list
+  const BATCH = 50
+  for (let i = 0; i < userids.length; i += BATCH) {
+    const batch = userids.slice(i, i + BATCH).join(',')
+    const res = await fetch(`${LEAVE_STATUS_URL}?access_token=${accessToken}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userid_list: batch, start_time: startTime, end_time: endTime, offset: 0, size: BATCH }),
+      cache: 'no-store',
+    })
+    if (!res.ok) continue
+    const data = (await res.json()) as {
+      errcode?: number
+      result?: { leave_status?: Array<{ userid?: string; leave_status?: string }> }
+    }
+    if (data.errcode) continue
+    for (const ls of data.result?.leave_status ?? []) {
+      if (ls.userid) result.add(ls.userid)
+    }
+  }
+  return result
+}
+
+/**
+ * Fetch today's business-trip approval instances for a batch of userids.
+ * Uses the approval processinstance API with DINGTALK_TRIP_PROCESS_CODE.
+ * Returns a Set of userids that are on a business trip today.
+ * Requires the qyapi_aflow permission and a configured process_code.
+ */
+export async function fetchTripStatus(
+  accessToken: string,
+  userids: string[],
+): Promise<Set<string>> {
+  const result = new Set<string>()
+  if (userids.length === 0) return result
+
+  const processCode = process.env.DINGTALK_TRIP_PROCESS_CODE
+  if (!processCode) return result // not configured → skip trip detection
+
+  const startOfDay = new Date()
+  startOfDay.setHours(0, 0, 0, 0)
+  const endOfDay = new Date()
+  endOfDay.setHours(23, 59, 59, 999)
+
+  for (const userid of userids) {
+    const res = await fetch(`${PROCESS_INSTANCE_URL}?access_token=${accessToken}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        process_code: processCode,
+        start_time: startOfDay.getTime(),
+        end_time: endOfDay.getTime(),
+        userid,
+      }),
+      cache: 'no-store',
+    })
+    if (!res.ok) continue
+    const data = (await res.json()) as { errcode?: number; result?: { process_instance_list?: unknown[] } }
+    if (data.errcode) continue
+    if (data.result?.process_instance_list && data.result.process_instance_list.length > 0) {
+      result.add(userid)
+    }
+  }
+  return result
+}
+
+/**
+ * Map attendance data to Person.status using the priority:
+ * trip > leave > attendance punch > absent.
+ */
+export function mapStatus(
+  userid: string,
+  tripSet: Set<string>,
+  leaveSet: Set<string>,
+  attendanceMap: Map<string, string>,
+): AttendanceResult {
+  if (tripSet.has(userid)) return 'trip'
+  if (leaveSet.has(userid)) return 'leave'
+  const timeResult = attendanceMap.get(userid)
+  if (timeResult === 'Normal') return 'present'
+  return 'absent' // NotSigned, Late, Early, Absenteeism, or no record
+}
+
