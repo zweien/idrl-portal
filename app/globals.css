@@ -47,11 +47,11 @@
   --sidebar-border:         oklch(0.91 0.005 260);
   --sidebar-ring:           oklch(0.47 0.18 264);
 
-  /* Status tokens */
-  --status-present: oklch(0.62 0.19 145);
-  --status-absent:  oklch(0.72 0.01 260);
-  --status-trip:    oklch(0.60 0.15 240);
-  --status-leave:   oklch(0.62 0.15 300);
+  /* Status tokens — red/amber/green/blue, max hue separation */
+  --status-present: oklch(0.62 0.17 145);
+  --status-absent:  oklch(0.58 0.20 25);
+  --status-trip:    oklch(0.55 0.18 255);
+  --status-leave:   oklch(0.72 0.15 65);
 }
 
 .dark {
@@ -91,11 +91,11 @@
   --sidebar-border:         oklch(0.19 0.012 260);
   --sidebar-ring:           oklch(0.62 0.2 264);
 
-  /* Status tokens */
-  --status-present: oklch(0.65 0.19 145);
-  --status-absent:  oklch(0.42 0.01 260);
-  --status-trip:    oklch(0.58 0.15 240);
-  --status-leave:   oklch(0.58 0.15 300);
+  /* Status tokens — red/amber/green/blue (dark mode, brightened) */
+  --status-present: oklch(0.70 0.18 145);
+  --status-absent:  oklch(0.65 0.21 25);
+  --status-trip:    oklch(0.68 0.17 255);
+  --status-leave:   oklch(0.80 0.15 65);
 }
 
 @theme inline {

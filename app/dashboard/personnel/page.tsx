@@ -201,7 +201,7 @@ export default function PersonnelPage() {
                     <span className={cn('status-dot', statusConfig[selectedPerson.status].dot)} />
                     {statusConfig[selectedPerson.status].label}
                   </Badge>
-                  {selectedPerson.lastSeen && (
+                  {selectedPerson.lastSeen && selectedPerson.status !== 'absent' && (
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Clock className="h-3.5 w-3.5 shrink-0" />
                       <span>打卡 {selectedPerson.lastSeen}</span>
