@@ -45,7 +45,9 @@ export const CRON_PRESETS: Record<string, { label: string; expr: string }> = {
   every5min:   { label: '每 5 分钟', expr: '*/5 * * * *' },
 }
 
-const DEFAULTS: Record<CronJob, string> = {
+/** Default cron expressions per job, used when no Setting row exists. Exported
+ * so the admin scheduling panel can display the active defaults. */
+export const CRON_DEFAULTS: Record<CronJob, string> = {
   'sync-members': CRON_PRESETS.daily6am.expr,
   'sync-attendance': CRON_PRESETS.hourly.expr,
   'publish-news': CRON_PRESETS.every5min.expr,
@@ -171,21 +173,21 @@ const JOB_DEFS: JobDef[] = [
     job: 'sync-members',
     settingKey: 'cron.members',
     enableKey: 'cron.enabled.members',
-    defaultCron: DEFAULTS['sync-members'],
+    defaultCron: CRON_DEFAULTS['sync-members'],
     run: syncMembers,
   },
   {
     job: 'sync-attendance',
     settingKey: 'cron.attendance',
     enableKey: 'cron.enabled.attendance',
-    defaultCron: DEFAULTS['sync-attendance'],
+    defaultCron: CRON_DEFAULTS['sync-attendance'],
     run: syncAttendance,
   },
   {
     job: 'publish-news',
     settingKey: 'cron.publish',
     enableKey: 'cron.enabled.publish',
-    defaultCron: DEFAULTS['publish-news'],
+    defaultCron: CRON_DEFAULTS['publish-news'],
     run: publishDueNews,
   },
 ]

@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useSettings, useSyncLogs, patchSettings } from '@/lib/api'
+import { CRON_DEFAULTS } from '@/lib/scheduler'
 import { useSWRConfig } from 'swr'
 import { RefreshCw, Clock, CheckCircle, XCircle } from 'lucide-react'
 
@@ -29,10 +30,10 @@ const CRON_PRESETS = [
 ]
 
 const JOBS = [
-  { job: 'sync-members', cronKey: 'cron.members', enableKey: 'cron.enabled.members', label: '成员同步', presets: ['0 6 * * *', '0 0 * * *', '0 6 * * 1', '*/5 * * * *'] },
-  { job: 'sync-attendance', cronKey: 'cron.attendance', enableKey: 'cron.enabled.attendance', label: '考勤同步', presets: ['*/15 * * * *', '*/30 * * * *', '0 * * * *', '0 8-20 * * 1-5'] },
-  { job: 'publish-news', cronKey: 'cron.publish', enableKey: 'cron.enabled.publish', label: '定时发布', presets: ['*/5 * * * *', '*/15 * * * *'] },
-] as const
+  { job: 'sync-members' as const, cronKey: 'cron.members', enableKey: 'cron.enabled.members', label: '成员同步', presets: ['0 6 * * *', '0 0 * * *', '0 6 * * 1', '*/5 * * * *'] },
+  { job: 'sync-attendance' as const, cronKey: 'cron.attendance', enableKey: 'cron.enabled.attendance', label: '考勤同步', presets: ['*/15 * * * *', '*/30 * * * *', '0 * * * *', '0 8-20 * * 1-5'] },
+  { job: 'publish-news' as const, cronKey: 'cron.publish', enableKey: 'cron.enabled.publish', label: '定时发布', presets: ['*/5 * * * *', '*/15 * * * *'] },
+]
 
 export function SchedulingPanel() {
   const { data: settingsResp, mutate } = useSettings()
@@ -45,7 +46,18 @@ export function SchedulingPanel() {
   const [savedMsg, setSavedMsg] = useState('')
 
   useEffect(() => {
-    if (settingsResp) setDraft(s => ({ ...JOBS.flatMap(j => [j.cronKey, j.enableKey]).reduce((a, k) => ({ ...a, [k]: settings[k] ?? '' }), {}), ...s }))
+    if (settingsResp) {
+      setDraft(s => {
+        const next: Record<string, string> = {}
+        for (const j of JOBS) {
+          // Show the scheduler's actual default when no Setting row exists, so
+          // the panel reflects real behavior on a fresh DB instead of blanks.
+          next[j.cronKey] = settings[j.cronKey] ?? CRON_DEFAULTS[j.job]
+          next[j.enableKey] = settings[j.enableKey] ?? ''
+        }
+        return { ...next, ...s }
+      })
+    }
   }, [settingsResp, settings])
 
   const handleSave = async () => {
@@ -55,7 +67,8 @@ export function SchedulingPanel() {
       // only send keys that changed from current
       const changed: Record<string, string> = {}
       for (const j of JOBS) {
-        if (draft[j.cronKey] !== (settings[j.cronKey] ?? '')) changed[j.cronKey] = draft[j.cronKey]
+        const curCron = settings[j.cronKey] ?? CRON_DEFAULTS[j.job]
+        if (draft[j.cronKey] !== curCron) changed[j.cronKey] = draft[j.cronKey]
         if (draft[j.enableKey] !== (settings[j.enableKey] ?? '')) changed[j.enableKey] = draft[j.enableKey]
       }
       if (Object.keys(changed).length === 0) {

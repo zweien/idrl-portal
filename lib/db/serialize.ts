@@ -120,6 +120,19 @@ export function toFloor(
 
 // ===== TS → DB =====
 
+/**
+ * Normalize a publishAt value to a canonical UTC ISO string (ending in "Z"), or
+ * null. Accepts any Date-parseable input (incl. offset-bearing ISO like
+ * "...+08:00"). Returns null for empty/unparseable input so the scheduler's
+ * string comparison (against new Date().toISOString()) always compares
+ * like-formatted UTC instants.
+ */
+export function normalizePublishAt(v: string | null | undefined): string | null {
+  if (!v) return null
+  const d = new Date(v)
+  return isNaN(d.getTime()) ? null : d.toISOString()
+}
+
 export function fromPerson(p: Person) {
   return {
     id: p.id,
@@ -148,7 +161,10 @@ export function fromNewsItem(n: NewsItem) {
     link: n.link ?? null,
     pinned: n.pinned ?? false,
     status: n.status ?? 'published',
-    publishAt: n.publishAt ?? null,
+    // Normalize publishAt to a canonical UTC ISO instant (e.g. "+08:00" → "Z")
+    // so the scheduler's publishDueNews string comparison against
+    // new Date().toISOString() compares instants, not offset-bearing strings.
+    publishAt: normalizePublishAt(n.publishAt),
     categoryId: n.categoryId ?? null,
   }
 }

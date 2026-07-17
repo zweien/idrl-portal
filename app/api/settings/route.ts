@@ -30,6 +30,9 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: 'invalid json' }, { status: 400 })
   }
 
+  // Validate the entire payload first so a multi-key PATCH is atomic: if any
+  // value is invalid we return 400 having written nothing, rather than leaving
+  // a partial update active while the panel reports a failed save.
   for (const [key, value] of Object.entries(body)) {
     if (typeof value !== 'string') {
       return NextResponse.json({ error: `value for ${key} must be a string` }, { status: 400 })
@@ -41,6 +44,8 @@ export async function PATCH(req: Request) {
         return NextResponse.json({ error: `invalid cron expression for ${key}: ${value}` }, { status: 400 })
       }
     }
+  }
+  for (const [key, value] of Object.entries(body)) {
     await prisma.setting.upsert({
       where: { key },
       update: { value },

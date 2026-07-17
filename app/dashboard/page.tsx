@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { MarkdownContent } from '@/components/dashboard/markdown-content'
-import { useAdminData, useCategories } from '@/lib/api'
+import { useAdminData, useCategories, useNews } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import type { NewsItem, Category } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -162,9 +162,13 @@ export default function DashboardPage() {
   const { user } = useAuth()
   const { data } = useAdminData()
   const { data: catResp } = useCategories('news')
+  // News comes from the filtered /api/news endpoint (no includeDrafts), so the
+  // dashboard never shows drafts even to admins — it's a publication-facing
+  // view. admin-data is used only for personnel/resources (no draft concern).
+  const { data: newsResp } = useNews({ pageSize: 1000 })
   const personnel = data?.personnel ?? []
   const resources = data?.resources ?? []
-  const news = data?.news ?? []
+  const news = newsResp?.data?.items ?? []
   const categories = catResp?.data ?? []
   const [expandedNews, setExpandedNews] = useState<NewsItem | null>(null)
 

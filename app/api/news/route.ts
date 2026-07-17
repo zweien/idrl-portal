@@ -15,11 +15,14 @@ export async function GET(request: Request) {
   const pinned = searchParams.get('pinned')
   const search = searchParams.get('search')
   const isAdmin = session.role === 'admin'
+  // Drafts are opt-in: only the admin management table passes includeDrafts=1.
+  // The reader feed (/dashboard/news) and /api/admin-data hide drafts even for
+  // admins, so publication-facing views never show unpublished items.
+  const includeDrafts = isAdmin && searchParams.get('includeDrafts') === '1'
 
   const where: { categoryId?: string; status?: string; OR?: Array<Record<string, unknown>> } = {}
   if (category) where.categoryId = category
-  // Non-admins only see published items; admins see drafts too.
-  if (!isAdmin) where.status = 'published'
+  if (!includeDrafts) where.status = 'published'
   if (search) {
     const q = { contains: search }
     where.OR = [{ title: q }, { content: q }]
