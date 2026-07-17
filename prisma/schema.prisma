@@ -42,6 +42,10 @@ model Workstation {
   person         Person?  @relation(fields: [personId], references: [id], onDelete: SetNull)
   status         String
   nameCustomized Boolean  @default(false)
+
+  // One person may occupy at most one workstation. SQLite treats multiple
+  // NULL personId values as distinct, so unassigned workstations coexist.
+  @@unique([personId], map: "workstation_person_uniq")
 }
 
 model Person {

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getSession, isAuthenticated, isAdmin, type SessionData } from '@/lib/session'
 import { prisma } from '@/lib/db'
 import { hashApiKey } from '@/lib/crypto'
+import { checkRateLimit } from '@/lib/rate-limit'
 import type { ApiScope } from '@/lib/types'
 
 /**
@@ -34,13 +35,23 @@ export async function requireAdmin(): Promise<SessionData | NextResponse> {
   return session
 }
 
+type ApiKeyResolve =
+  | { ok: true; id: string }
+  | { rateLimited: true; retryAfter: number }
+  | null
+
 /**
- * Resolve a Bearer API key from the Authorization header. Returns the ApiKey
- * row (with scopes parsed) on success, or null when no valid key is present.
+ * Resolve a Bearer API key from the Authorization header.
+ * - returns `{ ok, id }` when a valid, in-scope, under-limit key is present
+ * - returns `{ rateLimited, retryAfter }` when the key has exceeded its rate
+ *   limit (caller surfaces a 429 with Retry-After)
+ * - returns null when no valid key is present (no header, unknown, revoked, or
+ *   scope mismatch) — caller then falls back to session auth
+ *
  * Revoked keys and keys lacking the requested scope are rejected. Updates
- * lastUsedAt on success.
+ * lastUsedAt on a successful (under-limit) resolution.
  */
-async function resolveApiKey(req: Request, scope: ApiScope) {
+async function resolveApiKey(req: Request, scope: ApiScope): Promise<ApiKeyResolve> {
   const authHeader = req.headers.get('authorization')
   if (!authHeader?.startsWith('Bearer ')) return null
   const plaintext = authHeader.slice('Bearer '.length).trim()
@@ -61,12 +72,18 @@ async function resolveApiKey(req: Request, scope: ApiScope) {
   }
   if (!scopes.includes(scope)) return null
 
+  // Rate limit before counting as a use. A limited key gets a 429, not a write.
+  const rl = checkRateLimit(row.id)
+  if (!rl.allowed) {
+    return { rateLimited: true, retryAfter: rl.retryAfter }
+  }
+
   // Fire-and-forget lastUsedAt update.
   await prisma.apiKey.update({
     where: { id: row.id },
     data: { lastUsedAt: new Date() },
   })
-  return row
+  return { ok: true, id: row.id }
 }
 
 /**
@@ -85,6 +102,12 @@ export async function requireScope(
   // Try API key first (machine-to-machine).
   const apiKey = await resolveApiKey(req, scope)
   if (apiKey) {
+    if ('rateLimited' in apiKey) {
+      return NextResponse.json(
+        { error: 'rate limit exceeded' },
+        { status: 429, headers: { 'Retry-After': String(apiKey.retryAfter) } },
+      )
+    }
     // Return a synthetic admin-equivalent session so route handlers can treat
     // authenticated API-key callers uniformly with admin session callers.
     // provider is widened via `unknown` since 'apikey' isn't in AuthProvider.
@@ -112,6 +135,12 @@ export async function requireUserOrScope(
 ): Promise<SessionData | NextResponse> {
   const apiKey = await resolveApiKey(req, scope)
   if (apiKey) {
+    if ('rateLimited' in apiKey) {
+      return NextResponse.json(
+        { error: 'rate limit exceeded' },
+        { status: 429, headers: { 'Retry-After': String(apiKey.retryAfter) } },
+      )
+    }
     return { userId: `apikey:${apiKey.id}`, provider: 'apikey', role: 'member' } as unknown as SessionData
   }
   return requireUser()

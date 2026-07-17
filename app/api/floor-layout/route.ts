@@ -75,6 +75,37 @@ export async function PUT(req: NextRequest) {
     const existingWorkstations = await prisma.workstation.findMany()
     const dbWsById = new Map(existingWorkstations.map(w => [w.id, w]))
 
+    // ---- One-person-one-workstation pre-check ----
+    // Compute the final personId each workstation will have after this save,
+    // then reject if any person ends up on >1 workstation. The DB unique index
+    // is the last line of defense, but a clear 400 here is friendlier than a
+    // raw constraint violation mid-transaction. Workstations NOT in the payload
+    // are deleted below, so only payload workstations + their resolved
+    // personIds are relevant.
+    const payloadWs = body.floors.flatMap(f => f.zones.flatMap(z => z.workstations))
+    const personToWs = new Map<string, string[]>()
+    for (const w of payloadWs) {
+      const dbRow = dbWsById.get(w.id)
+      const pid = resolvePersonId(
+        { id: w.id, personId: w.personId, row: w.row, col: w.col, zoneId: w.zoneId, floorId: w.floorId },
+        dbRow ? { id: dbRow.id, personId: dbRow.personId, row: dbRow.row, col: dbRow.col, zoneId: dbRow.zoneId, floorId: dbRow.floorId } : undefined,
+      )
+      if (!pid) continue
+      const arr = personToWs.get(pid) ?? []
+      arr.push(w.id)
+      personToWs.set(pid, arr)
+    }
+    const conflicts = [...personToWs.entries()].filter(([, wsIds]) => wsIds.length > 1)
+    if (conflicts.length > 0) {
+      return NextResponse.json(
+        {
+          error: '一人一工位：以下人员同时分配到多个工位',
+          conflicts: conflicts.map(([pid, wsIds]) => ({ personId: pid, workstationIds: wsIds })),
+        },
+        { status: 400 },
+      )
+    }
+
     await prisma.$transaction(async (tx) => {
       // ---- FLOORS: upsert + delete missing ----
       const payloadFloorIds = new Set(body.floors.map(f => f.id))
@@ -111,7 +142,6 @@ export async function PUT(req: NextRequest) {
       }
 
       // ---- WORKSTATIONS: upsert + delete missing + personId protection ----
-      const payloadWs = body.floors.flatMap(f => f.zones.flatMap(z => z.workstations))
       const payloadWsIds = new Set(payloadWs.map(w => w.id))
       const dbWsIds = await tx.workstation.findMany({ select: { id: true } })
       for (const { id } of dbWsIds) {
