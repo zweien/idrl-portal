@@ -411,6 +411,9 @@ export async function fetchTripStatus(
 /**
  * Map attendance data to Person.status using the priority:
  * trip > leave > attendance punch > absent.
+ *
+ * "Punched in" = any OnDuty record exists (Normal, Late, Early, SeriousLate).
+ * Only NotSigned / Absenteeism / no record at all → absent.
  */
 export function mapStatus(
   userid: string,
@@ -421,7 +424,10 @@ export function mapStatus(
   if (tripSet.has(userid)) return 'trip'
   if (leaveSet.has(userid)) return 'leave'
   const timeResult = attendanceMap.get(userid)
-  if (timeResult === 'Normal') return 'present'
-  return 'absent' // NotSigned, Late, Early, Absenteeism, or no record
+  if (timeResult && timeResult !== 'NotSigned' && timeResult !== 'Absenteeism') {
+    // Has a real punch record (Normal/Late/Early/SeriousLate) → present
+    return 'present'
+  }
+  return 'absent'
 }
 
