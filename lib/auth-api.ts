@@ -98,8 +98,13 @@ export async function requireScope(
  * Require either (a) any authenticated session, OR (b) a valid Bearer API key
  * whose scopes include `scope`. Used by read endpoints (news/resource) so that
  * machine readers with a `news:read` / `resource:read` key can access them,
- * while ordinary users still authenticate via their session cookie. Admin-only
- * filtering is decided by the route based on `session.role === 'admin'`.
+ * while ordinary users still authenticate via their session cookie.
+ *
+ * IMPORTANT: read-scope API keys authenticate as a NON-admin identity
+ * (role: 'member'), so the route's role-based filtering (drafts hidden,
+ * admin-only resources hidden) still applies to them. Only requireScope()
+ * (sync/publish, which gates admin-only writes) grants an admin-equivalent
+ * synthetic session.
  */
 export async function requireUserOrScope(
   req: Request,
@@ -107,7 +112,7 @@ export async function requireUserOrScope(
 ): Promise<SessionData | NextResponse> {
   const apiKey = await resolveApiKey(req, scope)
   if (apiKey) {
-    return { userId: `apikey:${apiKey.id}`, provider: 'apikey', role: 'admin' } as unknown as SessionData
+    return { userId: `apikey:${apiKey.id}`, provider: 'apikey', role: 'member' } as unknown as SessionData
   }
   return requireUser()
 }

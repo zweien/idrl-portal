@@ -59,6 +59,20 @@ describe('cronMatchesMinute', () => {
     // Friday but minute 30 → no match
     expect(cronMatchesMinute('0 8-20 * * 1-5', new Date('2026-07-17T10:30:00Z'))).toBe(false)
   })
+
+  it('accepts weekday names (node-cron grammar)', () => {
+    // "Mon" = Monday(1). 2026-07-20 is a Monday; 06:00 UTC matches.
+    expect(cronMatchesMinute('0 6 * * Mon', new Date('2026-07-20T06:00:00Z'))).toBe(true)
+    // Tuesday → no match on a Monday.
+    expect(cronMatchesMinute('0 6 * * Mon', new Date('2026-07-21T06:00:00Z'))).toBe(false)
+  })
+
+  it('treats dow 7 as Sunday (alias for 0)', () => {
+    // 2026-07-19 is a Sunday.
+    expect(cronMatchesMinute('0 6 * * 7', new Date('2026-07-19T06:00:00Z'))).toBe(true)
+    // Monday with dow=7 → no match.
+    expect(cronMatchesMinute('0 6 * * 7', new Date('2026-07-20T06:00:00Z'))).toBe(false)
+  })
 })
 
 describe('CRON_PRESETS', () => {

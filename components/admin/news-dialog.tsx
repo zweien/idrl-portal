@@ -32,6 +32,26 @@ interface NewsDialogProps {
   onSubmit: (news: NewsItem) => void
 }
 
+// datetime-local inputs emit a local wall-clock with no timezone
+// ("YYYY-MM-DDTHH:mm"). Convert to a UTC ISO instant for storage so the
+// scheduler's publishAt comparison (against new Date().toISOString()) means
+// what the admin intended. isoToLocal is the inverse used to fill the input.
+// Module-scope so the useState initializer (runs on the open-mount for edits)
+// can use it — handleOpenChange is not called on first mount.
+function localToIso(local: string): string | null {
+  if (!local) return null
+  const d = new Date(local)
+  return isNaN(d.getTime()) ? null : d.toISOString()
+}
+function isoToLocal(iso?: string | null): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return ''
+  // YYYY-MM-DDTHH:mm in the browser's local zone.
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 export function NewsDialog({ initialData, trigger, onSubmit }: NewsDialogProps) {
   const isEdit = !!initialData
   const { data: catResp } = useCategories('news')
@@ -41,7 +61,7 @@ export function NewsDialog({ initialData, trigger, onSubmit }: NewsDialogProps) 
     title: initialData?.title ?? '',
     categoryId: initialData?.categoryId ?? '',
     status: (initialData?.publishAt && initialData.status === 'draft' ? 'scheduled' : initialData?.status ?? 'published') as NewsStatus | 'scheduled',
-    publishAt: initialData?.publishAt ?? '',
+    publishAt: isoToLocal(initialData?.publishAt),
     content: initialData?.content ?? '',
     summary: initialData?.summary ?? '',
     author: initialData?.author ?? '',
@@ -51,24 +71,6 @@ export function NewsDialog({ initialData, trigger, onSubmit }: NewsDialogProps) 
     link: initialData?.link ?? '',
     imageUrl: initialData?.imageUrl ?? '',
   })
-
-  // datetime-local inputs emit a local wall-clock with no timezone
-  // ("YYYY-MM-DDTHH:mm"). Convert to a UTC ISO instant for storage so the
-  // scheduler's publishAt comparison (against new Date().toISOString()) means
-  // what the admin intended. Inverse: isoToLocal fills the input.
-  const localToIso = (local: string): string | null => {
-    if (!local) return null
-    const d = new Date(local)
-    return isNaN(d.getTime()) ? null : d.toISOString()
-  }
-  const isoToLocal = (iso?: string | null): string => {
-    if (!iso) return ''
-    const d = new Date(iso)
-    if (isNaN(d.getTime())) return ''
-    // YYYY-MM-DDTHH:mm in the browser's local zone.
-    const pad = (n: number) => String(n).padStart(2, '0')
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-  }
 
   const handleSubmit = () => {
     if (!form.title) return

@@ -63,43 +63,71 @@ export function isValidCron(expr: string): boolean {
  * set, supporting star, ranges, comma lists, and step values, then test
  * whether every field of `date` is in its set.
  */
+// Day-of-week names accepted by node-cron (case-insensitive, 3-letter or full),
+// mapped to 0=Sunday..6=Saturday to match Date.getUTCDay().
+const DOW_NAMES: Record<string, number> = {
+  sun: 0, sunday: 0, mon: 1, monday: 1, tue: 2, tues: 2, tuesday: 2,
+  wed: 3, weds: 3, wednesday: 3, thu: 4, thur: 4, thurs: 4, thursday: 4,
+  fri: 5, friday: 5, sat: 6, saturday: 6,
+}
+// Month names accepted by node-cron, mapped to 1..12.
+const MON_NAMES: Record<string, number> = {
+  jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
+  jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
+}
+
 function cronMatchesMinute(expr: string, date: Date): boolean {
-  // node-cron exposes validate; for matching we reconstruct the parsed fields.
-  // Simplest robust approach: parse fields ourselves into sets and compare.
+  // We expand each cron field into a set and test membership. node-cron accepts
+  // a richer grammar than pure integers (weekday/month names, dow 7=Sunday),
+  // so we normalize those to the integers Date.getUTC*() returns.
   const parts = expr.trim().split(/\s+/)
   if (parts.length !== 5) return false
   const [minF, hourF, domF, monF, dowF] = parts
-  const expand = (field: string, min: number, max: number): Set<number> => {
+  const expand = (
+    field: string,
+    min: number,
+    max: number,
+    nameMap?: Record<string, number>,
+  ): Set<number> => {
     const out = new Set<number>()
+    const normalize = (tok: string): number => {
+      const lower = tok.toLowerCase()
+      if (nameMap && nameMap[lower] !== undefined) return nameMap[lower]
+      const n = parseInt(tok, 10)
+      return n
+    }
     for (const token of field.split(',')) {
       let step = 1
       let base = token
       const slashIdx = token.indexOf('/')
       if (slashIdx >= 0) {
-        step = parseInt(token.slice(slashIdx + 1))
+        step = parseInt(token.slice(slashIdx + 1), 10)
         base = token.slice(0, slashIdx)
       }
       if (base === '*') {
         for (let v = min; v <= max; v += step) out.add(v)
       } else if (base.includes('-')) {
-        const [lo, hi] = base.split('-').map(n => parseInt(n))
+        const [loTok, hiTok] = base.split('-')
+        const lo = normalize(loTok)
+        const hi = normalize(hiTok)
+        if (isNaN(lo) || isNaN(hi) || isNaN(step)) return out // unparseable → matches nothing
         for (let v = lo; v <= hi; v += step) out.add(v)
       } else {
-        out.add(parseInt(base))
+        const v = normalize(base)
+        if (isNaN(v) || isNaN(step)) return out // unparseable → matches nothing
+        out.add(v)
       }
     }
     return out
   }
-  const mins = expand(minF, 0, 59)
-  const hours = expand(hourF, 0, 23)
-  const doms = expand(domF, 1, 31)
-  const mons = expand(monF, 1, 12)
-  const dows = expand(dowF, 0, 6) // 0 = Sunday
+  // dow 7 is an alias for Sunday (0) in standard cron.
+  const dows = expand(dowF, 0, 7, DOW_NAMES)
+  if (dows.has(7)) { dows.delete(7); dows.add(0) }
   return (
-    mins.has(date.getUTCMinutes()) &&
-    hours.has(date.getUTCHours()) &&
-    doms.has(date.getUTCDate()) &&
-    mons.has(date.getUTCMonth() + 1) &&
+    expand(minF, 0, 59).has(date.getUTCMinutes()) &&
+    expand(hourF, 0, 23).has(date.getUTCHours()) &&
+    expand(domF, 1, 31).has(date.getUTCDate()) &&
+    expand(monF, 1, 12, MON_NAMES).has(date.getUTCMonth() + 1) &&
     dows.has(date.getUTCDay())
   )
 }
