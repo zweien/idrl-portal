@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
 import { Search, MapPin, Mail, User, Settings, Clock, Plane } from 'lucide-react'
+import { statusBg } from '@/lib/floor-constants'
 
 const roleLabels: Record<Person['role'], string> = {
   professor:     '教授',
@@ -24,10 +25,10 @@ const roleLabels: Record<Person['role'], string> = {
 }
 
 const statusConfig = {
-  present: { label: '在位', dot: 'status-dot-present' },
-  trip:    { label: '出差', dot: 'status-dot-trip' },
-  leave:   { label: '请假', dot: 'status-dot-leave' },
-  absent:  { label: '未到', dot: 'status-dot-absent' },
+  present: { label: '在位', dot: 'status-dot-present', badge: 'bg-[var(--status-present)]/15 text-[var(--status-present)] border-[var(--status-present)]/30' },
+  trip:    { label: '出差', dot: 'status-dot-trip',    badge: 'bg-[var(--status-trip)]/15 text-[var(--status-trip)] border-[var(--status-trip)]/30' },
+  leave:   { label: '请假', dot: 'status-dot-leave',   badge: 'bg-[var(--status-leave)]/15 text-[var(--status-leave)] border-[var(--status-leave)]/30' },
+  absent:  { label: '未到', dot: 'status-dot-absent',  badge: 'bg-[var(--status-absent)]/15 text-[var(--status-absent)] border-[var(--status-absent)]/30' },
 }
 
 const statusFilters = ['present', 'trip', 'leave', 'absent'] as const
@@ -196,10 +197,10 @@ export default function PersonnelPage() {
                 </div>
 
                 <div className="space-y-2 text-sm">
-                  <div className="flex items-center gap-2 text-muted-foreground">
+                  <Badge variant="outline" className={cn('text-xs font-medium gap-1.5 px-2 py-0.5 border', statusConfig[selectedPerson.status].badge)}>
                     <span className={cn('status-dot', statusConfig[selectedPerson.status].dot)} />
-                    <span>{statusConfig[selectedPerson.status].label}</span>
-                  </div>
+                    {statusConfig[selectedPerson.status].label}
+                  </Badge>
                   {selectedPerson.lastSeen && (
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Clock className="h-3.5 w-3.5 shrink-0" />
@@ -264,12 +265,13 @@ export default function PersonnelPage() {
                 key={person.id}
                 onClick={() => handlePersonSelect(person)}
                 className={cn(
-                  'flex items-center gap-3 p-3 rounded-md border text-left transition-colors w-full',
+                  'flex items-center gap-3 p-3 rounded-md border text-left transition-colors w-full relative overflow-hidden',
                   isSelected
                     ? 'border-primary/50 bg-primary/5'
                     : 'border-border hover:bg-accent hover:border-border'
                 )}
               >
+                <span className={cn('absolute left-0 top-0 bottom-0 w-1', statusBg[person.status])} />
                 <Avatar className="h-8 w-8 shrink-0">
                   <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
                     {person.name.charAt(0)}
@@ -278,9 +280,12 @@ export default function PersonnelPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm font-medium truncate">{person.name}</span>
-                    <span className={cn('status-dot shrink-0', statusConfig[person.status].dot)} />
                   </div>
-                  <p className="text-xs text-muted-foreground">{roleLabels[person.role]}</p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className={cn('inline-block h-1.5 w-1.5 rounded-full', statusBg[person.status])} />
+                    <span className="text-xs text-muted-foreground">{statusConfig[person.status].label}</span>
+                    <span className="text-xs text-muted-foreground/60">· {roleLabels[person.role]}</span>
+                  </div>
                 </div>
               </button>
             )
