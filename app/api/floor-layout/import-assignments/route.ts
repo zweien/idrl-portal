@@ -60,33 +60,62 @@ export async function POST(req: NextRequest) {
     }
 
     const wsByName = new Map(allWorkstations.map(w => [w.name, w]))
+    // wsId → display name (for warnings). Two workstations may share a
+    // customized name, so we track ownership by wsId, not name, when freeing
+    // an overwritten occupant — otherwise we'd free occupants of *all*
+    // same-named workstations.
+    const wsIdToName = new Map(allWorkstations.map(w => [w.id, w.name]))
+    // personId → wsId they currently occupy (DB state, updated as we reassign).
+    // Used to detect a person already assigned elsewhere (one-person-one-ws).
+    const personToWs = new Map<string, string>()
+    for (const w of allWorkstations) {
+      if (w.personId) personToWs.set(w.personId, w.id)
+    }
 
     let assigned = 0
     let skipped = 0
     const warnings: string[] = []
 
-    for (const [wsName, personName] of rows) {
-      const ws = wsByName.get(wsName)
-      if (!ws) {
-        skipped++
-        warnings.push(`工位 "${wsName}" 未找到，跳过`)
-        continue
+    // One transaction so a mid-batch error rolls back everything written so far.
+    await prisma.$transaction(async (tx) => {
+      for (const [wsName, personName] of rows) {
+        const ws = wsByName.get(wsName)
+        if (!ws) {
+          skipped++
+          warnings.push(`工位 "${wsName}" 未找到，跳过`)
+          continue
+        }
+        const person = personByName.get(personName)
+        if (!person) {
+          skipped++
+          warnings.push(`人员 "${personName}" 未找到，跳过`)
+          continue
+        }
+        if (duplicateNames.has(personName)) {
+          warnings.push(`"${personName}" 有同名人员，使用第一个匹配`)
+        }
+        // One-person-one-workstation: skip if this person is already assigned to
+        // a DIFFERENT workstation (in the DB or earlier in this batch).
+        const occupiedWsId = personToWs.get(person.id)
+        if (occupiedWsId && occupiedWsId !== ws.id) {
+          skipped++
+          warnings.push(`"${personName}" 已分配到工位 "${wsIdToName.get(occupiedWsId) ?? occupiedWsId}"，跳过 工位 "${wsName}"`)
+          continue
+        }
+        // Overwrite: this workstation may have held a different person. Free
+        // that person so a later row can assign them elsewhere (by wsId, so
+        // same-named workstations don't free each other's occupants).
+        for (const [pid, wId] of personToWs) {
+          if (wId === ws.id && pid !== person.id) personToWs.delete(pid)
+        }
+        await tx.workstation.update({
+          where: { id: ws.id },
+          data: { personId: person.id },
+        })
+        personToWs.set(person.id, ws.id)
+        assigned++
       }
-      const person = personByName.get(personName)
-      if (!person) {
-        skipped++
-        warnings.push(`人员 "${personName}" 未找到，跳过`)
-        continue
-      }
-      if (duplicateNames.has(personName)) {
-        warnings.push(`"${personName}" 有同名人员，使用第一个匹配`)
-      }
-      await prisma.workstation.update({
-        where: { id: ws.id },
-        data: { personId: person.id },
-      })
-      assigned++
-    }
+    })
 
     return NextResponse.json({ assigned, skipped, warnings: warnings.slice(0, 20) })
   } catch (e) {

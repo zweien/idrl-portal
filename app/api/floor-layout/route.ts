@@ -75,6 +75,37 @@ export async function PUT(req: NextRequest) {
     const existingWorkstations = await prisma.workstation.findMany()
     const dbWsById = new Map(existingWorkstations.map(w => [w.id, w]))
 
+    // ---- One-person-one-workstation pre-check ----
+    // Compute the final personId each workstation will have after this save,
+    // then reject if any person ends up on >1 workstation. The DB unique index
+    // is the last line of defense, but a clear 400 here is friendlier than a
+    // raw constraint violation mid-transaction. Workstations NOT in the payload
+    // are deleted below, so only payload workstations + their resolved
+    // personIds are relevant.
+    const payloadWs = body.floors.flatMap(f => f.zones.flatMap(z => z.workstations))
+    const personToWs = new Map<string, string[]>()
+    for (const w of payloadWs) {
+      const dbRow = dbWsById.get(w.id)
+      const pid = resolvePersonId(
+        { id: w.id, personId: w.personId, row: w.row, col: w.col, zoneId: w.zoneId, floorId: w.floorId },
+        dbRow ? { id: dbRow.id, personId: dbRow.personId, row: dbRow.row, col: dbRow.col, zoneId: dbRow.zoneId, floorId: dbRow.floorId } : undefined,
+      )
+      if (!pid) continue
+      const arr = personToWs.get(pid) ?? []
+      arr.push(w.id)
+      personToWs.set(pid, arr)
+    }
+    const conflicts = [...personToWs.entries()].filter(([, wsIds]) => wsIds.length > 1)
+    if (conflicts.length > 0) {
+      return NextResponse.json(
+        {
+          error: '一人一工位：以下人员同时分配到多个工位',
+          conflicts: conflicts.map(([pid, wsIds]) => ({ personId: pid, workstationIds: wsIds })),
+        },
+        { status: 400 },
+      )
+    }
+
     await prisma.$transaction(async (tx) => {
       // ---- FLOORS: upsert + delete missing ----
       const payloadFloorIds = new Set(body.floors.map(f => f.id))
@@ -111,27 +142,44 @@ export async function PUT(req: NextRequest) {
       }
 
       // ---- WORKSTATIONS: upsert + delete missing + personId protection ----
-      const payloadWs = body.floors.flatMap(f => f.zones.flatMap(z => z.workstations))
       const payloadWsIds = new Set(payloadWs.map(w => w.id))
       const dbWsIds = await tx.workstation.findMany({ select: { id: true } })
       for (const { id } of dbWsIds) {
         if (!payloadWsIds.has(id)) await tx.workstation.delete({ where: { id } })
       }
-      for (const w of payloadWs) {
-        const data = fromWorkstation(w)
+      // Resolve the final personId for each payload workstation up front. The
+      // personId-protection rule (geometry-only edit from a stale snapshot
+      // keeps the DB personId) is applied here so the unique constraint sees a
+      // consistent final state across all rows.
+      const resolved = payloadWs.map(w => {
         const dbRow = dbWsById.get(w.id)
-        // personId protection: geometry-only edit from a stale snapshot must
-        // not null an assignment. resolvePersonId keeps the DB personId when
-        // the payload omits it AND the geometry is unchanged.
-        data.personId = resolvePersonId(
+        const personId = resolvePersonId(
           { id: w.id, personId: w.personId, row: w.row, col: w.col, zoneId: w.zoneId, floorId: w.floorId },
           dbRow ? { id: dbRow.id, personId: dbRow.personId, row: dbRow.row, col: dbRow.col, zoneId: dbRow.zoneId, floorId: dbRow.floorId } : undefined,
         )
+        return { w, dbRow, personId }
+      })
+      // Two-phase write to honor the @@unique([personId]) constraint even when
+      // a person moves between workstations (e.g. swapping assignments, or
+      // moving P from w1 to w2). If we upserted in payload order and the
+      // destination ran before the source was cleared, the unique index would
+      // reject the destination mid-transaction. Phase 1 clears/structure-writes
+      // every workstation with personId=null; phase 2 applies the resolved
+      // assignments. A workstation whose final personId is null only runs once.
+      // Phase 1: structure + null out personId on every payload workstation.
+      for (const { w } of resolved) {
+        const data = fromWorkstation(w)
+        data.personId = null
         await tx.workstation.upsert({
           where: { id: w.id },
-          update: data,
-          create: data,
+          update: { ...data, personId: null },
+          create: { ...data, personId: null },
         })
+      }
+      // Phase 2: apply the resolved assignments (only where non-null).
+      for (const { w, personId } of resolved) {
+        if (!personId) continue
+        await tx.workstation.update({ where: { id: w.id }, data: { personId } })
       }
     })
 
