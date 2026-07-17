@@ -383,21 +383,32 @@ function isTripActiveToday(formValues: unknown[]): boolean {
       } catch { /* not JSON */ }
     }
 
-    // Format 2: 京外 — 商旅出差 JSON with nested itinerary rows
+    // Format 2: 京外 — 商旅出差 JSON with itinerary table
+    // Structure: [{componentName:"TableField", props:{bizAlias:"itinerary"},
+    //   value: [{rowValue:[{bizAlias:"startTime", value:"2026-07-17 12:00"}, ...]}]}]
     try {
       const parsed = JSON.parse(f.value)
       if (!Array.isArray(parsed)) continue
       for (const item of parsed) {
-        for (const child of (item.rowValue || [])) {
-          const bizAlias = child.bizAlias || ''
-          const val = child.value || ''
-          if (bizAlias === 'startTime' && val) {
-            const ts = new Date(val.replace(' ', 'T') + '+08:00').getTime()
-            if (tripStart === null || ts < tripStart) tripStart = ts
-          }
-          if (bizAlias === 'endTime' && val) {
-            const ts = new Date(val.replace(' ', 'T') + '+08:00').getTime()
-            if (tripEnd === null || ts > tripEnd) tripEnd = ts
+        const bizAlias = item.props?.bizAlias || ''
+        if (bizAlias === 'itinerary') {
+          // value may be a JSON string or already parsed array
+          const rows = typeof item.value === 'string' ? JSON.parse(item.value) : item.value
+          if (Array.isArray(rows)) {
+            for (const row of rows) {
+              for (const cell of (row.rowValue || [])) {
+                const cAlias = cell.bizAlias || ''
+                const cVal = cell.value || ''
+                if (cAlias === 'startTime' && cVal) {
+                  const ts = new Date(cVal.replace(' ', 'T') + '+08:00').getTime()
+                  if (tripStart === null || ts < tripStart) tripStart = ts
+                }
+                if (cAlias === 'endTime' && cVal) {
+                  const ts = new Date(cVal.replace(' ', 'T') + '+08:00').getTime()
+                  if (tripEnd === null || ts > tripEnd) tripEnd = ts
+                }
+              }
+            }
           }
         }
       }
@@ -461,11 +472,14 @@ export async function fetchTripStatus(
           process_instance?: {
             status?: string
             result?: string
+            originator_userid?: string
             form_component_values?: Array<{ name?: string; value?: string }>
           }
         }
         const inst = detailData.process_instance
         if (!inst) continue
+        // Only count instances where THIS user is the originator (not approver/CC)
+        if (inst.originator_userid !== userid) continue
         // Only count approved trips
         if (inst.status !== 'COMPLETED' || inst.result !== 'agree') continue
         // Check if the trip date range covers today
