@@ -13,6 +13,8 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: pnpm/action-setup@v4
+        with:
+          version: 11.12.0
 
       - uses: actions/setup-node@v4
         with:
@@ -20,7 +22,13 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        # pnpm 11 blocks native build scripts (better-sqlite3, @prisma/engines,
+        # esbuild, prisma, sharp) on a fresh CI install unless approved. The
+        # allow-list lives in pnpm-workspace.yaml; approve-builds --all applies
+        # it non-interactively so the install succeeds in CI.
+        run: |
+          pnpm approve-builds --all || true
+          pnpm install --frozen-lockfile
 
       - name: Type-check
         run: pnpm exec tsc --noEmit
