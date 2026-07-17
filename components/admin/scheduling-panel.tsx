@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useSettings, useSyncLogs, patchSettings } from '@/lib/api'
-import { CRON_DEFAULTS } from '@/lib/scheduler'
+import { CRON_DEFAULTS } from '@/lib/cron-presets'
 import { useSWRConfig } from 'swr'
 import { RefreshCw, Clock, CheckCircle, XCircle } from 'lucide-react'
 

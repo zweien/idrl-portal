@@ -37,11 +37,13 @@ export async function PATCH(req: Request) {
     if (typeof value !== 'string') {
       return NextResponse.json({ error: `value for ${key} must be a string` }, { status: 400 })
     }
-    // cron.* keys hold cron expressions; reject malformed ones up front so the
-    // admin sees the error instead of a silent "saved but never runs" job.
-    if (key.startsWith('cron.') && !key.startsWith('cron.enabled') && value !== '') {
-      if (!isValidCron(value)) {
-        return NextResponse.json({ error: `invalid cron expression for ${key}: ${value}` }, { status: 400 })
+    // cron.* keys hold cron expressions; reject malformed (including empty)
+    // ones up front so the admin sees the error instead of a silent
+    // "saved but never runs" job. An empty value would otherwise persist ''
+    // and override the default.
+    if (key.startsWith('cron.') && !key.startsWith('cron.enabled')) {
+      if (value === '' || !isValidCron(value)) {
+        return NextResponse.json({ error: `invalid cron expression for ${key}: ${value || '(empty)'}` }, { status: 400 })
       }
     }
   }

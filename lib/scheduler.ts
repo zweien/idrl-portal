@@ -21,7 +21,14 @@ import { syncMembers, syncAttendance } from '@/lib/dingtalk-sync'
  *   cron.enabled.*      — "true"/"false" toggle per job
  */
 
-export type CronJob = 'sync-members' | 'sync-attendance' | 'publish-news'
+// Cron presets + per-job defaults live in the client-safe lib/cron-presets.ts
+// (no server-only deps) so the admin scheduling panel ('use client') can import
+// them without dragging Prisma/node-cron into the browser bundle. Re-exported
+// here for server-side callers that already import from this module.
+export { CRON_PRESETS, CRON_DEFAULTS } from '@/lib/cron-presets'
+import { CRON_DEFAULTS } from '@/lib/cron-presets'
+import type { CronJob } from '@/lib/cron-presets'
+export type { CronJob }
 
 interface JobDef {
   job: CronJob
@@ -29,28 +36,6 @@ interface JobDef {
   enableKey: string       // enable toggle setting
   defaultCron: string
   run: () => Promise<unknown>
-}
-
-// Preset cadences surfaced in the admin UI → cron expressions.
-export const CRON_PRESETS: Record<string, { label: string; expr: string }> = {
-  // attendance
-  every15min:  { label: '每 15 分钟', expr: '*/15 * * * *' },
-  every30min:  { label: '每 30 分钟', expr: '*/30 * * * *' },
-  hourly:      { label: '每小时', expr: '0 * * * *' },
-  workdayHours: { label: '工作日 8-20 点每小时', expr: '0 8-20 * * 1-5' },
-  // members / publish (lower frequency)
-  daily6am:    { label: '每天 6:00', expr: '0 6 * * *' },
-  dailyMidnight: { label: '每天凌晨', expr: '0 0 * * *' },
-  weeklyMon:   { label: '每周一', expr: '0 6 * * 1' },
-  every5min:   { label: '每 5 分钟', expr: '*/5 * * * *' },
-}
-
-/** Default cron expressions per job, used when no Setting row exists. Exported
- * so the admin scheduling panel can display the active defaults. */
-export const CRON_DEFAULTS: Record<CronJob, string> = {
-  'sync-members': CRON_PRESETS.daily6am.expr,
-  'sync-attendance': CRON_PRESETS.hourly.expr,
-  'publish-news': CRON_PRESETS.every5min.expr,
 }
 
 /**
@@ -195,7 +180,10 @@ const JOB_DEFS: JobDef[] = [
 async function executeJob(def: JobDef) {
   // Re-read config on every tick so admin changes take effect without a restart.
   if (!(await isEnabled(def.enableKey))) return
-  const expr = (await readSetting(def.settingKey)) ?? def.defaultCron
+  // An empty string (saved via the panel's empty custom input) must NOT
+  // override the default and silently stop the job — treat it as absent.
+  const raw = await readSetting(def.settingKey)
+  const expr = raw && raw.trim() !== '' ? raw : def.defaultCron
   if (!isValidCron(expr)) return
   // Only run when the current minute matches the live expression.
   if (!cronMatchesMinute(expr, new Date())) return
