@@ -351,14 +351,71 @@ export async function fetchLeaveStatus(
   return result
 }
 
+const PROCESS_DETAIL_URL = 'https://oapi.dingtalk.com/topapi/processinstance/get'
+
 /**
- * Fetch today's business-trip approval instances for a batch of userids.
- * Uses the approval processinstance API with DINGTALK_TRIP_PROCESS_CODE.
- * Returns a Set of userids that have a trip approval today.
- *
- * Note: processinstance/listids filters by approval creation date, not trip
- * date. A wider window (past 30 days) is used to catch ongoing trips, then
- * only approved instances count. This is a best-effort heuristic.
+ * Check if today falls within a trip approval's date range.
+ * Handles two form layouts:
+ * - 京外 (商旅出差): JSON itinerary with nested startTime/endTime fields
+ * - 京内 (因公外出): field named ["开始时间","结束时间"] with array value
+ *   like ["2026-07-17 08:30", "2026-07-17 12:00", 3.5, "hour", ...]
+ */
+function isTripActiveToday(formValues: unknown[]): boolean {
+  const today = todayInShanghai()
+  const todayStart = today.startMs
+  const todayEnd = today.endMs
+
+  let tripStart: number | null = null
+  let tripEnd: number | null = null
+
+  for (const fv of formValues) {
+    const f = fv as { name?: string; value?: string }
+    if (!f.value) continue
+
+    // Format 1: 京内 — field name contains 开始时间/结束时间, value is a JSON array
+    if (f.name && f.name.includes('开始时间') && f.name.includes('结束时间')) {
+      try {
+        const arr = JSON.parse(f.value)
+        if (Array.isArray(arr) && arr.length >= 2) {
+          tripStart = new Date(String(arr[0]).replace(' ', 'T') + '+08:00').getTime()
+          tripEnd = new Date(String(arr[1]).replace(' ', 'T') + '+08:00').getTime()
+        }
+      } catch { /* not JSON */ }
+    }
+
+    // Format 2: 京外 — 商旅出差 JSON with nested itinerary rows
+    try {
+      const parsed = JSON.parse(f.value)
+      if (!Array.isArray(parsed)) continue
+      for (const item of parsed) {
+        for (const child of (item.rowValue || [])) {
+          const bizAlias = child.bizAlias || ''
+          const val = child.value || ''
+          if (bizAlias === 'startTime' && val) {
+            const ts = new Date(val.replace(' ', 'T') + '+08:00').getTime()
+            if (tripStart === null || ts < tripStart) tripStart = ts
+          }
+          if (bizAlias === 'endTime' && val) {
+            const ts = new Date(val.replace(' ', 'T') + '+08:00').getTime()
+            if (tripEnd === null || ts > tripEnd) tripEnd = ts
+          }
+        }
+      }
+    } catch { /* not JSON */ }
+  }
+
+  // Trip is active if today overlaps [tripStart, tripEnd]
+  if (tripStart !== null && tripEnd !== null) {
+    return tripStart <= todayEnd && tripEnd >= todayStart
+  }
+  return false
+}
+
+/**
+ * Fetch today's business-trip status for a batch of userids.
+ * Queries trip approval instances (past 30 days), fetches each instance's
+ * detail, and checks if today falls within the trip's date range.
+ * Only COMPLETED + agree instances with dates covering today count.
  *
  * Throws on DingTalk API failure.
  */
@@ -369,40 +426,55 @@ export async function fetchTripStatus(
   const result = new Set<string>()
   if (userids.length === 0) return result
 
-  const processCode = process.env.DINGTALK_TRIP_PROCESS_CODE
-  if (!processCode) return result // not configured → skip trip detection
+  const rawCodes = process.env.DINGTALK_TRIP_PROCESS_CODE
+  if (!rawCodes) return result
+  const processCodes = rawCodes.split(',').map(s => s.trim()).filter(Boolean)
 
-  // Use a 30-day window to catch trips submitted earlier but still ongoing
   const endTime = Date.now()
   const startTime = endTime - 30 * 24 * 60 * 60 * 1000
 
   for (const userid of userids) {
-    const res = await fetch(`${PROCESS_INSTANCE_URL}?access_token=${accessToken}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        process_code: processCode,
-        start_time: startTime,
-        end_time: endTime,
-        userid,
-      }),
-      cache: 'no-store',
-    })
-    if (!res.ok) {
-      throw new Error(`processinstance/listids HTTP ${res.status} for user ${userid}`)
-    }
-    const data = (await res.json()) as {
-      errcode?: number
-      errmsg?: string
-      result?: { list?: string[]; process_instance_list?: string[] }
-    }
-    if (data.errcode) {
-      throw new Error(`processinstance/listids error ${data.errcode}: ${data.errmsg}`)
-    }
-    // processinstance/listids returns IDs in result.list (not process_instance_list)
-    const instances = data.result?.list ?? data.result?.process_instance_list ?? []
-    if (instances.length > 0) {
-      result.add(userid)
+    if (result.has(userid)) continue // already confirmed via a previous code
+    for (const processCode of processCodes) {
+      // 1. List instance IDs
+      const listRes = await fetch(`${PROCESS_INSTANCE_URL}?access_token=${accessToken}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ process_code: processCode, start_time: startTime, end_time: endTime, userid }),
+        cache: 'no-store',
+      })
+      if (!listRes.ok) throw new Error(`processinstance/listids HTTP ${listRes.status} for ${userid}`)
+      const listData = (await listRes.json()) as { errcode?: number; errmsg?: string; result?: { list?: string[] } }
+      if (listData.errcode) throw new Error(`processinstance/listids error ${listData.errcode}: ${listData.errmsg}`)
+      const instanceIds = listData.result?.list ?? []
+
+      // 2. For each instance, get detail and check if the trip covers today
+      for (const instanceId of instanceIds) {
+        const detailRes = await fetch(`${PROCESS_DETAIL_URL}?access_token=${accessToken}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ process_instance_id: instanceId }),
+          cache: 'no-store',
+        })
+        if (!detailRes.ok) continue
+        const detailData = (await detailRes.json()) as {
+          process_instance?: {
+            status?: string
+            result?: string
+            form_component_values?: Array<{ name?: string; value?: string }>
+          }
+        }
+        const inst = detailData.process_instance
+        if (!inst) continue
+        // Only count approved trips
+        if (inst.status !== 'COMPLETED' || inst.result !== 'agree') continue
+        // Check if the trip date range covers today
+        if (isTripActiveToday(inst.form_component_values ?? [])) {
+          result.add(userid)
+          break
+        }
+      }
+      if (result.has(userid)) break
     }
   }
   return result
