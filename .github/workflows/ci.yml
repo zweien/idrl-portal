@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.12.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        # pnpm 11 blocks native build scripts (better-sqlite3, @prisma/engines,
+        # esbuild, prisma, sharp) on a fresh CI install. The allow-list lives in
+        # pnpm-workspace.yaml (onlyBuiltDependencies); the flag below allows the
+        # remaining/unlisted build scripts to run in CI without interactive
+        # approval. Safe here — trusted repo, ephemeral runner.
+        run: pnpm install --frozen-lockfile --config.dangerouslyAllowAllBuilds=true
+
+      - name: Type-check
+        run: pnpm exec tsc --noEmit
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm exec next build
+        env:
+          # Build needs a DATABASE_URL for Prisma client generation; the build
+          # itself doesn't open a connection. A placeholder is sufficient.
+          DATABASE_URL: file:prisma/db.sqlite
+          SESSION_SECRET: ci-session-secret-32-chars-minimum-padding
