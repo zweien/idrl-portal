@@ -51,9 +51,17 @@ const DEFAULTS: Record<CronJob, string> = {
   'publish-news': CRON_PRESETS.every5min.expr,
 }
 
-/** Validate a cron expression (5-field). Returns true if node-cron accepts it. */
+/**
+ * Validate a 5-field cron expression. node-cron.validate() also accepts the
+ * optional-seconds 6-field syntax, but cronMatchesMinute() only implements the
+ * 5-field grammar — so we additionally require exactly 5 fields to keep the
+ * validator and the matcher in agreement (otherwise a 6-field expr would pass
+ * validation but silently never run).
+ */
 export function isValidCron(expr: string): boolean {
-  return typeof expr === 'string' && expr.trim().length > 0 && cron.validate(expr)
+  if (typeof expr !== 'string' || expr.trim().length === 0) return false
+  if (expr.trim().split(/\s+/).length !== 5) return false
+  return cron.validate(expr)
 }
 
 /**

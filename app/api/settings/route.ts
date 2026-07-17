@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth-api'
+import { isValidCron } from '@/lib/scheduler'
 import type { Setting, ApiResponse } from '@/lib/types'
 
 /** GET /api/settings — all key/value settings. */
@@ -32,6 +33,13 @@ export async function PATCH(req: Request) {
   for (const [key, value] of Object.entries(body)) {
     if (typeof value !== 'string') {
       return NextResponse.json({ error: `value for ${key} must be a string` }, { status: 400 })
+    }
+    // cron.* keys hold cron expressions; reject malformed ones up front so the
+    // admin sees the error instead of a silent "saved but never runs" job.
+    if (key.startsWith('cron.') && !key.startsWith('cron.enabled') && value !== '') {
+      if (!isValidCron(value)) {
+        return NextResponse.json({ error: `invalid cron expression for ${key}: ${value}` }, { status: 400 })
+      }
     }
     await prisma.setting.upsert({
       where: { key },

@@ -37,6 +37,12 @@ describe('isValidCron', () => {
     expect(isValidCron('')).toBe(false)
     expect(isValidCron('99 * * * *')).toBe(false) // minute 99 out of range
   })
+
+  it('rejects 6-field (seconds) expressions that node-cron would accept', () => {
+    // node-cron.validate accepts this, but cronMatchesMinute only handles 5
+    // fields — so isValidCron must reject it to stay consistent with matcher.
+    expect(isValidCron('0 */5 * * * *')).toBe(false)
+  })
 })
 
 describe('cronMatchesMinute', () => {
