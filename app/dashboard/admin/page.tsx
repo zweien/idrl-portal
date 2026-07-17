@@ -259,6 +259,8 @@ export default function AdminPage() {
   const [editingNews, setEditingNews]         = useState<NewsItem | null>(null)
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState<string | null>(null)
+  const [syncingAtt, setSyncingAtt] = useState(false)
+  const [attResult, setAttResult] = useState<string | null>(null)
 
   async function handleSyncMembers() {
     if (syncing) return
@@ -280,6 +282,27 @@ export default function AdminPage() {
       reportErr(e)
     } finally {
       setSyncing(false)
+    }
+  }
+
+  async function handleSyncAttendance() {
+    if (syncingAtt) return
+    setSyncingAtt(true)
+    setAttResult(null)
+    try {
+      const r = await fetch('/api/dingtalk/sync-attendance', { method: 'POST' })
+      const data = await r.json()
+      if (!r.ok) throw new Error(data.error || `考勤同步失败 (${r.status})`)
+      const s = data.stats
+      setAttResult(`考勤同步完成：在位 ${s.present}，出差 ${s.trip}，请假 ${s.leave}，未到 ${s.absent}（共 ${data.total} 人）`)
+      setSaveError(null)
+      const fresh = await mutate()
+      if (fresh?.personnel) setPersonnelData(fresh.personnel)
+    } catch (e) {
+      setAttResult(null)
+      reportErr(e)
+    } finally {
+      setSyncingAtt(false)
     }
   }
 
@@ -366,11 +389,18 @@ export default function AdminPage() {
                   <RefreshCw className={cn('h-3.5 w-3.5', syncing && 'animate-spin')} />
                   {syncing ? '同步中…' : '同步钉钉成员'}
                 </Button>
+                <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5" onClick={handleSyncAttendance} disabled={syncingAtt}>
+                  <RefreshCw className={cn('h-3.5 w-3.5', syncingAtt && 'animate-spin')} />
+                  {syncingAtt ? '考勤同步中…' : '同步考勤'}
+                </Button>
                 <PersonDialog onSubmit={handlePersonCreate} />
               </div>
             </div>
             {syncResult && (
               <div className="px-4 py-2 border-b border-border bg-primary/5 text-xs text-primary">{syncResult}</div>
+            )}
+            {attResult && (
+              <div className="px-4 py-2 border-b border-border bg-primary/5 text-xs text-primary">{attResult}</div>
             )}
             <div className="px-4">
               <DataTable
