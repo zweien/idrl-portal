@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -14,7 +14,7 @@ import { NewsDialog } from '@/components/admin/news-dialog'
 import {
   Users, Server, Newspaper, Pencil, Trash2,
   Database, AlertTriangle, CheckCircle, Info,
-  ShieldAlert, MapPin, RefreshCw,
+  ShieldAlert, MapPin, RefreshCw, Upload,
 } from 'lucide-react'
 
 /* ── Labels ─────────────────────────────────────── */
@@ -261,6 +261,34 @@ export default function AdminPage() {
   const [syncResult, setSyncResult] = useState<string | null>(null)
   const [syncingAtt, setSyncingAtt] = useState(false)
   const [attResult, setAttResult] = useState<string | null>(null)
+  const [importing, setImporting] = useState(false)
+  const [importResult, setImportResult] = useState<string | null>(null)
+  const [importWarnings, setImportWarnings] = useState<string[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  async function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImporting(true)
+    setImportResult(null)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const r = await fetch('/api/floor-layout/import-assignments', { method: 'POST', body: formData })
+      const data = await r.json()
+      if (!r.ok) throw new Error(data.error || `导入失败 (${r.status})`)
+      setImportWarnings(data.warnings ?? [])
+      const warnCount = data.warnings?.length ? `（${data.warnings.length} 条警告）` : ''
+      setImportResult(`导入完成：分配 ${data.assigned} 个，跳过 ${data.skipped} 个${warnCount}`)
+      setSaveError(null)
+    } catch (err) {
+      setImportResult(null)
+      reportErr(err)
+    } finally {
+      setImporting(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
 
   async function handleSyncMembers() {
     if (syncing) return
@@ -513,13 +541,48 @@ export default function AdminPage() {
               <p className="text-sm font-medium">工位布局管理</p>
               <p className="text-xs text-muted-foreground mt-0.5">配置楼层、区域和工位布局</p>
             </div>
-            <div className="p-4">
-              <p className="text-sm text-muted-foreground mb-3">
+            <div className="p-4 space-y-3">
+              <p className="text-sm text-muted-foreground">
                 使用专用编辑器配置工位布局
               </p>
-              <Button asChild size="sm" className="h-8 text-xs gap-1.5">
-                <a href="/dashboard/admin/floor-layout">打开工位布局编辑器</a>
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button asChild size="sm" className="h-8 text-xs gap-1.5">
+                  <a href="/dashboard/admin/floor-layout">打开工位布局编辑器</a>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs gap-1.5"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={importing}
+                >
+                  <Upload className={cn('h-3.5 w-3.5', importing && 'animate-spin')} />
+                  {importing ? '导入中…' : '导入工位分配 (xlsx)'}
+                </Button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".xlsx,.xls"
+                  className="hidden"
+                  onChange={handleImportFile}
+                />
+              </div>
+              {importResult && (
+                <div className="rounded-md border border-border bg-primary/5 px-3 py-2 text-xs text-primary">
+                  {importResult}
+                </div>
+              )}
+              {importWarnings.length > 0 && (
+                <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs space-y-0.5">
+                  <p className="font-medium text-amber-600">警告详情：</p>
+                  {importWarnings.map((w, i) => (
+                    <p key={i} className="text-amber-600/80">• {w}</p>
+                  ))}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                xlsx 格式：A 列=工位名称（如 A-01），B 列=人员姓名（如 张三）。同名取第一个匹配。
+              </p>
             </div>
           </div>
         </TabsContent>
