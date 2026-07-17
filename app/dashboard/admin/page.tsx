@@ -270,7 +270,11 @@ export default function AdminPage() {
       if (!r.ok) throw new Error(data.error || `同步失败 (${r.status})`)
       setSyncResult(`同步完成：新增 ${data.created} 人，更新 ${data.updated} 人，关联登录 ${data.linked} 人`)
       setSaveError(null)
-      void mutate()
+      // Re-fetch the server bundle and update local personnel so the table
+      // reflects synced members immediately (mutate() alone won't, since the
+      // init effect only copies data while personnelData === null).
+      const fresh = await mutate()
+      if (fresh?.personnel) setPersonnelData(fresh.personnel)
     } catch (e) {
       setSyncResult(null)
       reportErr(e)
