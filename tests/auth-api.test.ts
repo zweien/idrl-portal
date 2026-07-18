@@ -10,10 +10,23 @@ vi.mock('@/lib/session', () => ({
     s?.role === 'admin' && Boolean(s?.userId),
 }))
 
+// Mock the User lookup resolveSession does to enforce bans. Default: not banned.
+const mockUserFindUnique = vi.fn()
+vi.mock('@/lib/db', () => ({
+  prisma: {
+    user: { findUnique: (...a: unknown[]) => mockUserFindUnique(...a) },
+  },
+}))
+
 // Import AFTER the mock is registered.
 const { requireUser, requireAdmin } = await import('@/lib/auth-api')
 
-beforeEach(() => mockGetSession.mockReset())
+beforeEach(() => {
+  mockGetSession.mockReset()
+  mockUserFindUnique.mockReset()
+  // Default: an authenticated session's user is not banned.
+  mockUserFindUnique.mockResolvedValue({ disabledAt: null })
+})
 
 describe('requireUser', () => {
   it('returns 401 when there is no session', async () => {
@@ -63,6 +76,31 @@ describe('requireAdmin', () => {
   it('returns 401 when userId present but role missing (not authenticated)', async () => {
     // role without userId is not authenticated; userId without role likewise
     mockGetSession.mockResolvedValue({ role: 'admin' })
+    const res = await requireAdmin()
+    expect((res as Response).status).toBe(401)
+  })
+})
+
+describe('ban enforcement (resolveSession re-fetch)', () => {
+  it('requireUser rejects a session whose user is disabled', async () => {
+    mockGetSession.mockResolvedValue({ userId: 'u1', provider: 'local', role: 'member' })
+    mockUserFindUnique.mockResolvedValue({ disabledAt: new Date() })
+    const res = await requireUser()
+    expect(res).toBeInstanceOf(Response)
+    expect((res as Response).status).toBe(401)
+  })
+
+  it('requireUser admits a session whose user is not disabled', async () => {
+    const session = { userId: 'u1', provider: 'local', role: 'member' }
+    mockGetSession.mockResolvedValue(session)
+    mockUserFindUnique.mockResolvedValue({ disabledAt: null })
+    const res = await requireUser()
+    expect(res).toEqual(session)
+  })
+
+  it('requireAdmin rejects a disabled admin', async () => {
+    mockGetSession.mockResolvedValue({ userId: 'u2', provider: 'authentik', role: 'admin' })
+    mockUserFindUnique.mockResolvedValue({ disabledAt: new Date() })
     const res = await requireAdmin()
     expect((res as Response).status).toBe(401)
   })

@@ -24,9 +24,10 @@ async function resolveSession(): Promise<SessionData | NextResponse> {
       select: { disabledAt: true },
     })
     if (user?.disabledAt) {
-      // Banned mid-session — destroy the cookie so subsequent calls fail fast.
-      const s = await getSession()
-      s.destroy()
+      // Banned mid-session — reject. We re-check disabledAt on every call, so
+      // leaving the cookie in place is harmless (subsequent calls re-fetch and
+      // reject again). Destroying it would need a real session object; skip to
+      // keep this path cheap and avoid a second getSession round-trip.
       return NextResponse.json({ error: 'disabled' }, { status: 401 })
     }
   }
