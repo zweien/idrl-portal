@@ -15,23 +15,13 @@ import { useAuth } from '@/lib/auth-context'
 import { Search, MapPin, Mail, User, Settings, Clock, Plane } from 'lucide-react'
 import { statusBg } from '@/lib/floor-constants'
 
-const roleLabels: Record<Person['role'], string> = {
-  professor:     '教授',
-  postdoc:       '博士后',
-  phd:           '博士生',
-  master:        '硕士生',
-  undergraduate: '本科生',
-  staff:         '行政人员',
-}
-
+const statusFilters = ['present', 'trip', 'leave', 'absent'] as const
 const statusConfig = {
   present: { label: '在位', dot: 'status-dot-present', badge: 'bg-[var(--status-present)]/15 text-[var(--status-present)] border-[var(--status-present)]/30' },
   trip:    { label: '出差', dot: 'status-dot-trip',    badge: 'bg-[var(--status-trip)]/15 text-[var(--status-trip)] border-[var(--status-trip)]/30' },
   leave:   { label: '请假', dot: 'status-dot-leave',   badge: 'bg-[var(--status-leave)]/15 text-[var(--status-leave)] border-[var(--status-leave)]/30' },
   absent:  { label: '未到', dot: 'status-dot-absent',  badge: 'bg-[var(--status-absent)]/15 text-[var(--status-absent)] border-[var(--status-absent)]/30' },
 }
-
-const statusFilters = ['present', 'trip', 'leave', 'absent'] as const
 
 export default function PersonnelPage() {
   const { user } = useAuth()
@@ -192,7 +182,7 @@ export default function PersonnelPage() {
                   </Avatar>
                   <div>
                     <p className="font-medium">{selectedPerson.name}</p>
-                    <p className="text-xs text-muted-foreground">{roleLabels[selectedPerson.role]}</p>
+                    <p className="text-xs text-muted-foreground">{selectedPerson.role || '—'}</p>
                   </div>
                 </div>
 
@@ -284,7 +274,7 @@ export default function PersonnelPage() {
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <span className={cn('inline-block h-1.5 w-1.5 rounded-full', statusBg[person.status])} />
                     <span className="text-xs text-muted-foreground">{statusConfig[person.status].label}</span>
-                    <span className="text-xs text-muted-foreground/60">· {roleLabels[person.role]}</span>
+                    {person.role && <span className="text-xs text-muted-foreground/60">· {person.role}</span>}
                   </div>
                 </div>
               </button>

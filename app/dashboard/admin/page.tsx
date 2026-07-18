@@ -22,10 +22,6 @@ import {
 } from 'lucide-react'
 
 /* ── Labels ─────────────────────────────────────── */
-const roleLabels: Record<Person['role'], string> = {
-  professor: '教授', postdoc: '博士后', phd: '博士生',
-  master: '硕士生', undergraduate: '本科生', staff: '行政人员',
-}
 const statusLabels = { present: '在位', trip: '出差', leave: '请假', absent: '未到' }
 
 /** Map a categoryId to a display name using the supplied category list. */
@@ -459,7 +455,7 @@ export default function AdminPage() {
                 data={personnelData}
                 columns={[
                   { key: 'name',   label: '姓名' },
-                  { key: 'role',   label: '角色',  render: v => roleLabels[v as Person['role']] },
+                  { key: 'role',   label: '职位',  render: v => v ? String(v) : <span className="text-muted-foreground">—</span> },
                   { key: 'email',  label: '邮箱' },
                   { key: 'status', label: '状态',  render: v => (
                     <Badge variant={v === 'present' ? 'default' : 'secondary'} className="text-[10px] font-normal">

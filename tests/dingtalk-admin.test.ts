@@ -1,32 +1,33 @@
 import { describe, it, expect } from 'vitest'
-import { titleToRole } from '@/lib/dingtalk-admin'
+import { mapStatus, type AttendanceDetail } from '@/lib/dingtalk-admin'
 
-describe('titleToRole (DingTalk title → Person role mapping)', () => {
-  it('maps 教授 → professor', () => {
-    expect(titleToRole('教授')).toBe('professor')
-    expect(titleToRole('Professor')).toBe('professor')
+describe('mapStatus (attendance priority: trip > leave > present > absent)', () => {
+  const trip = new Map<string, string>([['u_trip', '京外出差']])
+  const leave = new Set<string>(['u_leave'])
+  const att = (timeResult: string): Map<string, AttendanceDetail> =>
+    new Map([['u_present', { timeResult, checkTime: '08:01' }]])
+
+  it('trip wins over everything', () => {
+    // u_trip is in tripMap; also give it a punch + leave to confirm priority.
+    const m = new Map([['u_trip', { timeResult: 'Normal', checkTime: '08:01' }]])
+    const l = new Set(['u_trip'])
+    expect(mapStatus('u_trip', trip, l, m)).toBe('trip')
   })
 
-  it('maps 博士后 → postdoc', () => {
-    expect(titleToRole('博士后')).toBe('postdoc')
+  it('leave wins over present', () => {
+    const m = new Map([['u_leave', { timeResult: 'Normal', checkTime: '08:01' }]])
+    expect(mapStatus('u_leave', trip, leave, m)).toBe('leave')
   })
 
-  it('maps 博士 → phd (but not 博士后)', () => {
-    expect(titleToRole('博士')).toBe('phd')
-    expect(titleToRole('博士生')).toBe('phd')
+  it('any real OnDuty punch (incl. Late/Early) → present', () => {
+    for (const tr of ['Normal', 'Late', 'Early', 'SeriousLate']) {
+      expect(mapStatus('u_present', trip, leave, att(tr))).toBe('present')
+    }
   })
 
-  it('maps 硕士 → master', () => {
-    expect(titleToRole('硕士研究生')).toBe('master')
-  })
-
-  it('maps 本科 → undergraduate', () => {
-    expect(titleToRole('本科生')).toBe('undergraduate')
-  })
-
-  it('falls back to staff for unknown/empty titles', () => {
-    expect(titleToRole('科研人员')).toBe('staff')
-    expect(titleToRole('')).toBe('staff')
-    expect(titleToRole(undefined)).toBe('staff')
+  it('NotSigned / Absenteeism / no record → absent', () => {
+    expect(mapStatus('u_present', trip, leave, att('NotSigned'))).toBe('absent')
+    expect(mapStatus('u_present', trip, leave, att('Absenteeism'))).toBe('absent')
+    expect(mapStatus('u_unknown', trip, leave, new Map())).toBe('absent')
   })
 })

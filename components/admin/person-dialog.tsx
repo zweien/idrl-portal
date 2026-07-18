@@ -16,11 +16,6 @@ import {
 } from '@/components/ui/dialog'
 import { Plus, Pencil } from 'lucide-react'
 
-const roleLabels: Record<Person['role'], string> = {
-  professor: '教授', postdoc: '博士后', phd: '博士生',
-  master: '硕士生', undergraduate: '本科生', staff: '行政人员',
-}
-
 const statusOptions: { value: Person['status']; label: string }[] = [
   { value: 'present', label: '在位' },
   { value: 'leave', label: '请假' },
@@ -40,7 +35,7 @@ export function PersonDialog({ initialData, trigger, onSubmit }: PersonDialogPro
   const [form, setForm] = useState({
     name: initialData?.name ?? '',
     email: initialData?.email ?? '',
-    role: initialData?.role ?? ('master' as Person['role']),
+    role: initialData?.role ?? '',
     phone: initialData?.phone ?? '',
     status: initialData?.status ?? ('absent' as Person['status']),
     researchAreas: initialData?.researchAreas?.join(', ') ?? '',
@@ -105,14 +100,14 @@ export function PersonDialog({ initialData, trigger, onSubmit }: PersonDialogPro
             <Input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="手机号" className="h-9" />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">角色</Label>
-            <div className="flex flex-wrap gap-1.5">
-              {(Object.entries(roleLabels) as [Person['role'], string][]).map(([v, l]) => (
-                <Button key={v} type="button" size="sm" variant={form.role === v ? 'default' : 'outline'} className="h-7 text-xs" onClick={() => setForm({ ...form, role: v })}>
-                  {l}
-                </Button>
-              ))}
-            </div>
+            <Label className="text-xs">职位/角色</Label>
+            <Input
+              value={form.role}
+              onChange={e => setForm({ ...form, role: e.target.value })}
+              placeholder="如：研究员、博士生、工程师（钉钉同步自动填充）"
+              className="h-9"
+            />
+            <p className="text-[10px] text-muted-foreground">同步钉钉成员时自动用钉钉职位填充；也可手动编辑。</p>
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs">状态</Label>

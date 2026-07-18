@@ -62,8 +62,10 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'invalid json' }, { status: 400 })
   }
-  if (!body?.name || !body?.role || !body?.status) {
-    return NextResponse.json({ error: 'name, role, status required' }, { status: 400 })
+  // role is now free-text and may be blank (a person with no title yet);
+  // require it to be present (a string) but allow ''. name + status required.
+  if (!body?.name || !body?.status || typeof body?.role !== 'string') {
+    return NextResponse.json({ error: 'name, role (string), status required' }, { status: 400 })
   }
 
   const id = `p-${Date.now()}`
