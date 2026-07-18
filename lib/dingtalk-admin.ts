@@ -407,15 +407,20 @@ async function getTripDetail(
     }
   }
   const inst = detailData.process_instance
-  // Not a valid trip instance → cache as "not parsed" so we don't refetch.
-  if (!inst || inst.status !== 'COMPLETED' || inst.result !== 'agree') {
-    tripDetailCache.set(instanceId, { tripStart: 0, tripEnd: 0, parsed: false })
+  if (!inst) return null
+  // RUNNING/PENDING approvals are still mutable — they may flip to COMPLETED+
+  // agree later and start counting as a trip. Do NOT cache them; refetch next
+  // sync so we pick up the transition. Only cache the parsed:false sentinel
+  // for TERMINAL non-trip instances (COMPLETED but not agreed, or agreed but
+  // with no parseable date range) — those won't change.
+  if (inst.status !== 'COMPLETED' || inst.result !== 'agree') {
     return null
   }
   // Record the originator so a cached trip can be attributed to a person.
   if (inst.originator_userid) tripOriginator.set(instanceId, inst.originator_userid)
   const parsed = parseTripWindow(inst.form_component_values ?? [])
   if (parsed.tripStart === null || parsed.tripEnd === null) {
+    // Terminal (COMPLETED+agree) but unparseable dates → safe to cache as not-a-trip.
     tripDetailCache.set(instanceId, { tripStart: 0, tripEnd: 0, parsed: false })
     return null
   }
