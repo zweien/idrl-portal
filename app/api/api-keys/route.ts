@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth-api'
 import { generateApiKey, hashApiKey, keyPrefix } from '@/lib/crypto'
+import { RATE_LIMIT_DEFAULT } from '@/lib/rate-limit'
 import type { ApiKey, ApiScope, ApiResponse } from '@/lib/types'
 
 const ALL_SCOPES: ApiScope[] = [
@@ -10,6 +11,16 @@ const ALL_SCOPES: ApiScope[] = [
 
 function isScope(v: unknown): v is ApiScope {
   return typeof v === 'string' && (ALL_SCOPES as string[]).includes(v)
+}
+
+/** Validate an optional per-key rate limit: positive integer, or null/undefined. */
+function normalizeRateLimit(v: unknown): number | null | undefined {
+  if (v === null || v === undefined || v === '') return v === '' ? null : v
+  const n = typeof v === 'number' ? v : parseInt(String(v), 10)
+  if (!Number.isInteger(n) || n <= 0) {
+    throw new Error('rateLimitPerMin must be a positive integer or null')
+  }
+  return n
 }
 
 /** GET /api/api-keys — list non-revoked keys (never returns plaintext). */
@@ -29,20 +40,21 @@ export async function GET() {
     lastUsedAt: r.lastUsedAt?.toISOString() ?? null,
     createdAt: r.createdAt.toISOString(),
     revokedAt: null,
+    rateLimitPerMin: r.rateLimitPerMin,
   }))
   const response: ApiResponse<ApiKey[]> = { success: true, data: items }
   return NextResponse.json(response)
 }
 
 /**
- * POST /api/api-keys — create a key. Body: { name, scopes: ApiScope[] }.
+ * POST /api/api-keys — create a key. Body: { name, scopes: ApiScope[], rateLimitPerMin? }.
  * Returns { key } with the plaintext ONCE; it is never retrievable again.
  */
 export async function POST(req: Request) {
   const auth = await requireAdmin()
   if (auth instanceof NextResponse) return auth
 
-  let body: { name?: string; scopes?: unknown }
+  let body: { name?: string; scopes?: unknown; rateLimitPerMin?: unknown }
   try {
     body = await req.json()
   } catch {
@@ -55,6 +67,12 @@ export async function POST(req: Request) {
   if (scopes.length === 0) {
     return NextResponse.json({ error: 'scopes must be a non-empty subset of known scopes' }, { status: 400 })
   }
+  let rateLimitPerMin: number | null
+  try {
+    rateLimitPerMin = normalizeRateLimit(body.rateLimitPerMin) ?? null
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : 'invalid rateLimitPerMin' }, { status: 400 })
+  }
 
   const plaintext = generateApiKey()
   const created = await prisma.apiKey.create({
@@ -63,6 +81,7 @@ export async function POST(req: Request) {
       keyHash: hashApiKey(plaintext),
       prefix: keyPrefix(plaintext),
       scopes: JSON.stringify(scopes),
+      rateLimitPerMin,
     },
   })
   // Return plaintext exactly once.
@@ -71,6 +90,7 @@ export async function POST(req: Request) {
       id: created.id,
       name: created.name,
       scopes,
+      rateLimitPerMin: rateLimitPerMin ?? RATE_LIMIT_DEFAULT,
       key: plaintext,
     },
     { status: 201 },

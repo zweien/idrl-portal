@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { getSession, isAuthenticated, isAdmin, type SessionData } from '@/lib/session'
 import { prisma } from '@/lib/db'
 import { hashApiKey } from '@/lib/crypto'
-import { checkRateLimit } from '@/lib/rate-limit'
+import { checkRateLimit, RATE_LIMIT_DEFAULT } from '@/lib/rate-limit'
 import type { ApiScope } from '@/lib/types'
 
 /**
@@ -73,7 +73,9 @@ async function resolveApiKey(req: Request, scope: ApiScope): Promise<ApiKeyResol
   if (!scopes.includes(scope)) return null
 
   // Rate limit before counting as a use. A limited key gets a 429, not a write.
-  const rl = checkRateLimit(row.id)
+  // Resolved limit: per-key override, else the global default.
+  const limit = row.rateLimitPerMin ?? RATE_LIMIT_DEFAULT
+  const rl = await checkRateLimit(row.id, limit)
   if (!rl.allowed) {
     return { rateLimited: true, retryAfter: rl.retryAfter }
   }

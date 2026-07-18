@@ -182,6 +182,7 @@ export interface ApiKey {
   lastUsedAt?: string | null
   createdAt: string
   revokedAt?: string | null
+  rateLimitPerMin?: number | null
 }
 
 export interface Setting {

@@ -1,23 +1,20 @@
 /**
- * In-memory fixed-window rate limiter for API keys. Single-process (matches
- * the current single-server deployment); under multi-replica each instance
- * counts independently — documented limitation, same as the scheduler.
+ * Rate limiting for API keys, backed by per-row DB counters so the count is
+ * shared across all instances (no per-process Map). Each request does one
+ * atomic conditional UPDATE — SQLite's single-writer serialization makes the
+ * check-and-increment race-free.
  *
- * One bucket per key id. A window of WINDOW_MS holds up to RATE_LIMIT_PER_MIN
- * requests; the (count+1)th within the window is rejected with retryAfter set
- * to the seconds until the window resets.
+ * Window model: a fixed 60s window starting at rlWindowStart. When the window
+ * expires, the first request resets rlCount=1 + rlWindowStart=now. Within the
+ * window, an increment succeeds only if rlCount < limit; otherwise the request
+ * is rejected with retryAfter = seconds until the window resets.
  */
 
-export const RATE_LIMIT_PER_MIN = 60
-const WINDOW_MS = 60_000
+import { prisma } from '@/lib/db'
 
-interface Bucket {
-  count: number
-  resetAt: number // epoch ms
-}
-
-// Keyed by ApiKey id. Module-level so it persists across requests in a process.
-const buckets = new Map<string, Bucket>()
+/** Global default per-minute limit, used when a key's rateLimitPerMin is NULL. */
+export const RATE_LIMIT_DEFAULT = 60
+const WINDOW_SECONDS = 60
 
 export interface RateLimitResult {
   allowed: boolean
@@ -29,32 +26,55 @@ export interface RateLimitResult {
 
 /**
  * Record a request for `keyId` and decide whether it's within the limit.
- * Resets the window lazily when it expires.
+ * Uses two atomic UPDATEs against the ApiKey row:
+ *  1. window-expired reset: rlCount=1, rlWindowStart=now (unconditional on the
+ *     count, only requires the window to be over). If it matches → allowed.
+ *  2. in-window increment: rlCount=rlCount+1 only if rlCount < limit. If it
+ *     matches → allowed; otherwise the limit is exceeded.
+ *
+ * `limitOverride` lets the caller pass the resolved per-key limit
+ * (row.rateLimitPerMin ?? RATE_LIMIT_DEFAULT) to avoid a second read.
  */
-export function checkRateLimit(keyId: string): RateLimitResult {
-  const now = Date.now()
-  let bucket = buckets.get(keyId)
-  if (!bucket || now >= bucket.resetAt) {
-    // Start a new window.
-    bucket = { count: 0, resetAt: now + WINDOW_MS }
-    buckets.set(keyId, bucket)
+export async function checkRateLimit(
+  keyId: string,
+  limitOverride: number,
+): Promise<RateLimitResult> {
+  // Window-expired reset. datetime('now') is UTC seconds; comparing against
+  // rlWindowStart + 60s detects an expired window. Affected row ⇒ first
+  // request of a new window ⇒ allowed, 1 consumed.
+  // The '+N seconds' SQLite modifier must be a literal in the SQL string
+  // (not a bound parameter), so the constant is baked in here; only keyId is
+  // parameterized.
+  const resetSql = `UPDATE "ApiKey"
+    SET "rlCount" = 1, "rlWindowStart" = datetime('now')
+    WHERE "id" = ?
+      AND ("rlWindowStart" IS NULL
+           OR datetime('now') >= datetime("rlWindowStart", '+${WINDOW_SECONDS} seconds'))`
+  const resetChanges = await prisma.$executeRawUnsafe(resetSql, keyId)
+  if (resetChanges > 0) {
+    return { allowed: true, retryAfter: 0, remaining: Math.max(0, limitOverride - 1) }
   }
-  if (bucket.count >= RATE_LIMIT_PER_MIN) {
-    return {
-      allowed: false,
-      retryAfter: Math.ceil((bucket.resetAt - now) / 1000),
-      remaining: 0,
-    }
-  }
-  bucket.count += 1
-  return {
-    allowed: true,
-    retryAfter: 0,
-    remaining: Math.max(0, RATE_LIMIT_PER_MIN - bucket.count),
-  }
-}
 
-/** Test helper: clear all buckets. */
-export function resetRateLimit(): void {
-  buckets.clear()
+  // In-window increment: only succeeds while under the limit. Affected row ⇒
+  // allowed; no row touched ⇒ limit exceeded.
+  const incChanges = await prisma.$executeRaw`
+    UPDATE "ApiKey"
+    SET "rlCount" = "rlCount" + 1
+    WHERE "id" = ${keyId} AND "rlCount" < ${limitOverride}
+  `
+  if (incChanges > 0) {
+    return { allowed: true, retryAfter: 0, remaining: 0 /* computed cheaply below */ }
+  }
+
+  // Limit exceeded — read the window start to compute retryAfter.
+  const rows = await prisma.$queryRaw<{ rlWindowStart: string | null }[]>`
+    SELECT "rlWindowStart" FROM "ApiKey" WHERE "id" = ${keyId}
+  `
+  const windowStart = rows[0]?.rlWindowStart
+  let retryAfter = WINDOW_SECONDS
+  if (windowStart) {
+    const resetAtMs = new Date(windowStart + 'Z').getTime() + WINDOW_SECONDS * 1000
+    retryAfter = Math.max(1, Math.ceil((resetAtMs - Date.now()) / 1000))
+  }
+  return { allowed: false, retryAfter, remaining: 0 }
 }
