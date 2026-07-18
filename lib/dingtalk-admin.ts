@@ -348,15 +348,98 @@ export async function fetchLeaveStatus(
 
 const PROCESS_DETAIL_URL = 'https://oapi.dingtalk.com/topapi/processinstance/get'
 
-/**
- * Check if today falls within a trip approval's date range, and extract the reason.
- * Returns { active: boolean, reason?: string }.
- */
-function checkTripToday(formValues: unknown[]): { active: boolean; reason?: string } {
-  const today = todayInShanghai()
-  const todayStart = today.startMs
-  const todayEnd = today.endMs
+// ── trip instance detail cache ─────────────────────────
+// A COMPLETED+agree trip approval's date range doesn't change, so re-fetching
+// its detail on every sync is pure waste (DingTalk bills per call). Cache the
+// parsed { tripStart, tripEnd, reason } keyed by instanceId. Entries expire
+// after their trip end (they can't be "active today" once past) — lazily, on
+// the next sync. Survives across syncs within a process.
+interface TripCacheEntry {
+  tripStart: number
+  tripEnd: number
+  reason?: string
+  // Whether this instance was COMPLETED+agree with a parseable date range.
+  // false ⇒ the instance exists but isn't a usable trip record (don't refetch
+  // to re-parse; it won't change).
+  parsed: boolean
+}
+const tripDetailCache = new Map<string, TripCacheEntry>()
+// instanceId → originator userid (needed to attribute a trip to a person after
+// caching, since the cached window doesn't carry the userid).
+const tripOriginator = new Map<string, string>()
 
+/** Drop cache entries whose trip window has fully passed (can't be active). */
+function pruneTripCache(now: number) {
+  for (const [id, e] of tripDetailCache) {
+    if (e.parsed && e.tripEnd < now - 24 * 60 * 60 * 1000) tripDetailCache.delete(id)
+  }
+}
+
+/**
+ * Fetch + parse a trip instance detail, using the cache when available.
+ * Returns null for non-COMPLETED/agree or unparseable instances (and caches
+ * that null-decision so we don't refetch).
+ */
+async function getTripDetail(
+  accessToken: string,
+  instanceId: string,
+): Promise<{ active: boolean; reason?: string } | null> {
+  const today = todayInShanghai()
+  const cached = tripDetailCache.get(instanceId)
+  if (cached) {
+    if (!cached.parsed) return null
+    const active = cached.tripStart <= today.endMs && cached.tripEnd >= today.startMs
+    return { active, reason: cached.reason }
+  }
+  const detailRes = await fetch(`${PROCESS_DETAIL_URL}?access_token=${accessToken}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ process_instance_id: instanceId }),
+    cache: 'no-store',
+  })
+  if (!detailRes.ok) return null
+  const detailData = (await detailRes.json()) as {
+    process_instance?: {
+      status?: string
+      result?: string
+      originator_userid?: string
+      form_component_values?: Array<{ name?: string; value?: string }>
+    }
+  }
+  const inst = detailData.process_instance
+  if (!inst) return null
+  // RUNNING/PENDING approvals are still mutable — they may flip to COMPLETED+
+  // agree later and start counting as a trip. Do NOT cache them; refetch next
+  // sync so we pick up the transition. Only cache the parsed:false sentinel
+  // for TERMINAL non-trip instances (COMPLETED but not agreed, or agreed but
+  // with no parseable date range) — those won't change.
+  if (inst.status !== 'COMPLETED' || inst.result !== 'agree') {
+    return null
+  }
+  // Record the originator so a cached trip can be attributed to a person.
+  if (inst.originator_userid) tripOriginator.set(instanceId, inst.originator_userid)
+  const parsed = parseTripWindow(inst.form_component_values ?? [])
+  if (parsed.tripStart === null || parsed.tripEnd === null) {
+    // Terminal (COMPLETED+agree) but unparseable dates → safe to cache as not-a-trip.
+    tripDetailCache.set(instanceId, { tripStart: 0, tripEnd: 0, parsed: false })
+    return null
+  }
+  tripDetailCache.set(instanceId, {
+    tripStart: parsed.tripStart,
+    tripEnd: parsed.tripEnd,
+    reason: parsed.reason,
+    parsed: true,
+  })
+  const active = parsed.tripStart <= today.endMs && parsed.tripEnd >= today.startMs
+  return { active, reason: parsed.reason }
+}
+
+/**
+ * Extract { tripStart, tripEnd, reason } from a trip form. Refactored out of
+ * checkTripToday to separate "parse the form" from "is today in range", so the
+ * parsed window can be cached independently of the current day.
+ */
+export function parseTripWindow(formValues: unknown[]): { tripStart: number | null; tripEnd: number | null; reason?: string } {
   let tripStart: number | null = null
   let tripEnd: number | null = null
   let reason: string | undefined
@@ -365,7 +448,7 @@ function checkTripToday(formValues: unknown[]): { active: boolean; reason?: stri
     const f = fv as { name?: string; value?: string }
     if (!f.value) continue
 
-    // Format 1: 京内 — field name contains 开始时间/结束时间
+    // Format 1: 京内 — 开始时间/结束时间 field
     if (f.name && f.name.includes('开始时间') && f.name.includes('结束时间')) {
       try {
         const arr = JSON.parse(f.value)
@@ -382,7 +465,6 @@ function checkTripToday(formValues: unknown[]): { active: boolean; reason?: stri
       if (!Array.isArray(parsed)) continue
       for (const item of parsed) {
         const bizAlias = item.props?.bizAlias || ''
-        // Extract reason
         if (bizAlias === 'reason' && item.value) {
           reason = String(item.value)
         }
@@ -409,7 +491,7 @@ function checkTripToday(formValues: unknown[]): { active: boolean; reason?: stri
     } catch { /* not JSON */ }
   }
 
-  // Also check for 外出事由 field (京内)
+  // 京内 外出事由 reason field
   for (const fv of formValues) {
     const f = fv as { name?: string; value?: string }
     if (f.name === '外出事由' && f.value) {
@@ -417,17 +499,20 @@ function checkTripToday(formValues: unknown[]): { active: boolean; reason?: stri
     }
   }
 
-  if (tripStart !== null && tripEnd !== null) {
-    return { active: tripStart <= todayEnd && tripEnd >= todayStart, reason }
-  }
-  return { active: false }
+  return { tripStart, tripEnd, reason }
 }
 
 /**
- * Fetch today's business-trip status for a batch of userids.
- * Queries trip approval instances (past 30 days), fetches each instance's
- * detail, and checks if today falls within the trip's date range.
- * Only COMPLETED + agree instances with dates covering today count.
+ * Fetch today's business-trip status. Returns userid → reason for everyone
+ * currently on a trip (COMPLETED + agree, today within the trip's date range).
+ *
+ * Cost optimization vs. the previous per-userid loop:
+ *  - `listids` is called ONCE per processCode (without userid) instead of
+ *    once per user (90 users → 1 call). DingTalk's listids returns all
+ *    in-scope instances for a process code; we filter by originator_userid
+ *    against the synced set afterward.
+ *  - Each instance's detail is fetched once and CACHED (a COMPLETED trip's
+ *    date range doesn't change), so steady-state syncs skip the `get` calls.
  *
  * Throws on DingTalk API failure.
  */
@@ -441,51 +526,66 @@ export async function fetchTripStatus(
   const rawCodes = process.env.DINGTALK_TRIP_PROCESS_CODE
   if (!rawCodes) return result
   const processCodes = rawCodes.split(',').map(s => s.trim()).filter(Boolean)
+  if (processCodes.length === 0) return result
 
-  const endTime = Date.now()
+  const useridSet = new Set(userids)
+  const now = Date.now()
+  pruneTripCache(now)
+
+  const endTime = now
   const startTime = endTime - 30 * 24 * 60 * 60 * 1000
 
-  for (const userid of userids) {
-    if (result.has(userid)) continue
-    for (const processCode of processCodes) {
-      const listRes = await fetch(`${PROCESS_INSTANCE_URL}?access_token=${accessToken}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ process_code: processCode, start_time: startTime, end_time: endTime, userid }),
-        cache: 'no-store',
-      })
-      if (!listRes.ok) throw new Error(`processinstance/listids HTTP ${listRes.status} for ${userid}`)
-      const listData = (await listRes.json()) as { errcode?: number; errmsg?: string; result?: { list?: string[] } }
-      if (listData.errcode) throw new Error(`processinstance/listids error ${listData.errcode}: ${listData.errmsg}`)
-      const instanceIds = listData.result?.list ?? []
-
-      for (const instanceId of instanceIds) {
-        const detailRes = await fetch(`${PROCESS_DETAIL_URL}?access_token=${accessToken}`, {
+  // listids accepts userid_list (comma-separated, batch) and paginates with
+  // cursor + size (size max 20). userid_list has a small cap (40032 above ~10),
+  // so batch conservatively. Cuts listids calls from N-users to N/batch
+  // (was 90 calls for 90 users → 9 batches of 10).
+  const USER_BATCH = 10
+  for (const processCode of processCodes) {
+    for (let i = 0; i < userids.length; i += USER_BATCH) {
+      const batch = userids.slice(i, i + USER_BATCH).join(',')
+      let cursor = 0
+      let hasMore = true
+      // eslint-disable-next-line no-constant-condition
+      while (hasMore) {
+        const listRes = await fetch(`${PROCESS_INSTANCE_URL}?access_token=${accessToken}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ process_instance_id: instanceId }),
+          body: JSON.stringify({
+            process_code: processCode,
+            start_time: startTime,
+            end_time: endTime,
+            userid_list: batch,
+            cursor,
+            size: 20,
+          }),
           cache: 'no-store',
         })
-        if (!detailRes.ok) continue
-        const detailData = (await detailRes.json()) as {
-          process_instance?: {
-            status?: string
-            result?: string
-            originator_userid?: string
-            form_component_values?: Array<{ name?: string; value?: string }>
-          }
+        if (!listRes.ok) throw new Error(`processinstance/listids HTTP ${listRes.status} for ${processCode}`)
+        const listData = (await listRes.json()) as {
+          errcode?: number
+          errmsg?: string
+          result?: { list?: string[]; next_cursor?: number }
         }
-        const inst = detailData.process_instance
-        if (!inst) continue
-        if (inst.originator_userid !== userid) continue
-        if (inst.status !== 'COMPLETED' || inst.result !== 'agree') continue
-        const { active, reason } = checkTripToday(inst.form_component_values ?? [])
-        if (active) {
-          result.set(userid, reason ?? '出差')
-          break
+        if (listData.errcode) throw new Error(`processinstance/listids error ${listData.errcode}: ${listData.errmsg}`)
+        const instanceIds = listData.result?.list ?? []
+
+        for (const instanceId of instanceIds) {
+          const detail = await getTripDetail(accessToken, instanceId)
+          if (!detail || !detail.active) continue
+          // Attribute the trip to its originator (recorded in the cache on
+          // first fetch); only keep synced users.
+          const owner = tripOriginator.get(instanceId)
+          if (!owner || !useridSet.has(owner)) continue
+          result.set(owner, detail.reason ?? '出差')
+        }
+
+        const next = listData.result?.next_cursor
+        if (next === undefined || next === null || next === 0) {
+          hasMore = false
+        } else {
+          cursor = next
         }
       }
-      if (result.has(userid)) break
     }
   }
   return result

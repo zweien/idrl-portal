@@ -1,5 +1,47 @@
 import { describe, it, expect } from 'vitest'
-import { mapStatus, type AttendanceDetail } from '@/lib/dingtalk-admin'
+import { mapStatus, parseTripWindow, type AttendanceDetail } from '@/lib/dingtalk-admin'
+
+describe('parseTripWindow (trip form → date range + reason)', () => {
+  it('parses 京内 format (开始/结束时间 JSON array field)', () => {
+    const form = [
+      { name: '开始时间,结束时间', value: JSON.stringify(['2026-07-18 09:00', '2026-07-18 18:00']) },
+      { name: '外出事由', value: '走访合作单位' },
+    ]
+    const w = parseTripWindow(form)
+    expect(w.tripStart).not.toBeNull()
+    expect(w.tripEnd).not.toBeNull()
+    expect(w.tripEnd! - w.tripStart!).toBe(9 * 60 * 60 * 1000) // 9h
+    expect(w.reason).toBe('走访合作单位')
+  })
+
+  it('parses 京外 format (itinerary table with startTime/endTime cells)', () => {
+    const itinerary = [{
+      props: { bizAlias: 'itinerary' },
+      value: JSON.stringify([{
+        rowValue: [
+          { bizAlias: 'startTime', value: '2026-07-18 08:00' },
+          { bizAlias: 'endTime', value: '2026-07-20 20:00' },
+          { bizAlias: 'destination', value: '上海' },
+        ],
+      }]),
+    }, {
+      props: { bizAlias: 'reason' },
+      value: '参加国际会议',
+    }]
+    const form = [{ name: '商旅出差', value: JSON.stringify(itinerary) }]
+    const w = parseTripWindow(form)
+    expect(w.tripStart).not.toBeNull()
+    expect(w.tripEnd).not.toBeNull()
+    expect(w.reason).toBe('参加国际会议')
+  })
+
+  it('returns null window when no parseable dates', () => {
+    const form = [{ name: '备注', value: '一些无关文本' }]
+    const w = parseTripWindow(form)
+    expect(w.tripStart).toBeNull()
+    expect(w.tripEnd).toBeNull()
+  })
+})
 
 describe('mapStatus (attendance priority: trip > leave > present > absent)', () => {
   const trip = new Map<string, string>([['u_trip', '京外出差']])
