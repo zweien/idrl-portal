@@ -1,7 +1,7 @@
 # IDRL Portal · 智能数据研究实验室门户
 
 [![CI](https://github.com/zweien/idrl-portal/actions/workflows/ci.yml/badge.svg)](https://github.com/zweien/idrl-portal/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-97%20passed-brightgreen)](https://github.com/zweien/idrl-portal/blob/master/tests)
+[![Tests](https://img.shields.io/badge/tests-100%20passed-brightgreen)](https://github.com/zweien/idrl-portal/blob/master/tests)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue)](https://www.typescriptlang.org/)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black)](https://nextjs.org/)
 [![Prisma](https://img.shields.io/badge/Prisma-7-2D3748)](https://www.prisma.io/)
@@ -153,7 +153,7 @@ tests/              Vitest 测试
 
 ## 🧪 测试
 
-使用 Vitest（`pnpm test`），当前 97 个测试，覆盖：session round-trip / 篡改拒绝 / `SESSION_SECRET` fail-fast、`requireUser`/`requireAdmin`/`requireScope`（含 429/封禁/live-role）、middleware 路由保护、User upsert 唯一性、Workstation 一人一工位唯一约束、Category 唯一约束、API key 限流原子计数、调度 cron 匹配（北京时间）、钉钉考勤优先级映射、定时发布时间戳归一。CI（`.github/workflows/ci.yml`）在 push / PR 时跑 tsc + test + build。
+使用 Vitest（`pnpm test`），当前 100 个测试，覆盖：session round-trip / 篡改拒绝 / `SESSION_SECRET` fail-fast、`requireUser`/`requireAdmin`/`requireScope`（含 429/封禁/live-role）、middleware 路由保护、User upsert 唯一性、Workstation 一人一工位唯一约束、Category 唯一约束、API key 限流原子计数、调度 cron 匹配（北京时间）、钉钉考勤优先级映射、定时发布时间戳归一、Person.role 自由文本（含空值）。CI（`.github/workflows/ci.yml`）在 push / PR 时跑 tsc + test + build。
 
 ## 📄 许可证
 

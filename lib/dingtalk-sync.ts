@@ -28,8 +28,10 @@ export async function syncMembers(): Promise<{
     if (!m.unionid) continue
     // Store the DingTalk 职位 (title) verbatim — preserves the real title
     // (研究员/工程师/访问学者/...) instead of collapsing it to a fixed enum.
-    // Empty title falls back to an empty string; the UI treats blank as "—".
-    const role = m.title?.trim() || ''
+    // A blank/whitespace title is treated as "no title" so it doesn't wipe a
+    // manually-set role on re-sync; the UI shows blank as "—".
+    const title = m.title?.trim() || ''
+    const hasTitle = title !== ''
     const existing = await prisma.person.findFirst({ where: { dingUserId: m.unionid } })
 
     if (existing) {
@@ -37,9 +39,9 @@ export async function syncMembers(): Promise<{
         where: { id: existing.id },
         data: {
           name: m.name,
-          // Only overwrite the title when DingTalk actually provided one, so a
-          // missing title field doesn't wipe a manually-set role on re-sync.
-          ...(m.title ? { role } : {}),
+          // Only overwrite the title when DingTalk provided a non-empty one,
+          // so a missing/blank title field doesn't wipe a manually-set role.
+          ...(hasTitle ? { role: title } : {}),
           ...(m.email ? { email: m.email } : {}),
           ...(m.mobile ? { phone: m.mobile } : {}),
         },
@@ -50,7 +52,8 @@ export async function syncMembers(): Promise<{
         data: {
           id: `dt-${m.userid}`,
           name: m.name,
-          role,
+          // New person: store whatever title DingTalk gave (blank → '').
+          role: title,
           dingUserId: m.unionid,
           status: 'absent',
           ...(m.email ? { email: m.email } : {}),
