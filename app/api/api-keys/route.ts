@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth-api'
 import { generateApiKey, hashApiKey, keyPrefix } from '@/lib/crypto'
 import { RATE_LIMIT_DEFAULT } from '@/lib/rate-limit'
+import { parseRateLimit } from '@/lib/api-key-validation'
 import type { ApiKey, ApiScope, ApiResponse } from '@/lib/types'
 
 const ALL_SCOPES: ApiScope[] = [
@@ -11,16 +12,6 @@ const ALL_SCOPES: ApiScope[] = [
 
 function isScope(v: unknown): v is ApiScope {
   return typeof v === 'string' && (ALL_SCOPES as string[]).includes(v)
-}
-
-/** Validate an optional per-key rate limit: positive integer, or null/undefined. */
-function normalizeRateLimit(v: unknown): number | null | undefined {
-  if (v === null || v === undefined || v === '') return v === '' ? null : v
-  const n = typeof v === 'number' ? v : parseInt(String(v), 10)
-  if (!Number.isInteger(n) || n <= 0) {
-    throw new Error('rateLimitPerMin must be a positive integer or null')
-  }
-  return n
 }
 
 /** GET /api/api-keys — list non-revoked keys (never returns plaintext). */
@@ -69,7 +60,7 @@ export async function POST(req: Request) {
   }
   let rateLimitPerMin: number | null
   try {
-    rateLimitPerMin = normalizeRateLimit(body.rateLimitPerMin) ?? null
+    rateLimitPerMin = parseRateLimit(body.rateLimitPerMin)
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'invalid rateLimitPerMin' }, { status: 400 })
   }

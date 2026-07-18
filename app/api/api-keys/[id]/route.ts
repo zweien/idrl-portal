@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth-api'
+import { parseRateLimit } from '@/lib/api-key-validation'
 import type { ApiScope } from '@/lib/types'
 
 const ALL_SCOPES: ApiScope[] = [
@@ -53,15 +54,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     data.scopes = JSON.stringify(scopes)
   }
   if (body.rateLimitPerMin !== undefined) {
-    const v = body.rateLimitPerMin
-    if (v === null || v === '') {
-      data.rateLimitPerMin = null
-    } else {
-      const n = typeof v === 'number' ? v : parseInt(String(v), 10)
-      if (!Number.isInteger(n) || n <= 0) {
-        return NextResponse.json({ error: 'rateLimitPerMin must be a positive integer or null' }, { status: 400 })
-      }
-      data.rateLimitPerMin = n
+    try {
+      data.rateLimitPerMin = parseRateLimit(body.rateLimitPerMin)
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : 'invalid rateLimitPerMin' }, { status: 400 })
     }
   }
   if (body.resetCounter) {

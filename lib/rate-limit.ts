@@ -55,15 +55,28 @@ export async function checkRateLimit(
     return { allowed: true, retryAfter: 0, remaining: Math.max(0, limitOverride - 1) }
   }
 
-  // In-window increment: only succeeds while under the limit. Affected row ⇒
-  // allowed; no row touched ⇒ limit exceeded.
-  const incChanges = await prisma.$executeRaw`
-    UPDATE "ApiKey"
+  // In-window increment: only succeeds while BOTH under the limit AND the
+  // window is still active. Asserting the active window here closes a boundary
+  // race: if the window expired between the reset check above and this update,
+  // this UPDATE matches 0 rows and we fall through to retry the reset, so the
+  // boundary request is counted in the new window instead of being admitted
+  // for free.
+  const incSql = `UPDATE "ApiKey"
     SET "rlCount" = "rlCount" + 1
-    WHERE "id" = ${keyId} AND "rlCount" < ${limitOverride}
-  `
+    WHERE "id" = ?
+      AND "rlCount" < ?
+      AND datetime('now') < datetime("rlWindowStart", '+${WINDOW_SECONDS} seconds')`
+  const incChanges = await prisma.$executeRawUnsafe(incSql, keyId, limitOverride)
   if (incChanges > 0) {
-    return { allowed: true, retryAfter: 0, remaining: 0 /* computed cheaply below */ }
+    return { allowed: true, retryAfter: 0, remaining: 0 }
+  }
+
+  // No increment matched. Either the window just expired (between the reset
+  // check and the increment) — retry the reset to count this request in the
+  // new window — or the limit is genuinely exceeded.
+  const resetRetry = await prisma.$executeRawUnsafe(resetSql, keyId)
+  if (resetRetry > 0) {
+    return { allowed: true, retryAfter: 0, remaining: Math.max(0, limitOverride - 1) }
   }
 
   // Limit exceeded — read the window start to compute retryAfter.
