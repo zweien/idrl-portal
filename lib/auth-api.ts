@@ -6,29 +6,71 @@ import { checkRateLimit, RATE_LIMIT_DEFAULT } from '@/lib/rate-limit'
 import type { ApiScope } from '@/lib/types'
 
 /**
- * Require an authenticated session. Returns the session on success, or a 401
- * NextResponse when no user is logged in. Callers must check the return type:
- *   const auth = await requireUser()
- *   if (auth instanceof NextResponse) return auth
+ * Resolve the current session and, for human (cookie) sessions, re-fetch the
+ * User row to enforce BOTH the soft ban AND the current role:
+ *   - a user whose `disabledAt` is set cannot use protected APIs even if their
+ *     session cookie hasn't expired (7-day TTL);
+ *   - the returned session's `role` reflects the DB's current value, so a user
+ *     demoted (or promoted) by another admin is authorized by their LIVE role,
+ *     not the stale value baked into the cookie at login.
+ *
+ * API-key sessions (userId `apikey:...`) are not backed by a User row and skip
+ * this check. Returns a (possibly role-refreshed) session, or a 401 when
+ * unauthenticated/banned.
  */
-export async function requireUser(): Promise<SessionData | NextResponse> {
+async function resolveSession(): Promise<SessionData | NextResponse> {
   const session = await getSession()
   if (!isAuthenticated(session)) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  }
+  // API-key synthetic sessions are not banned-via-User; let them through.
+  if (session.userId && !session.userId.startsWith('apikey:')) {
+    const user = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { role: true, disabledAt: true },
+    })
+    if (user?.disabledAt) {
+      // Banned mid-session — reject. We re-check disabledAt on every call, so
+      // leaving the cookie in place is harmless (subsequent calls re-fetch and
+      // reject again). Destroying it would need a real session object; skip to
+      // keep this path cheap and avoid a second getSession round-trip.
+      return NextResponse.json({ error: 'disabled' }, { status: 401 })
+    }
+    // Authorize by the live role. If the DB role differs from the cookie
+    // (another admin demoted/promoted this user), use the DB value so
+    // requireAdmin/isAdmin see the current privilege, not a stale cookie. Only
+    // refresh when the DB actually returned a known role; an undefined/missing
+    // role (e.g. a future schema change) keeps the cookie role as a fallback.
+    if (
+      user &&
+      (user.role === 'admin' || user.role === 'member') &&
+      user.role !== session.role
+    ) {
+      return { ...session, role: user.role }
+    }
   }
   return session
 }
 
 /**
+ * Require an authenticated session. Returns the session on success, or a 401
+ * NextResponse when no user is logged in (or the user has been banned).
+ * Callers must check the return type:
+ *   const auth = await requireUser()
+ *   if (auth instanceof NextResponse) return auth
+ */
+export async function requireUser(): Promise<SessionData | NextResponse> {
+  return resolveSession()
+}
+
+/**
  * Require an admin session. Returns the session on success, or:
- *   - 401 when no user is logged in
+ *   - 401 when no user is logged in (or the user has been banned)
  *   - 403 when logged in but not admin
  */
 export async function requireAdmin(): Promise<SessionData | NextResponse> {
-  const session = await getSession()
-  if (!isAuthenticated(session)) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  }
+  const session = await resolveSession()
+  if (session instanceof NextResponse) return session
   if (!isAdmin(session)) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }

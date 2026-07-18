@@ -46,38 +46,52 @@ describe('isValidCron', () => {
 })
 
 describe('cronMatchesMinute', () => {
+  // NOTE: cronMatchesMinute interprets expressions in Asia/Shanghai (Beijing).
+  // Timestamps below are given in UTC (the ...Z suffix); Beijing = UTC+8, so
+  // 06:00 Beijing = 22:00 UTC the previous day, 10:00 Beijing = 02:00Z, etc.
+
   it('matches every-minute expression at any time', () => {
-    expect(cronMatchesMinute('* * * * *', new Date('2026-07-17T10:30:00Z'))).toBe(true)
+    expect(cronMatchesMinute('* * * * *', new Date('2026-07-17T02:30:00Z'))).toBe(true)
   })
 
   it('matches */15 only on the 15-minute boundaries', () => {
-    expect(cronMatchesMinute('*/15 * * * *', new Date('2026-07-17T10:00:00Z'))).toBe(true)
-    expect(cronMatchesMinute('*/15 * * * *', new Date('2026-07-17T10:15:00Z'))).toBe(true)
-    expect(cronMatchesMinute('*/15 * * * *', new Date('2026-07-17T10:07:00Z'))).toBe(false)
+    // 10:00 / 10:15 / 10:07 Beijing (= 02:00 / 02:15 / 02:07 UTC same day).
+    expect(cronMatchesMinute('*/15 * * * *', new Date('2026-07-17T02:00:00Z'))).toBe(true)
+    expect(cronMatchesMinute('*/15 * * * *', new Date('2026-07-17T02:15:00Z'))).toBe(true)
+    expect(cronMatchesMinute('*/15 * * * *', new Date('2026-07-17T02:07:00Z'))).toBe(false)
   })
 
   it('respects hour and weekday', () => {
-    // 0 8-20 * * 1-5 : minute 0, hours 8-20, Mon-Fri
-    // 2026-07-17 is a Friday; 10:00 UTC matches.
-    expect(cronMatchesMinute('0 8-20 * * 1-5', new Date('2026-07-17T10:00:00Z'))).toBe(true)
-    // Saturday at 10:00 → no match (weekday)
-    expect(cronMatchesMinute('0 8-20 * * 1-5', new Date('2026-07-18T10:00:00Z'))).toBe(false)
+    // 0 8-20 * * 1-5 : minute 0, hours 8-20 Beijing, Mon-Fri
+    // 2026-07-17 is a Friday; 10:00 Beijing (= 02:00Z) matches.
+    expect(cronMatchesMinute('0 8-20 * * 1-5', new Date('2026-07-17T02:00:00Z'))).toBe(true)
+    // Saturday 10:00 Beijing (= 02:00Z) → no match (weekday)
+    expect(cronMatchesMinute('0 8-20 * * 1-5', new Date('2026-07-18T02:00:00Z'))).toBe(false)
     // Friday but minute 30 → no match
-    expect(cronMatchesMinute('0 8-20 * * 1-5', new Date('2026-07-17T10:30:00Z'))).toBe(false)
+    expect(cronMatchesMinute('0 8-20 * * 1-5', new Date('2026-07-17T02:30:00Z'))).toBe(false)
+  })
+
+  it('matches the "每天 8:30" preset at 08:30 Beijing', () => {
+    // 30 8 * * * : 08:30 Beijing. 08:30 Beijing on 2026-07-17 = 00:30Z.
+    expect(cronMatchesMinute('30 8 * * *', new Date('2026-07-17T00:30:00Z'))).toBe(true)
+    // 08:00 Beijing (00:00Z) → minute 0, not 30 → no match.
+    expect(cronMatchesMinute('30 8 * * *', new Date('2026-07-17T00:00:00Z'))).toBe(false)
+    // 09:30 Beijing (01:30Z) → hour 9, not 8 → no match.
+    expect(cronMatchesMinute('30 8 * * *', new Date('2026-07-17T01:30:00Z'))).toBe(false)
   })
 
   it('accepts weekday names (node-cron grammar)', () => {
-    // "Mon" = Monday(1). 2026-07-20 is a Monday; 06:00 UTC matches.
-    expect(cronMatchesMinute('0 6 * * Mon', new Date('2026-07-20T06:00:00Z'))).toBe(true)
-    // Tuesday → no match on a Monday.
-    expect(cronMatchesMinute('0 6 * * Mon', new Date('2026-07-21T06:00:00Z'))).toBe(false)
+    // "Mon" = Monday(1). 2026-07-20 is a Monday; 06:00 Beijing = 22:00Z Sun.
+    expect(cronMatchesMinute('0 6 * * Mon', new Date('2026-07-19T22:00:00Z'))).toBe(true)
+    // Tuesday 06:00 Beijing (= 22:00Z Mon) → no match.
+    expect(cronMatchesMinute('0 6 * * Mon', new Date('2026-07-20T22:00:00Z'))).toBe(false)
   })
 
   it('treats dow 7 as Sunday (alias for 0)', () => {
-    // 2026-07-19 is a Sunday.
-    expect(cronMatchesMinute('0 6 * * 7', new Date('2026-07-19T06:00:00Z'))).toBe(true)
-    // Monday with dow=7 → no match.
-    expect(cronMatchesMinute('0 6 * * 7', new Date('2026-07-20T06:00:00Z'))).toBe(false)
+    // 2026-07-19 is a Sunday; 06:00 Beijing = 22:00Z Sat.
+    expect(cronMatchesMinute('0 6 * * 7', new Date('2026-07-18T22:00:00Z'))).toBe(true)
+    // Monday 06:00 Beijing (= 22:00Z Sun) with dow=7 → no match.
+    expect(cronMatchesMinute('0 6 * * 7', new Date('2026-07-19T22:00:00Z'))).toBe(false)
   })
 })
 

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import type { SessionData } from '@/lib/session'
 
 // Mock getSession so the auth helpers don't touch next/headers or a cookie.
 // The mock is configured per-test via mockGetSession.
@@ -10,10 +11,23 @@ vi.mock('@/lib/session', () => ({
     s?.role === 'admin' && Boolean(s?.userId),
 }))
 
+// Mock the User lookup resolveSession does to enforce bans. Default: not banned.
+const mockUserFindUnique = vi.fn()
+vi.mock('@/lib/db', () => ({
+  prisma: {
+    user: { findUnique: (...a: unknown[]) => mockUserFindUnique(...a) },
+  },
+}))
+
 // Import AFTER the mock is registered.
 const { requireUser, requireAdmin } = await import('@/lib/auth-api')
 
-beforeEach(() => mockGetSession.mockReset())
+beforeEach(() => {
+  mockGetSession.mockReset()
+  mockUserFindUnique.mockReset()
+  // Default: an authenticated session's user is not banned.
+  mockUserFindUnique.mockResolvedValue({ disabledAt: null })
+})
 
 describe('requireUser', () => {
   it('returns 401 when there is no session', async () => {
@@ -65,5 +79,50 @@ describe('requireAdmin', () => {
     mockGetSession.mockResolvedValue({ role: 'admin' })
     const res = await requireAdmin()
     expect((res as Response).status).toBe(401)
+  })
+})
+
+describe('ban enforcement (resolveSession re-fetch)', () => {
+  it('requireUser rejects a session whose user is disabled', async () => {
+    mockGetSession.mockResolvedValue({ userId: 'u1', provider: 'local', role: 'member' })
+    mockUserFindUnique.mockResolvedValue({ disabledAt: new Date() })
+    const res = await requireUser()
+    expect(res).toBeInstanceOf(Response)
+    expect((res as Response).status).toBe(401)
+  })
+
+  it('requireUser admits a session whose user is not disabled', async () => {
+    const session = { userId: 'u1', provider: 'local', role: 'member' }
+    mockGetSession.mockResolvedValue(session)
+    mockUserFindUnique.mockResolvedValue({ disabledAt: null })
+    const res = await requireUser()
+    expect(res).toEqual(session)
+  })
+
+  it('requireAdmin rejects a disabled admin', async () => {
+    mockGetSession.mockResolvedValue({ userId: 'u2', provider: 'authentik', role: 'admin' })
+    mockUserFindUnique.mockResolvedValue({ disabledAt: new Date() })
+    const res = await requireAdmin()
+    expect((res as Response).status).toBe(401)
+  })
+
+  it('requireAdmin authorizes by the LIVE db role, not the stale cookie', async () => {
+    // Cookie says admin, but another admin demoted this user to member in the
+    // DB. requireAdmin must see the live role and reject (403), not trust the
+    // cookie's role:'admin'.
+    mockGetSession.mockResolvedValue({ userId: 'u3', provider: 'authentik', role: 'admin' })
+    mockUserFindUnique.mockResolvedValue({ role: 'member', disabledAt: null })
+    const res = await requireAdmin()
+    expect(res).toBeInstanceOf(Response)
+    expect((res as Response).status).toBe(403)
+  })
+
+  it('requireUser returns the refreshed (live-role) session', async () => {
+    // Cookie says member, DB promoted to admin → returned session reflects admin.
+    mockGetSession.mockResolvedValue({ userId: 'u4', provider: 'local', role: 'member' })
+    mockUserFindUnique.mockResolvedValue({ role: 'admin', disabledAt: null })
+    const res = await requireUser()
+    expect(res).not.toBeInstanceOf(Response)
+    expect((res as SessionData).role).toBe('admin')
   })
 })

@@ -8,11 +8,15 @@ const mockUpdate = vi.fn()
 const mockExecuteRawUnsafe = vi.fn()
 const mockExecuteRaw = vi.fn()
 const mockQueryRaw = vi.fn()
+const mockUserFindUnique = vi.fn()
 vi.mock('@/lib/db', () => ({
   prisma: {
     apiKey: {
       findUnique: (...a: unknown[]) => mockFindUnique(...a),
       update: (...a: unknown[]) => mockUpdate(...a),
+    },
+    user: {
+      findUnique: (...a: unknown[]) => mockUserFindUnique(...a),
     },
     $executeRawUnsafe: (...a: unknown[]) => mockExecuteRawUnsafe(...a),
     $executeRaw: (...a: unknown[]) => mockExecuteRaw(...a),
@@ -35,6 +39,9 @@ beforeEach(() => {
   mockFindUnique.mockReset()
   mockUpdate.mockReset()
   mockGetSession.mockReset()
+  mockUserFindUnique.mockReset()
+  // Default: the session's user is not banned (resolveSession re-fetches).
+  mockUserFindUnique.mockResolvedValue({ disabledAt: null })
 })
 
 function req(headers: Record<string, string> = {}): Request {

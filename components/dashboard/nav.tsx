@@ -95,7 +95,7 @@ export function DashboardNav() {
       {/* ── Desktop sidebar ─────────────────────────── */}
       <aside
         className={cn(
-          'hidden lg:flex flex-col shrink-0 min-h-screen bg-sidebar border-r border-sidebar-border transition-all duration-200 ease-out',
+          'hidden lg:flex flex-col shrink-0 h-screen sticky top-0 bg-sidebar border-r border-sidebar-border transition-all duration-200 ease-out',
           collapsed ? 'w-14' : 'w-56'
         )}
       >
@@ -132,7 +132,7 @@ export function DashboardNav() {
         </div>
 
         {/* Nav items */}
-        <nav className={cn('flex-1 px-2 py-3 space-y-0.5', collapsed && 'px-1.5')}>
+        <nav className={cn('flex-1 overflow-y-auto px-2 py-3 space-y-0.5', collapsed && 'px-1.5')}>
           {navItems.map((item) => {
             const isActive =
               pathname === item.href ||

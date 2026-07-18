@@ -71,10 +71,41 @@ const MON_NAMES: Record<string, number> = {
   jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
 }
 
+/**
+ * Timezone the cron expressions are interpreted in. The portal serves a
+ * Beijing lab, so admins think in 北京时间; "每天 8:30" should fire at 08:30
+ * Beijing, not 08:30 UTC. Kept as a constant (not an env var) because the
+ * deployment is single-site.
+ */
+const SCHED_TZ = 'Asia/Shanghai'
+
+/** Extract calendar fields of `date` as seen in SCHED_TZ (not process-local). */
+function tzFields(date: Date): { min: number; hour: number; dom: number; mon: number; dow: number } {
+  // Intl parts are stable across runtimes; format in the target zone then read.
+  const f = new Intl.DateTimeFormat('en-US', {
+    timeZone: SCHED_TZ,
+    hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', weekday: 'short',
+  })
+  const parts = f.formatToParts(date)
+  const get = (t: string) => parts.find(p => p.type === t)?.value ?? ''
+  // weekday "Sun".."Sat" → 0..6
+  const wd = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }[get('weekday')] ?? 0
+  return {
+    min: parseInt(get('minute'), 10),
+    // Intl can emit "24" at midnight with hour12:false on some runtimes; normalize.
+    hour: parseInt(get('hour'), 10) % 24,
+    dom: parseInt(get('day'), 10),
+    mon: parseInt(get('month'), 10),
+    dow: wd,
+  }
+}
+
 function cronMatchesMinute(expr: string, date: Date): boolean {
   // We expand each cron field into a set and test membership. node-cron accepts
   // a richer grammar than pure integers (weekday/month names, dow 7=Sunday),
-  // so we normalize those to the integers Date.getUTC*() returns.
+  // so we normalize those. Fields are read in SCHED_TZ (Beijing), not UTC.
   const parts = expr.trim().split(/\s+/)
   if (parts.length !== 5) return false
   const [minF, hourF, domF, monF, dowF] = parts
@@ -118,12 +149,13 @@ function cronMatchesMinute(expr: string, date: Date): boolean {
   // dow 7 is an alias for Sunday (0) in standard cron.
   const dows = expand(dowF, 0, 7, DOW_NAMES)
   if (dows.has(7)) { dows.delete(7); dows.add(0) }
+  const f = tzFields(date)
   return (
-    expand(minF, 0, 59).has(date.getUTCMinutes()) &&
-    expand(hourF, 0, 23).has(date.getUTCHours()) &&
-    expand(domF, 1, 31).has(date.getUTCDate()) &&
-    expand(monF, 1, 12, MON_NAMES).has(date.getUTCMonth() + 1) &&
-    dows.has(date.getUTCDay())
+    expand(minF, 0, 59).has(f.min) &&
+    expand(hourF, 0, 23).has(f.hour) &&
+    expand(domF, 1, 31).has(f.dom) &&
+    expand(monF, 1, 12, MON_NAMES).has(f.mon) &&
+    dows.has(f.dow)
   )
 }
 

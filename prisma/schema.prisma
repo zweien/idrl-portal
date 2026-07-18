@@ -64,14 +64,15 @@ model Person {
 }
 
 model User {
-  id         String   @id @default(cuid())
-  provider   String // "authentik" | "dingtalk" | "local"
-  externalId String // SSO subject/userId; local username for provider="local"
-  role       String // "admin" | "member"
-  personId   String?
-  person     Person? @relation(fields: [personId], references: [id], onDelete: Restrict)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id          String    @id @default(cuid())
+  provider    String // "authentik" | "dingtalk" | "local"
+  externalId  String // SSO subject/userId; local username for provider="local"
+  role        String // "admin" | "member"
+  personId    String?
+  person      Person?  @relation(fields: [personId], references: [id], onDelete: Restrict)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  disabledAt  DateTime? // non-null = banned (cannot log in / call APIs)
 
   @@unique([provider, externalId])
 }

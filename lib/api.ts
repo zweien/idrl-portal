@@ -2,7 +2,7 @@
 import useSWR from 'swr'
 import type {
   Floor, Person, NewsItem, Resource,
-  Category, ApiKey, SyncLog,
+  Category, ApiKey, SyncLog, UserListItem,
   ApiResponse, PaginatedResponse,
 } from '@/lib/types'
 
@@ -203,4 +203,25 @@ export async function patchSettings(values: Record<string, string>) {
 export function useSyncLogs(job?: string, limit = 50) {
   const qs = job ? `?job=${job}&limit=${limit}` : `?limit=${limit}`
   return useSWR<ApiResponse<SyncLog[]>>(`/api/sync-logs${qs}`, fetcher)
+}
+
+// ===== Users (admin) =====
+
+export function useUsers() {
+  return useSWR<ApiResponse<UserListItem[]>>('/api/users', fetcher)
+}
+
+export async function updateUser(
+  id: string,
+  patch: { role?: 'admin' | 'member'; personId?: string | null; disabled?: boolean },
+) {
+  const r = await fetch(`/api/users/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({ error: r.statusText }))
+    throw new Error(err.error || `PATCH /api/users/${id} failed: ${r.status}`)
+  }
 }
