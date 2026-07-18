@@ -140,17 +140,36 @@ export function useApiKeys() {
   return useSWR<ApiResponse<ApiKey[]>>('/api/api-keys', fetcher)
 }
 
-export async function createApiKey(name: string, scopes: string[]) {
+export async function createApiKey(
+  name: string,
+  scopes: string[],
+  rateLimitPerMin?: number | null,
+) {
   const r = await fetch('/api/api-keys', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, scopes }),
+    body: JSON.stringify({ name, scopes, rateLimitPerMin: rateLimitPerMin ?? null }),
   })
   if (!r.ok) {
     const err = await r.json().catch(() => ({ error: r.statusText }))
     throw new Error(err.error || `POST /api/api-keys failed: ${r.status}`)
   }
-  return r.json() as Promise<{ id: string; name: string; scopes: string[]; key: string }>
+  return r.json() as Promise<{ id: string; name: string; scopes: string[]; rateLimitPerMin: number; key: string }>
+}
+
+export async function updateApiKey(
+  id: string,
+  patch: { name?: string; scopes?: string[]; rateLimitPerMin?: number | null; resetCounter?: boolean },
+) {
+  const r = await fetch(`/api/api-keys/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({ error: r.statusText }))
+    throw new Error(err.error || `PATCH /api/api-keys/${id} failed: ${r.status}`)
+  }
 }
 
 export async function revokeApiKey(id: string) {

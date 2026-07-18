@@ -120,15 +120,22 @@ model Category {
 
 // API keys for machine-to-machine access (sync triggers, publishing, reads).
 // Stored as a sha256 hash; the plaintext is shown once at creation time.
+//
+// Rate limiting is shared across instances via DB counters on each row
+// (rlWindowStart + rlCount), incremented atomically so concurrent requests
+// can't under-count. rateLimitPerMin is per-key (null = global default).
 model ApiKey {
-  id         String    @id @default(cuid())
-  name       String
-  keyHash    String    @unique
-  prefix     String    // first chars of the plaintext, for UI recognition
-  scopes     String    // JSON array: ["sync:attendance", ...]
-  lastUsedAt DateTime?
-  createdAt  DateTime  @default(now())
-  revokedAt  DateTime? // non-null = revoked
+  id              String    @id @default(cuid())
+  name            String
+  keyHash         String    @unique
+  prefix          String    // first chars of the plaintext, for UI recognition
+  scopes          String    // JSON array: ["sync:attendance", ...]
+  lastUsedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  revokedAt       DateTime? // non-null = revoked
+  rateLimitPerMin Int?      // per-key limit; null = use RATE_LIMIT_DEFAULT
+  rlWindowStart   DateTime? // start of the current 60s counting window
+  rlCount         Int       @default(0) // requests consumed in the current window
 }
 
 // Key/value app settings (e.g. cron expressions, enable flags).
