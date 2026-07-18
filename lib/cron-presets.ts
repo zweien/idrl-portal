@@ -14,6 +14,7 @@ export const CRON_PRESETS: Record<string, { label: string; expr: string }> = {
   every30min:  { label: '每 30 分钟', expr: '*/30 * * * *' },
   hourly:      { label: '每小时', expr: '0 * * * *' },
   workdayHours: { label: '工作日 8-20 点每小时', expr: '0 8-20 * * 1-5' },
+  daily830:    { label: '每天 8:30', expr: '30 8 * * *' },
   daily6am:    { label: '每天 6:00', expr: '0 6 * * *' },
   dailyMidnight: { label: '每天凌晨', expr: '0 0 * * *' },
   weeklyMon:   { label: '每周一', expr: '0 6 * * 1' },

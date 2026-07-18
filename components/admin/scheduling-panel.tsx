@@ -23,6 +23,7 @@ const CRON_PRESETS = [
   { value: '*/30 * * * *', label: '每 30 分钟' },
   { value: '0 * * * *', label: '每小时' },
   { value: '0 8-20 * * 1-5', label: '工作日 8-20 点每小时' },
+  { value: '30 8 * * *', label: '每天 8:30' },
   { value: '0 6 * * *', label: '每天 6:00' },
   { value: '0 0 * * *', label: '每天凌晨' },
   { value: '0 6 * * 1', label: '每周一' },
@@ -31,7 +32,7 @@ const CRON_PRESETS = [
 
 const JOBS = [
   { job: 'sync-members' as const, cronKey: 'cron.members', enableKey: 'cron.enabled.members', label: '成员同步', presets: ['0 6 * * *', '0 0 * * *', '0 6 * * 1', '*/5 * * * *'] },
-  { job: 'sync-attendance' as const, cronKey: 'cron.attendance', enableKey: 'cron.enabled.attendance', label: '考勤同步', presets: ['*/15 * * * *', '*/30 * * * *', '0 * * * *', '0 8-20 * * 1-5'] },
+  { job: 'sync-attendance' as const, cronKey: 'cron.attendance', enableKey: 'cron.enabled.attendance', label: '考勤同步', presets: ['30 8 * * *', '*/15 * * * *', '*/30 * * * *', '0 * * * *', '0 8-20 * * 1-5'] },
   { job: 'publish-news' as const, cronKey: 'cron.publish', enableKey: 'cron.enabled.publish', label: '定时发布', presets: ['*/5 * * * *', '*/15 * * * *'] },
 ]
 
@@ -91,7 +92,7 @@ export function SchedulingPanel() {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-medium">调度设置</p>
-          <p className="text-xs text-muted-foreground mt-0.5">配置同步与定时发布的执行周期。修改后无需重启，约 1 分钟内生效。cron 表达式按 UTC 时间解释（如"工作日 8-20 点"为 UTC 08-20）。</p>
+          <p className="text-xs text-muted-foreground mt-0.5">配置同步与定时发布的执行周期。修改后无需重启，约 1 分钟内生效。cron 表达式按北京时间（Asia/Shanghai）解释。</p>
         </div>
         <Button size="sm" className="h-8 text-xs" onClick={handleSave} disabled={saving}>
           {saving ? '保存中…' : '保存设置'}
