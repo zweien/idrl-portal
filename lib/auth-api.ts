@@ -6,29 +6,52 @@ import { checkRateLimit, RATE_LIMIT_DEFAULT } from '@/lib/rate-limit'
 import type { ApiScope } from '@/lib/types'
 
 /**
- * Require an authenticated session. Returns the session on success, or a 401
- * NextResponse when no user is logged in. Callers must check the return type:
- *   const auth = await requireUser()
- *   if (auth instanceof NextResponse) return auth
+ * Resolve the current session and, for human (cookie) sessions, re-fetch the
+ * User row to enforce a soft ban: a user whose `disabledAt` is set cannot use
+ * protected APIs even if their session cookie hasn't expired. API-key sessions
+ * (userId `apikey:...`) are not backed by a User row and skip this check.
+ * Returns the session, or a 401 NextResponse when unauthenticated/banned.
  */
-export async function requireUser(): Promise<SessionData | NextResponse> {
+async function resolveSession(): Promise<SessionData | NextResponse> {
   const session = await getSession()
   if (!isAuthenticated(session)) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  }
+  // API-key synthetic sessions are not banned-via-User; let them through.
+  if (session.userId && !session.userId.startsWith('apikey:')) {
+    const user = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { disabledAt: true },
+    })
+    if (user?.disabledAt) {
+      // Banned mid-session — destroy the cookie so subsequent calls fail fast.
+      const s = await getSession()
+      s.destroy()
+      return NextResponse.json({ error: 'disabled' }, { status: 401 })
+    }
   }
   return session
 }
 
 /**
+ * Require an authenticated session. Returns the session on success, or a 401
+ * NextResponse when no user is logged in (or the user has been banned).
+ * Callers must check the return type:
+ *   const auth = await requireUser()
+ *   if (auth instanceof NextResponse) return auth
+ */
+export async function requireUser(): Promise<SessionData | NextResponse> {
+  return resolveSession()
+}
+
+/**
  * Require an admin session. Returns the session on success, or:
- *   - 401 when no user is logged in
+ *   - 401 when no user is logged in (or the user has been banned)
  *   - 403 when logged in but not admin
  */
 export async function requireAdmin(): Promise<SessionData | NextResponse> {
-  const session = await getSession()
-  if (!isAuthenticated(session)) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  }
+  const session = await resolveSession()
+  if (session instanceof NextResponse) return session
   if (!isAdmin(session)) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }

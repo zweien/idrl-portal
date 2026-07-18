@@ -40,6 +40,7 @@ beforeAll(async () => {
       "personId" TEXT,
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" DATETIME NOT NULL,
+      "disabledAt" DATETIME,
       CONSTRAINT "User_personId_fkey" FOREIGN KEY ("personId") REFERENCES "Person" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
     );
     CREATE UNIQUE INDEX "User_provider_externalId_key" ON "User"("provider", "externalId");

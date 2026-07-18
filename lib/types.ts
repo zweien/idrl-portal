@@ -135,7 +135,11 @@ export interface User {
   personId?: string
   createdAt: string
   updatedAt: string
+  disabledAt?: string | null
 }
+
+/** User row with the linked Person's name joined in (for the admin list). */
+export type UserListItem = User & { personName?: string | null }
 
 // Legacy client-side mock auth shape (to be removed in auth slice #6).
 // Kept only so the current mock auth-context keeps compiling until #6 lands.

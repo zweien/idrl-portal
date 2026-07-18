@@ -4,6 +4,7 @@ import { saveSession } from '@/lib/session'
 import { prisma } from '@/lib/db'
 
 const LOGIN_ERROR_URL = '/login?error=dingtalk_failed'
+const LOGIN_DISABLED_URL = '/login?error=disabled'
 
 /**
  * GET /api/auth/callback/dingtalk?code=...&state=...
@@ -66,7 +67,12 @@ export async function GET(req: NextRequest) {
       },
     })
 
-    // 5. sign session cookie
+    // 5. reject banned users before signing a session.
+    if (user.disabledAt) {
+      return NextResponse.redirect(new URL(LOGIN_DISABLED_URL, req.url))
+    }
+
+    // 6. sign session cookie
     await saveSession({
       userId: user.id,
       provider: 'dingtalk',

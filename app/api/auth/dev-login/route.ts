@@ -37,6 +37,11 @@ export async function POST(req: NextRequest) {
     create: { provider: 'local', externalId: username, role: 'member' },
   })
 
+  // Reject banned users (mirror the SSO callbacks).
+  if (user.disabledAt) {
+    return NextResponse.json({ error: 'disabled' }, { status: 403 })
+  }
+
   await saveSession({ userId: user.id, provider: 'local', role: user.role as 'admin' | 'member' })
 
   return NextResponse.json({ ok: true, role: user.role })

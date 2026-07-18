@@ -14,10 +14,11 @@ import { NewsDialog } from '@/components/admin/news-dialog'
 import { SchedulingPanel } from '@/components/admin/scheduling-panel'
 import { ApiKeysPanel } from '@/components/admin/api-keys-panel'
 import { CategoriesPanel } from '@/components/admin/categories-panel'
+import { UsersPanel } from '@/components/admin/users-panel'
 import {
   Users, Server, Newspaper, Pencil, Trash2,
   Database, AlertTriangle, CheckCircle, Info,
-  ShieldAlert, MapPin, RefreshCw, Upload, Key, Clock, Folder,
+  ShieldAlert, MapPin, RefreshCw, Upload, Key, Clock, Folder, UserCog,
 } from 'lucide-react'
 
 /* ── Labels ─────────────────────────────────────── */
@@ -405,6 +406,9 @@ export default function AdminPage() {
           <TabsTrigger value="personnel" className="text-xs gap-1.5 h-7">
             <Users className="h-3.5 w-3.5" />人员管理
           </TabsTrigger>
+          <TabsTrigger value="users" className="text-xs gap-1.5 h-7">
+            <UserCog className="h-3.5 w-3.5" />用户
+          </TabsTrigger>
           <TabsTrigger value="resources" className="text-xs gap-1.5 h-7">
             <Server className="h-3.5 w-3.5" />资源管理
           </TabsTrigger>
@@ -474,6 +478,10 @@ export default function AdminPage() {
               onSubmit={handlePersonUpdate}
             />
           )}
+        </TabsContent>
+
+        <TabsContent value="users" className="mt-3">
+          <UsersPanel />
         </TabsContent>
 
         <TabsContent value="resources" className="mt-3">
