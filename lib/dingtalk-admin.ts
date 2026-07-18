@@ -198,20 +198,10 @@ export async function listDeptMembers(rootDeptId?: number): Promise<DingTalkMemb
   return [...byUserid.values()]
 }
 
-/**
- * Map a DingTalk job title to the Person role enum.
- * Best-effort keyword matching; falls back to 'staff'.
- */
-export function titleToRole(title?: string): 'professor' | 'postdoc' | 'phd' | 'master' | 'undergraduate' | 'staff' {
-  if (!title) return 'staff'
-  const t = title.toLowerCase()
-  if (t.includes('教授') || t.includes('professor')) return 'professor'
-  if (t.includes('博士后') || t.includes('postdoc')) return 'postdoc'
-  if (t.includes('博士') || t.includes('phd')) return 'phd'
-  if (t.includes('硕士') || t.includes('master')) return 'master'
-  if (t.includes('本科') || t.includes('undergraduate')) return 'undergraduate'
-  return 'staff'
-}
+// NOTE: Person.role is now free-text and stores the DingTalk 职位 verbatim
+// (see lib/dingtalk-sync.ts). The old titleToRole() enum mapping was removed —
+// it collapsed real titles (研究员/工程师/访问学者) to a fixed 6-value enum and
+// lost information.
 
 // ── attendance / leave / trip ─────────────────────────
 

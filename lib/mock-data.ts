@@ -5,7 +5,7 @@ export const mockPersonnel: Person[] = [
   {
     id: '1',
     name: '张教授',
-    role: 'professor',
+    role: '教授',
     email: 'zhang@idrl.edu.cn',
     status: 'present',
     workstationId: 'ws-a1',
@@ -15,7 +15,7 @@ export const mockPersonnel: Person[] = [
   {
     id: '2',
     name: '李明',
-    role: 'postdoc',
+    role: '博士后',
     email: 'liming@idrl.edu.cn',
     status: 'present',
     workstationId: 'ws-a2',
@@ -24,7 +24,7 @@ export const mockPersonnel: Person[] = [
   {
     id: '3',
     name: '王小红',
-    role: 'phd',
+    role: '博士研究生',
     email: 'wxh@idrl.edu.cn',
     status: 'absent',
     workstationId: 'ws-b1',
@@ -33,7 +33,7 @@ export const mockPersonnel: Person[] = [
   {
     id: '4',
     name: '刘强',
-    role: 'phd',
+    role: '博士研究生',
     email: 'liuqiang@idrl.edu.cn',
     status: 'absent',
     workstationId: 'ws-b2',
@@ -42,7 +42,7 @@ export const mockPersonnel: Person[] = [
   {
     id: '5',
     name: '陈思',
-    role: 'master',
+    role: '硕士研究生',
     email: 'chensi@idrl.edu.cn',
     status: 'present',
     workstationId: 'ws-c1',
@@ -51,7 +51,7 @@ export const mockPersonnel: Person[] = [
   {
     id: '6',
     name: '赵婷',
-    role: 'master',
+    role: '硕士研究生',
     email: 'zhaoting@idrl.edu.cn',
     status: 'leave',
     workstationId: 'ws-c2',
@@ -60,7 +60,7 @@ export const mockPersonnel: Person[] = [
   {
     id: '7',
     name: '周杰',
-    role: 'undergraduate',
+    role: '本科生',
     email: 'zhoujie@idrl.edu.cn',
     status: 'present',
     workstationId: 'ws-d1',
@@ -69,7 +69,7 @@ export const mockPersonnel: Person[] = [
   {
     id: '8',
     name: '吴芳',
-    role: 'staff',
+    role: '科研助理',
     email: 'wufang@idrl.edu.cn',
     status: 'present',
     workstationId: 'ws-d2',

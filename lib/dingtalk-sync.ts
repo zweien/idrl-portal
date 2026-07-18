@@ -2,7 +2,6 @@ import { prisma } from '@/lib/db'
 import {
   getEnterpriseAccessToken,
   listDeptMembers,
-  titleToRole,
   fetchAttendance,
   fetchLeaveStatus,
   fetchTripStatus,
@@ -27,7 +26,10 @@ export async function syncMembers(): Promise<{
 
   for (const m of members) {
     if (!m.unionid) continue
-    const role = titleToRole(m.title)
+    // Store the DingTalk 职位 (title) verbatim — preserves the real title
+    // (研究员/工程师/访问学者/...) instead of collapsing it to a fixed enum.
+    // Empty title falls back to an empty string; the UI treats blank as "—".
+    const role = m.title?.trim() || ''
     const existing = await prisma.person.findFirst({ where: { dingUserId: m.unionid } })
 
     if (existing) {
@@ -35,7 +37,9 @@ export async function syncMembers(): Promise<{
         where: { id: existing.id },
         data: {
           name: m.name,
-          role,
+          // Only overwrite the title when DingTalk actually provided one, so a
+          // missing title field doesn't wipe a manually-set role on re-sync.
+          ...(m.title ? { role } : {}),
           ...(m.email ? { email: m.email } : {}),
           ...(m.mobile ? { phone: m.mobile } : {}),
         },

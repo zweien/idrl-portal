@@ -7,7 +7,9 @@ export interface Person {
   id: string
   name: string
   avatar?: string
-  role: 'professor' | 'postdoc' | 'phd' | 'master' | 'undergraduate' | 'staff'
+  /** Free-text job title/role (sourced from DingTalk's 职位 field on sync).
+   * Was a fixed 6-value enum; now any string to preserve the real title. */
+  role: string
   email?: string
   phone?: string
   dingUserId?: string
