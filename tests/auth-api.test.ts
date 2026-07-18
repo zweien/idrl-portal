@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import type { SessionData } from '@/lib/session'
 
 // Mock getSession so the auth helpers don't touch next/headers or a cookie.
 // The mock is configured per-test via mockGetSession.
@@ -103,5 +104,25 @@ describe('ban enforcement (resolveSession re-fetch)', () => {
     mockUserFindUnique.mockResolvedValue({ disabledAt: new Date() })
     const res = await requireAdmin()
     expect((res as Response).status).toBe(401)
+  })
+
+  it('requireAdmin authorizes by the LIVE db role, not the stale cookie', async () => {
+    // Cookie says admin, but another admin demoted this user to member in the
+    // DB. requireAdmin must see the live role and reject (403), not trust the
+    // cookie's role:'admin'.
+    mockGetSession.mockResolvedValue({ userId: 'u3', provider: 'authentik', role: 'admin' })
+    mockUserFindUnique.mockResolvedValue({ role: 'member', disabledAt: null })
+    const res = await requireAdmin()
+    expect(res).toBeInstanceOf(Response)
+    expect((res as Response).status).toBe(403)
+  })
+
+  it('requireUser returns the refreshed (live-role) session', async () => {
+    // Cookie says member, DB promoted to admin → returned session reflects admin.
+    mockGetSession.mockResolvedValue({ userId: 'u4', provider: 'local', role: 'member' })
+    mockUserFindUnique.mockResolvedValue({ role: 'admin', disabledAt: null })
+    const res = await requireUser()
+    expect(res).not.toBeInstanceOf(Response)
+    expect((res as SessionData).role).toBe('admin')
   })
 })

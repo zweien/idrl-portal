@@ -24,9 +24,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // Self-protection: actor (from session) cannot change their own role or
   // ban themselves. personId changes are permitted.
   const isSelf = auth.userId === id
-  if (isSelf && (body.role !== undefined || body.disabled === true)) {
+  if (isSelf && (body.role !== undefined || body.disabled !== undefined)) {
     return NextResponse.json(
-      { error: '不能修改自己的角色或封禁自己' },
+      { error: '不能修改自己的角色或封禁状态' },
       { status: 400 },
     )
   }
@@ -50,6 +50,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   if (body.disabled !== undefined) {
+    // Strict boolean only — reject "true"/1/etc. so a non-boolean value can't
+    // be coerced into a ban (and the self-ban guard above covers ANY disabled
+    // request, truthy or falsy).
+    if (typeof body.disabled !== 'boolean') {
+      return NextResponse.json({ error: 'disabled must be a boolean' }, { status: 400 })
+    }
     data.disabledAt = body.disabled ? new Date() : null
   }
 
