@@ -44,6 +44,7 @@ export function BackupPanel() {
   const { mutate } = useSWRConfig()
   const [backups, setBackups] = useState<BackupInfo[] | null>(null)
   const [keep, setKeep] = useState('7')
+  const [auditKeepDays, setAuditKeepDays] = useState('90')
   const [busy, setBusy] = useState('')
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
   const [restoreTarget, setRestoreTarget] = useState<string | null>(null)
@@ -53,6 +54,8 @@ export function BackupPanel() {
     const data = await api<{ data: { backups: BackupInfo[]; keep: number } }>('/api/backup')
     setBackups(data.data.backups)
     setKeep(String(data.data.keep))
+    const s = await api<{ data: Record<string, string> }>('/api/settings')
+    setAuditKeepDays(s.data['auditlog.keepDays'] ?? '90')
     void mutate('/api/sync-logs')
   }
 
@@ -145,6 +148,23 @@ export function BackupPanel() {
     }
   }
 
+  const handleSaveAuditKeep = async () => {
+    const n = parseInt(auditKeepDays, 10)
+    if (!Number.isInteger(n) || n <= 0) {
+      flash('err', '日志保留天数必须是正整数')
+      return
+    }
+    setBusy('auditKeep')
+    try {
+      await patchSettings({ 'auditlog.keepDays': String(n) })
+      flash('ok', `日志保留天数已设为 ${n} 天`)
+    } catch (e) {
+      flash('err', e instanceof Error ? e.message : '保存失败')
+    } finally {
+      setBusy('')
+    }
+  }
+
   return (
     <div className="space-y-4">
       {/* Actions */}
@@ -208,6 +228,17 @@ export function BackupPanel() {
             保存
           </Button>
           <span className="text-[10px] text-muted-foreground">超出会自动删除最旧的（自动备份时生效）</span>
+          <span className="text-xs text-muted-foreground ml-2">日志保留</span>
+          <Input
+            value={auditKeepDays}
+            onChange={e => setAuditKeepDays(e.target.value)}
+            className="h-7 w-20 text-xs"
+            inputMode="numeric"
+          />
+          <span className="text-[10px] text-muted-foreground">天</span>
+          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={handleSaveAuditKeep} disabled={busy === 'auditKeep'}>
+            保存
+          </Button>
         </div>
       </div>
 
