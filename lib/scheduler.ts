@@ -2,6 +2,7 @@ import cron, { type ScheduledTask } from 'node-cron'
 import { prisma } from '@/lib/db'
 import { syncMembers, syncAttendance } from '@/lib/dingtalk-sync'
 import { createBackup, pruneBackups, readKeepCount } from '@/lib/backup'
+import { pruneAuditLogs, readKeepDays } from '@/lib/audit'
 
 /**
  * Background scheduler. Registered once at server boot via
@@ -219,7 +220,10 @@ const JOB_DEFS: JobDef[] = [
       const info = await createBackup('auto')
       const keep = await readKeepCount()
       const pruned = pruneBackups(keep)
-      return { file: info.filename, kept: keep, pruned: pruned.deleted.length }
+      // Also prune old audit logs on the same cadence.
+      const keepDays = await readKeepDays()
+      const prunedLogs = await pruneAuditLogs(keepDays)
+      return { file: info.filename, kept: keep, pruned: pruned.deleted.length, prunedLogs: prunedLogs.deleted }
     },
   },
 ]

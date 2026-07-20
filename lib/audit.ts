@@ -62,3 +62,10 @@ export async function pruneAuditLogs(keepDays: number): Promise<{ deleted: numbe
   const result = await prisma.auditLog.deleteMany({ where: { createdAt: { lt: cutoff } } })
   return { deleted: result.count }
 }
+
+/** Read the configured audit log retention (Setting `auditlog.keepDays`, default 90). */
+export async function readKeepDays(): Promise<number> {
+  const row = await prisma.setting.findUnique({ where: { key: 'auditlog.keepDays' } })
+  const n = row ? parseInt(row.value, 10) : 90
+  return Number.isInteger(n) && n > 0 ? n : 90
+}
