@@ -196,7 +196,7 @@ export interface Setting {
   value: string
 }
 
-export type SyncJob = 'sync-members' | 'sync-attendance' | 'publish-news'
+export type SyncJob = 'sync-members' | 'sync-attendance' | 'publish-news' | 'backup'
 export type SyncSource = 'cron' | 'api' | 'manual'
 
 export interface SyncLog {
