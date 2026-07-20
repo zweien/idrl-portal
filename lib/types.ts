@@ -209,6 +209,23 @@ export interface SyncLog {
   createdAt: string
 }
 
+// ============ Audit Log ============
+
+export type ActorType = 'user' | 'apikey'
+export type AuditStatus = 'success' | 'error'
+
+export interface AuditLog {
+  id: string
+  actorId: string
+  actorType: ActorType
+  action: string
+  targetType: string
+  targetId?: string | null
+  summary: string
+  status: AuditStatus
+  createdAt: string
+}
+
 export interface PaginatedResponse<T> {
   items: T[]
   total: number
