@@ -16,10 +16,12 @@ import { ApiKeysPanel } from '@/components/admin/api-keys-panel'
 import { CategoriesPanel } from '@/components/admin/categories-panel'
 import { BackupPanel } from '@/components/admin/backup-panel'
 import { UsersPanel } from '@/components/admin/users-panel'
+import { AuditLogPanel } from '@/components/admin/audit-log-panel'
 import {
   Users, Server, Newspaper, Pencil, Trash2,
   Database, AlertTriangle, CheckCircle, Info,
   ShieldAlert, MapPin, RefreshCw, Upload, Key, Clock, Folder, UserCog, DatabaseBackup,
+  ScrollText,
 } from 'lucide-react'
 
 /* ── Labels ─────────────────────────────────────── */
@@ -424,6 +426,9 @@ export default function AdminPage() {
           <TabsTrigger value="backup" className="text-xs gap-1.5 h-7">
             <DatabaseBackup className="h-3.5 w-3.5" />备份
           </TabsTrigger>
+          <TabsTrigger value="audit" className="text-xs gap-1.5 h-7">
+            <ScrollText className="h-3.5 w-3.5" />操作日志
+          </TabsTrigger>
           <TabsTrigger value="floor-layout" className="text-xs gap-1.5 h-7">
             <MapPin className="h-3.5 w-3.5" />工位布局
           </TabsTrigger>
@@ -591,6 +596,10 @@ export default function AdminPage() {
 
         <TabsContent value="backup" className="mt-3">
           <BackupPanel />
+        </TabsContent>
+
+        <TabsContent value="audit" className="mt-3">
+          <AuditLogPanel />
         </TabsContent>
 
         <TabsContent value="floor-layout" className="mt-3">
