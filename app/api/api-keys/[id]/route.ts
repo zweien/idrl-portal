@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth-api'
 import { parseRateLimit } from '@/lib/api-key-validation'
+import { logAction, actorFromAuth } from '@/lib/audit'
 import type { ApiScope } from '@/lib/types'
 
 const ALL_SCOPES: ApiScope[] = [
@@ -71,6 +72,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   } catch {
     return NextResponse.json({ error: 'not found' }, { status: 404 })
   }
+  const changes: string[] = []
+  if (data.name) changes.push(`name→${data.name}`)
+  if (data.scopes) changes.push('scopes')
+  if (data.rateLimitPerMin !== undefined) changes.push(`limit→${data.rateLimitPerMin ?? 'default'}`)
+  if (data.rlCount === 0) changes.push('reset-counter')
+  await logAction({
+    ...actorFromAuth(auth),
+    action: 'apikey.update', targetType: 'apikey', targetId: id,
+    summary: `修改密钥 ${id}${changes.length ? `（${changes.join('，')}）` : ''}`,
+  })
   return NextResponse.json({ ok: true })
 }
 
@@ -88,5 +99,10 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   } catch {
     return NextResponse.json({ error: 'not found' }, { status: 404 })
   }
+  await logAction({
+    ...actorFromAuth(auth),
+    action: 'apikey.revoke', targetType: 'apikey', targetId: id,
+    summary: `吊销密钥 ${id}`,
+  })
   return NextResponse.json({ ok: true })
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/auth-api'
 import { restoreBackup } from '@/lib/backup'
+import { logAction, actorFromAuth } from '@/lib/audit'
 
 /**
  * POST /api/backup/restore — restore a backup over the live DB.
@@ -21,6 +22,11 @@ export async function POST(req: NextRequest) {
   }
   try {
     const { preRestore } = await restoreBackup(body.filename)
+    await logAction({
+      ...actorFromAuth(auth),
+      action: 'backup.restore', targetType: 'backup', targetId: body.filename,
+      summary: `从 ${body.filename} 恢复（恢复前快照 ${preRestore.filename}）`,
+    })
     return NextResponse.json({
       success: true,
       data: { restored: body.filename, preRestoreSnapshot: preRestore.filename },

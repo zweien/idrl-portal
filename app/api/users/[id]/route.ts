@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth-api'
+import { logAction, actorFromAuth } from '@/lib/audit'
 
 /**
  * PATCH /api/users/:id — edit a login account. Admin-only. Body (all optional):
@@ -66,5 +67,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     // FK violation (bad personId) or missing row.
     return NextResponse.json({ error: msg }, { status: 400 })
   }
+  // Determine what changed for the summary.
+  const changes: string[] = []
+  if (data.role) changes.push(`role→${data.role}`)
+  if (data.disabledAt !== undefined) changes.push(data.disabledAt ? '封禁' : '解封')
+  if (data.personId !== undefined) changes.push(`person→${data.personId ?? 'null'}`)
+  await logAction({
+    ...actorFromAuth(auth),
+    action: 'user.update', targetType: 'user', targetId: id,
+    summary: `修改用户 ${id}${changes.length ? `（${changes.join('，')}）` : ''}`,
+  })
   return NextResponse.json({ ok: true })
 }

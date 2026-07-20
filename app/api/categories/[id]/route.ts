@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { toCategory } from '@/lib/db/serialize'
 import { requireAdmin } from '@/lib/auth-api'
+import { logAction, actorFromAuth } from '@/lib/audit'
 import type { Category } from '@/lib/types'
 
 /** PATCH /api/categories/:id — rename / reorder a category. */
@@ -28,6 +29,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         ...(body.order !== undefined ? { order: body.order } : {}),
       },
     })
+    await logAction({
+      ...actorFromAuth(auth),
+      action: 'category.update', targetType: 'category', targetId: id,
+      summary: `编辑分类 ${body.name ?? id}`,
+    })
     return NextResponse.json(toCategory(updated))
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'unknown error'
@@ -47,5 +53,10 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   } catch {
     return NextResponse.json({ error: 'not found' }, { status: 404 })
   }
+  await logAction({
+    ...actorFromAuth(auth),
+    action: 'category.delete', targetType: 'category', targetId: id,
+    summary: `删除分类 ${id}`,
+  })
   return NextResponse.json({ ok: true })
 }

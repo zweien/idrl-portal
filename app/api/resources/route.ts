@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { toResource, fromResource } from '@/lib/db/serialize'
 import { requireUserOrScope, requireAdmin } from '@/lib/auth-api'
+import { logAction, actorFromAuth } from '@/lib/audit'
 import type { Resource, ApiResponse, PaginatedResponse } from '@/lib/types'
 
 export async function GET(request: Request) {
@@ -58,6 +59,11 @@ export async function POST(req: NextRequest) {
   const id = `r-${Date.now()}`
   const created = await prisma.resource.create({
     data: fromResource({ ...(body as Resource), id }),
+  })
+  await logAction({
+    ...actorFromAuth(auth),
+    action: 'resource.create', targetType: 'resource', targetId: id,
+    summary: `新建资源 ${body.name}`,
   })
   return NextResponse.json(toResource(created), { status: 201 })
 }

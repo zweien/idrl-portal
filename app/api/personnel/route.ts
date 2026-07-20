@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { toPerson, fromPerson } from '@/lib/db/serialize'
 import { requireUser, requireAdmin } from '@/lib/auth-api'
+import { logAction, actorFromAuth } from '@/lib/audit'
 import type { Person, ApiResponse, PaginatedResponse } from '@/lib/types'
 
 export async function GET(request: Request) {
@@ -71,6 +72,11 @@ export async function POST(req: NextRequest) {
   const id = `p-${Date.now()}`
   const created = await prisma.person.create({
     data: fromPerson({ ...(body as Person), id }),
+  })
+  await logAction({
+    ...actorFromAuth(auth),
+    action: 'person.create', targetType: 'person', targetId: id,
+    summary: `新建人员 ${body.name}`,
   })
   return NextResponse.json(toPerson(created), { status: 201 })
 }

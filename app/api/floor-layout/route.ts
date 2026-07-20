@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db'
 import { toFloor, fromZone, fromWorkstation } from '@/lib/db/serialize'
 import { resolvePersonId, findDuplicateIds } from '@/lib/floor-layout'
 import { requireUser, requireAdmin } from '@/lib/auth-api'
+import { logAction, actorFromAuth } from '@/lib/audit'
 import type { Zone, NewWorkstation } from '@/lib/types'
 
 interface FloorLayoutBody {
@@ -181,6 +182,14 @@ export async function PUT(req: NextRequest) {
         if (!personId) continue
         await tx.workstation.update({ where: { id: w.id }, data: { personId } })
       }
+    })
+
+    const wsCount = payloadWs.length
+    const floorCount = body.floors.length
+    await logAction({
+      ...actorFromAuth(auth),
+      action: 'floor-layout.update', targetType: 'floor-layout',
+      summary: `更新工位布局（${floorCount} 楼层，${wsCount} 工位）`,
     })
 
     return NextResponse.json({ ok: true })

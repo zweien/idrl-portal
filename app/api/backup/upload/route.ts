@@ -3,6 +3,7 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { requireAdmin } from '@/lib/auth-api'
 import { BACKUP_DIR, restoreFromFile } from '@/lib/backup'
+import { logAction, actorFromAuth } from '@/lib/audit'
 
 /**
  * POST /api/backup/upload — upload a .sqlite backup file and restore from it.
@@ -30,6 +31,11 @@ export async function POST(req: NextRequest) {
 
   try {
     const { preRestore } = await restoreFromFile(uploadPath)
+    await logAction({
+      ...actorFromAuth(auth),
+      action: 'backup.upload', targetType: 'backup',
+      summary: `上传文件恢复（恢复前快照 ${preRestore.filename}）`,
+    })
     return NextResponse.json({
       success: true,
       data: { restored: filename, preRestoreSnapshot: preRestore.filename },

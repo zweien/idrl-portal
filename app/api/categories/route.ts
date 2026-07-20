@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { toCategory } from '@/lib/db/serialize'
 import { requireUser, requireAdmin } from '@/lib/auth-api'
+import { logAction, actorFromAuth } from '@/lib/audit'
 import type { Category, CategoryKind, ApiResponse } from '@/lib/types'
 
 /**
@@ -44,6 +45,11 @@ export async function POST(req: Request) {
   try {
     const created = await prisma.category.create({
       data: { name: body.name, kind: body.kind, order: body.order ?? 0 },
+    })
+    await logAction({
+      ...actorFromAuth(auth),
+      action: 'category.create', targetType: 'category', targetId: created.id,
+      summary: `新建分类 ${body.name}（${body.kind}）`,
     })
     return NextResponse.json(toCategory(created), { status: 201 })
   } catch (e) {

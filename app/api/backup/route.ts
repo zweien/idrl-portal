@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/auth-api'
 import { createBackup, listBackups, deleteBackup, pruneBackups, readKeepCount } from '@/lib/backup'
+import { logAction, actorFromAuth } from '@/lib/audit'
 import type { ApiResponse } from '@/lib/types'
 
 /** GET /api/backup — list all backups (newest first). */
@@ -24,6 +25,11 @@ export async function POST() {
     const info = await createBackup('manual')
     const keep = await readKeepCount()
     pruneBackups(keep)
+    await logAction({
+      ...actorFromAuth(auth),
+      action: 'backup.create', targetType: 'backup',
+      summary: `手动备份（${info.sizeKb} KB）`,
+    })
     return NextResponse.json({ success: true, data: info })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'unknown error'
@@ -39,6 +45,11 @@ export async function DELETE(req: NextRequest) {
   if (!filename) return NextResponse.json({ error: 'filename required' }, { status: 400 })
   try {
     deleteBackup(filename)
+    await logAction({
+      ...actorFromAuth(auth),
+      action: 'backup.delete', targetType: 'backup', targetId: filename,
+      summary: `删除备份 ${filename}`,
+    })
     return NextResponse.json({ success: true })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'unknown error'
