@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { toNewsItem, fromNewsItem } from '@/lib/db/serialize'
 import { requireScope } from '@/lib/auth-api'
+import { logAction, actorFromAuth } from '@/lib/audit'
 import type { NewsItem } from '@/lib/types'
 
 /** PATCH /api/news/:id — update a single news item. */
@@ -24,6 +25,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     where: { id },
     data: fromNewsItem({ ...(toNewsItem(existing)), ...(body as NewsItem), id }),
   })
+  void logAction({
+    ...actorFromAuth(auth),
+    action: 'news.update', targetType: 'news', targetId: id,
+    summary: `编辑动态 ${body.title ?? toNewsItem(existing).title ?? id}`,
+  })
   return NextResponse.json(toNewsItem(updated))
 }
 
@@ -38,5 +44,10 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   } catch {
     return NextResponse.json({ error: 'not found' }, { status: 404 })
   }
+  void logAction({
+    ...actorFromAuth(auth),
+    action: 'news.delete', targetType: 'news', targetId: id,
+    summary: `删除动态 ${id}`,
+  })
   return NextResponse.json({ ok: true })
 }

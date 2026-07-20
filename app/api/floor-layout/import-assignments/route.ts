@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth-api'
+import { logAction, actorFromAuth } from '@/lib/audit'
 
 /**
  * POST /api/floor-layout/import-assignments
@@ -115,6 +116,12 @@ export async function POST(req: NextRequest) {
         personToWs.set(person.id, ws.id)
         assigned++
       }
+    })
+
+    void logAction({
+      ...actorFromAuth(auth),
+      action: 'floor-layout.import', targetType: 'floor-layout',
+      summary: `xlsx 导入：分配 ${assigned} 人，跳过 ${skipped} 人`,
     })
 
     return NextResponse.json({ assigned, skipped, warnings: warnings.slice(0, 20) })

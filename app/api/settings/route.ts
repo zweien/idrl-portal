@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth-api'
 import { isValidCron } from '@/lib/scheduler'
+import { logAction, actorFromAuth } from '@/lib/audit'
 import type { Setting, ApiResponse } from '@/lib/types'
 
 /** GET /api/settings — all key/value settings. */
@@ -54,6 +55,12 @@ export async function PATCH(req: Request) {
       create: { key, value },
     })
   }
+  const changedKeys = Object.keys(body)
+  void logAction({
+    ...actorFromAuth(auth),
+    action: 'settings.update', targetType: 'settings',
+    summary: `修改配置: ${changedKeys.join(', ')}`,
+  })
   const response: ApiResponse<Setting[]> = { success: true }
   return NextResponse.json(response)
 }

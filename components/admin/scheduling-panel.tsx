@@ -34,6 +34,7 @@ const JOBS = [
   { job: 'sync-members' as const, cronKey: 'cron.members', enableKey: 'cron.enabled.members', label: '成员同步', presets: ['0 6 * * *', '0 0 * * *', '0 6 * * 1', '*/5 * * * *'] },
   { job: 'sync-attendance' as const, cronKey: 'cron.attendance', enableKey: 'cron.enabled.attendance', label: '考勤同步', presets: ['30 8 * * *', '*/15 * * * *', '*/30 * * * *', '0 * * * *', '0 8-20 * * 1-5'] },
   { job: 'publish-news' as const, cronKey: 'cron.publish', enableKey: 'cron.enabled.publish', label: '定时发布', presets: ['*/5 * * * *', '*/15 * * * *'] },
+  { job: 'backup' as const, cronKey: 'cron.backup', enableKey: 'cron.enabled.backup', label: '数据备份', presets: ['0 0 * * *', '0 6 * * *', '0 6 * * 1'] },
 ]
 
 export function SchedulingPanel() {
@@ -123,10 +124,12 @@ export function SchedulingPanel() {
                     <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="自定义" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__custom__">自定义（下方输入）</SelectItem>
-                      {j.presets.map(pv => {
-                        const p = CRON_PRESETS.find(c => c.value === pv)!
-                        return <SelectItem key={pv} value={pv}>{p.label}</SelectItem>
-                      })}
+                      {j.presets
+                        .map(pv => ({ pv, p: CRON_PRESETS.find(c => c.value === pv) }))
+                        .filter(x => x.p)
+                        .map(({ pv, p }) => (
+                          <SelectItem key={pv} value={pv}>{p!.label}</SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>

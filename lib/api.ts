@@ -2,7 +2,7 @@
 import useSWR from 'swr'
 import type {
   Floor, Person, NewsItem, Resource,
-  Category, ApiKey, SyncLog, UserListItem,
+  Category, ApiKey, SyncLog, UserListItem, AuditLog,
   ApiResponse, PaginatedResponse,
 } from '@/lib/types'
 
@@ -224,4 +224,13 @@ export async function updateUser(
     const err = await r.json().catch(() => ({ error: r.statusText }))
     throw new Error(err.error || `PATCH /api/users/${id} failed: ${r.status}`)
   }
+}
+
+// ===== Audit logs (admin) =====
+
+export function useAuditLogs(params?: Record<string, string | number>) {
+  return useSWR<ApiResponse<PaginatedResponse<AuditLog & { actorName?: string }>>>(
+    `/api/audit-logs${qs(params)}`,
+    fetcher,
+  )
 }

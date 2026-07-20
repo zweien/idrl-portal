@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/auth-api'
 import { generateApiKey, hashApiKey, keyPrefix } from '@/lib/crypto'
 import { RATE_LIMIT_DEFAULT } from '@/lib/rate-limit'
 import { parseRateLimit } from '@/lib/api-key-validation'
+import { logAction, actorFromAuth } from '@/lib/audit'
 import type { ApiKey, ApiScope, ApiResponse } from '@/lib/types'
 
 const ALL_SCOPES: ApiScope[] = [
@@ -74,6 +75,11 @@ export async function POST(req: Request) {
       scopes: JSON.stringify(scopes),
       rateLimitPerMin,
     },
+  })
+  void logAction({
+    ...actorFromAuth(auth),
+    action: 'apikey.create', targetType: 'apikey', targetId: created.id,
+    summary: `创建密钥 ${body.name}（scopes: ${scopes.join(', ')}${rateLimitPerMin ? `, 限额 ${rateLimitPerMin}/min` : ''}）`,
   })
   // Return plaintext exactly once.
   return NextResponse.json(

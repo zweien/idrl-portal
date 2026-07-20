@@ -196,7 +196,7 @@ export interface Setting {
   value: string
 }
 
-export type SyncJob = 'sync-members' | 'sync-attendance' | 'publish-news'
+export type SyncJob = 'sync-members' | 'sync-attendance' | 'publish-news' | 'backup'
 export type SyncSource = 'cron' | 'api' | 'manual'
 
 export interface SyncLog {
@@ -206,6 +206,23 @@ export interface SyncLog {
   status: 'success' | 'error'
   message?: string | null
   stats?: Record<string, unknown> | null
+  createdAt: string
+}
+
+// ============ Audit Log ============
+
+export type ActorType = 'user' | 'apikey'
+export type AuditStatus = 'success' | 'error'
+
+export interface AuditLog {
+  id: string
+  actorId: string
+  actorType: ActorType
+  action: string
+  targetType: string
+  targetId?: string | null
+  summary: string
+  status: AuditStatus
   createdAt: string
 }
 

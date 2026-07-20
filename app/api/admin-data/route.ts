@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { toPerson, toNewsItem, toResource, fromPerson, fromNewsItem, fromResource } from '@/lib/db/serialize'
 import { requireUser, requireAdmin } from '@/lib/auth-api'
+import { logAction, actorFromAuth } from '@/lib/audit'
 import type { Person, NewsItem, Resource } from '@/lib/types'
 
 interface AdminDataBody {
@@ -56,6 +57,12 @@ export async function PUT(req: NextRequest) {
       await tx.person.createMany({ data: body.personnel.map(fromPerson) })
       await tx.newsItem.createMany({ data: body.news.map(fromNewsItem) })
       await tx.resource.createMany({ data: body.resources.map(fromResource) })
+    })
+
+    void logAction({
+      ...actorFromAuth(auth),
+      action: 'admin-data.replace', targetType: 'admin-data',
+      summary: `全量替换（人员 ${body.personnel.length} / 新闻 ${body.news.length} / 资源 ${body.resources.length}）`,
     })
 
     return NextResponse.json({ ok: true })

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { toNewsItem, fromNewsItem } from '@/lib/db/serialize'
 import { requireUserOrScope, requireScope } from '@/lib/auth-api'
+import { logAction, actorFromAuth } from '@/lib/audit'
 import type { NewsItem, ApiResponse, PaginatedResponse } from '@/lib/types'
 
 export async function GET(request: Request) {
@@ -81,6 +82,11 @@ export async function POST(req: NextRequest) {
   const id = `n-${Date.now()}`
   const created = await prisma.newsItem.create({
     data: fromNewsItem({ ...(body as NewsItem), id }),
+  })
+  void logAction({
+    ...actorFromAuth(auth),
+    action: 'news.create', targetType: 'news', targetId: id,
+    summary: `${body.status === 'draft' ? '存草稿' : '发布动态'} ${body.title}`,
   })
   return NextResponse.json(toNewsItem(created), { status: 201 })
 }

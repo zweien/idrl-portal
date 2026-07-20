@@ -155,3 +155,22 @@ model SyncLog {
   stats     String? // JSON
   createdAt DateTime @default(now())
 }
+
+// Audit log for admin write operations (who/when/what). Separate from SyncLog
+// (which records system jobs). actorId references a User.id or ApiKey.id but
+// has no FK — logs must survive the actor being deleted/revoked.
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorId     String
+  actorType   String   // "user" | "apikey"
+  action      String   // e.g. "user.update", "news.delete", "backup.restore"
+  targetType  String   // e.g. "user", "news", "backup"
+  targetId    String?
+  summary     String
+  status      String   @default("success") // "success" | "error"
+  createdAt   DateTime @default(now())
+
+  @@index([actorId])
+  @@index([targetType, targetId])
+  @@index([createdAt])
+}
