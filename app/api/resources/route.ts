@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
   const created = await prisma.resource.create({
     data: fromResource({ ...(body as Resource), id }),
   })
-  await logAction({
+  void logAction({
     ...actorFromAuth(auth),
     action: 'resource.create', targetType: 'resource', targetId: id,
     summary: `新建资源 ${body.name}`,

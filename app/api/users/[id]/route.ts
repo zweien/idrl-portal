@@ -72,7 +72,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (data.role) changes.push(`role→${data.role}`)
   if (data.disabledAt !== undefined) changes.push(data.disabledAt ? '封禁' : '解封')
   if (data.personId !== undefined) changes.push(`person→${data.personId ?? 'null'}`)
-  await logAction({
+  void logAction({
     ...actorFromAuth(auth),
     action: 'user.update', targetType: 'user', targetId: id,
     summary: `修改用户 ${id}${changes.length ? `（${changes.join('，')}）` : ''}`,

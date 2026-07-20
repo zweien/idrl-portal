@@ -29,7 +29,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         ...(body.order !== undefined ? { order: body.order } : {}),
       },
     })
-    await logAction({
+    void logAction({
       ...actorFromAuth(auth),
       action: 'category.update', targetType: 'category', targetId: id,
       summary: `编辑分类 ${body.name ?? id}`,
@@ -53,7 +53,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   } catch {
     return NextResponse.json({ error: 'not found' }, { status: 404 })
   }
-  await logAction({
+  void logAction({
     ...actorFromAuth(auth),
     action: 'category.delete', targetType: 'category', targetId: id,
     summary: `删除分类 ${id}`,

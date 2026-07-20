@@ -56,7 +56,7 @@ export async function PATCH(req: Request) {
     })
   }
   const changedKeys = Object.keys(body)
-  await logAction({
+  void logAction({
     ...actorFromAuth(auth),
     action: 'settings.update', targetType: 'settings',
     summary: `修改配置: ${changedKeys.join(', ')}`,

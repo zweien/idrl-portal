@@ -59,7 +59,7 @@ export async function PUT(req: NextRequest) {
       await tx.resource.createMany({ data: body.resources.map(fromResource) })
     })
 
-    await logAction({
+    void logAction({
       ...actorFromAuth(auth),
       action: 'admin-data.replace', targetType: 'admin-data',
       summary: `全量替换（人员 ${body.personnel.length} / 新闻 ${body.news.length} / 资源 ${body.resources.length}）`,

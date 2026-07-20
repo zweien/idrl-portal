@@ -25,7 +25,7 @@ export async function POST() {
     const info = await createBackup('manual')
     const keep = await readKeepCount()
     pruneBackups(keep)
-    await logAction({
+    void logAction({
       ...actorFromAuth(auth),
       action: 'backup.create', targetType: 'backup',
       summary: `手动备份（${info.sizeKb} KB）`,
@@ -45,7 +45,7 @@ export async function DELETE(req: NextRequest) {
   if (!filename) return NextResponse.json({ error: 'filename required' }, { status: 400 })
   try {
     deleteBackup(filename)
-    await logAction({
+    void logAction({
       ...actorFromAuth(auth),
       action: 'backup.delete', targetType: 'backup', targetId: filename,
       summary: `删除备份 ${filename}`,

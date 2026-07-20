@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
       }
     })
 
-    await logAction({
+    void logAction({
       ...actorFromAuth(auth),
       action: 'floor-layout.import', targetType: 'floor-layout',
       summary: `xlsx 导入：分配 ${assigned} 人，跳过 ${skipped} 人`,

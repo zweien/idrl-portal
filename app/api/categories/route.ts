@@ -46,7 +46,7 @@ export async function POST(req: Request) {
     const created = await prisma.category.create({
       data: { name: body.name, kind: body.kind, order: body.order ?? 0 },
     })
-    await logAction({
+    void logAction({
       ...actorFromAuth(auth),
       action: 'category.create', targetType: 'category', targetId: created.id,
       summary: `新建分类 ${body.name}（${body.kind}）`,

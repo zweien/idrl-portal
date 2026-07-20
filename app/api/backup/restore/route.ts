@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
   }
   try {
     const { preRestore } = await restoreBackup(body.filename)
-    await logAction({
+    void logAction({
       ...actorFromAuth(auth),
       action: 'backup.restore', targetType: 'backup', targetId: body.filename,
       summary: `从 ${body.filename} 恢复（恢复前快照 ${preRestore.filename}）`,

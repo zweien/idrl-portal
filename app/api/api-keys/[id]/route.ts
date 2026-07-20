@@ -77,7 +77,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (data.scopes) changes.push('scopes')
   if (data.rateLimitPerMin !== undefined) changes.push(`limit→${data.rateLimitPerMin ?? 'default'}`)
   if (data.rlCount === 0) changes.push('reset-counter')
-  await logAction({
+  void logAction({
     ...actorFromAuth(auth),
     action: 'apikey.update', targetType: 'apikey', targetId: id,
     summary: `修改密钥 ${id}${changes.length ? `（${changes.join('，')}）` : ''}`,
@@ -99,7 +99,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   } catch {
     return NextResponse.json({ error: 'not found' }, { status: 404 })
   }
-  await logAction({
+  void logAction({
     ...actorFromAuth(auth),
     action: 'apikey.revoke', targetType: 'apikey', targetId: id,
     summary: `吊销密钥 ${id}`,

@@ -13,6 +13,7 @@
 import Database from 'better-sqlite3'
 import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
+import { execFileSync } from 'node:child_process'
 import { prisma } from '@/lib/db'
 
 const BACKUP_DIR = join(process.cwd(), 'prisma', 'backups')
@@ -121,9 +122,30 @@ export function pruneBackups(keepN: number): { deleted: string[] } {
 }
 
 /**
+ * After overwriting the live DB from a backup, run `prisma migrate deploy` so
+ * any migrations that were added after the backup was taken (e.g. AuditLog)
+ * get applied. Without this, restoring an older backup leaves the schema
+ * missing tables — causing runtime errors in code that expects them.
+ */
+function migrateAfterRestore(): void {
+  try {
+    execFileSync('pnpm', ['exec', 'prisma', 'migrate', 'deploy'], {
+      cwd: process.cwd(),
+      stdio: 'pipe', // suppress output; errors surface via the thrown exception
+      timeout: 30_000,
+    })
+  } catch (e) {
+    // Non-fatal: the restore itself succeeded; migrations may have partially
+    // applied. Log so the admin knows to check.
+    console.error('post-restore migration failed:', e)
+  }
+}
+
+/**
  * Restore a backup over the live DB. First takes a 'pre-restore' snapshot so
  * a bad restore can itself be undone. Overwrites the DB file via better-sqlite3
- * online backup (source = backup file, destination = live DB).
+ * online backup (source = backup file, destination = live DB). Then runs
+ * `prisma migrate deploy` to apply any migrations the backup predates.
  *
  * NOTE: existing better-sqlite3 connections (the Prisma adapter's) will see
  * the new content on subsequent reads — the backup API writes the same file
@@ -144,6 +166,9 @@ export async function restoreBackup(filename: string): Promise<{ preRestore: Bac
   } finally {
     db.close()
   }
+  // Apply any migrations the restored DB is missing (e.g. AuditLog on an old
+  // backup). This keeps the schema consistent with the running code.
+  migrateAfterRestore()
   return { preRestore }
 }
 
@@ -173,6 +198,8 @@ export async function restoreFromFile(uploadPath: string): Promise<{ preRestore:
   } finally {
     db.close()
   }
+  // Apply any migrations the uploaded DB is missing.
+  migrateAfterRestore()
   return { preRestore }
 }
 

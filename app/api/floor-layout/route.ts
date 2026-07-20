@@ -186,7 +186,7 @@ export async function PUT(req: NextRequest) {
 
     const wsCount = payloadWs.length
     const floorCount = body.floors.length
-    await logAction({
+    void logAction({
       ...actorFromAuth(auth),
       action: 'floor-layout.update', targetType: 'floor-layout',
       summary: `更新工位布局（${floorCount} 楼层，${wsCount} 工位）`,

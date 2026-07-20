@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
   const created = await prisma.newsItem.create({
     data: fromNewsItem({ ...(body as NewsItem), id }),
   })
-  await logAction({
+  void logAction({
     ...actorFromAuth(auth),
     action: 'news.create', targetType: 'news', targetId: id,
     summary: `${body.status === 'draft' ? '存草稿' : '发布动态'} ${body.title}`,

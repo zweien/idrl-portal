@@ -25,7 +25,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     where: { id },
     data: fromResource({ ...(toResource(existing)), ...(body as Resource), id }),
   })
-  await logAction({
+  void logAction({
     ...actorFromAuth(auth),
     action: 'resource.update', targetType: 'resource', targetId: id,
     summary: `编辑资源 ${body.name ?? id}`,
@@ -44,7 +44,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   } catch {
     return NextResponse.json({ error: 'not found' }, { status: 404 })
   }
-  await logAction({
+  void logAction({
     ...actorFromAuth(auth),
     action: 'resource.delete', targetType: 'resource', targetId: id,
     summary: `删除资源 ${id}`,

@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
   const created = await prisma.person.create({
     data: fromPerson({ ...(body as Person), id }),
   })
-  await logAction({
+  void logAction({
     ...actorFromAuth(auth),
     action: 'person.create', targetType: 'person', targetId: id,
     summary: `新建人员 ${body.name}`,

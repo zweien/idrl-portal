@@ -76,7 +76,7 @@ export async function POST(req: Request) {
       rateLimitPerMin,
     },
   })
-  await logAction({
+  void logAction({
     ...actorFromAuth(auth),
     action: 'apikey.create', targetType: 'apikey', targetId: created.id,
     summary: `创建密钥 ${body.name}（scopes: ${scopes.join(', ')}${rateLimitPerMin ? `, 限额 ${rateLimitPerMin}/min` : ''}）`,

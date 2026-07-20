@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const { preRestore } = await restoreFromFile(uploadPath)
-    await logAction({
+    void logAction({
       ...actorFromAuth(auth),
       action: 'backup.upload', targetType: 'backup',
       summary: `上传文件恢复（恢复前快照 ${preRestore.filename}）`,
