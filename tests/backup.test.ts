@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import Database from 'better-sqlite3'
 import { join } from 'node:path'
-import { mkdtempSync, rmSync, copyFileSync, readdirSync, existsSync } from 'node:fs'
+import { mkdtempSync, rmSync, readdirSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 
 /**
@@ -21,8 +21,26 @@ vi.mock('@/lib/db', () => ({
 // We import AFTER setting up the env so dbPath() resolves to our temp copy.
 const tmpDir = mkdtempSync(join(tmpdir(), 'idrl-backup-'))
 const tmpDbPath = join(tmpDir, 'db.sqlite')
-// Copy the dev DB so we have a real SQLite with content to back up.
-copyFileSync(join(process.cwd(), 'prisma', 'db.sqlite'), tmpDbPath)
+// Build a minimal but real SQLite DB with a Person table + the
+// _prisma_migrations table (so restoreFromFile's validation passes). We don't
+// copy the dev DB — it's gitignored and absent in CI.
+{
+  const seed = new Database(tmpDbPath)
+  seed.exec(`
+    CREATE TABLE _prisma_migrations (id TEXT PRIMARY KEY);
+    INSERT INTO _prisma_migrations (id) VALUES ('seed');
+    CREATE TABLE Person (
+      id TEXT NOT NULL PRIMARY KEY,
+      name TEXT NOT NULL,
+      role TEXT NOT NULL,
+      status TEXT NOT NULL
+    );
+    INSERT INTO Person (id, name, role, status) VALUES
+      ('p1', 'Alice', '研究员', 'present'),
+      ('p2', 'Bob', '工程师', 'absent');
+  `)
+  seed.close()
+}
 process.env.DATABASE_URL = `file:${tmpDbPath}`
 
 // Now import with the env pointed at the temp DB. Override BACKUP_DIR via a
