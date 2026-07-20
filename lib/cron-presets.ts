@@ -6,7 +6,7 @@
  * Keep in sync with lib/scheduler.ts usage.
  */
 
-export type CronJob = 'sync-members' | 'sync-attendance' | 'publish-news'
+export type CronJob = 'sync-members' | 'sync-attendance' | 'publish-news' | 'backup'
 
 // Preset cadences surfaced in the admin UI → cron expressions.
 export const CRON_PRESETS: Record<string, { label: string; expr: string }> = {
@@ -26,4 +26,5 @@ export const CRON_DEFAULTS: Record<CronJob, string> = {
   'sync-members': CRON_PRESETS.daily6am.expr,
   'sync-attendance': CRON_PRESETS.hourly.expr,
   'publish-news': CRON_PRESETS.every5min.expr,
+  'backup': CRON_PRESETS.dailyMidnight.expr,
 }
