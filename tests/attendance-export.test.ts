@@ -42,6 +42,26 @@ describe('exportWorkHours (status-driven rules)', () => {
   it('absent → 0 hours', () => {
     expect(exportWorkHours('absent', null, null).hours).toBe(0)
   })
+
+  // Codex P1: today's still-open record isn't 缺卡 yet.
+  it('present missing checkOut on a NON-finalized day → not 缺卡', () => {
+    const r = exportWorkHours('present', '09:00', null, 8, /* isFinalized */ false)
+    expect(r.hours).toBe(0)
+    expect(r.missingPunch).toBe(false)
+  })
+
+  // Codex P2: both punches but invalid span → 异常, not 缺卡.
+  it('present with both punches but overnight span → anomalous, not 缺卡', () => {
+    const r = exportWorkHours('present', '22:00', '02:00')
+    expect(r.hours).toBe(0)
+    expect(r.missingPunch).toBe(false)
+    expect(r.anomalous).toBe(true)
+  })
+  it('leave with both punches but overnight span → anomalous, not 缺卡', () => {
+    const r = exportWorkHours('leave', '22:00', '02:00')
+    expect(r.missingPunch).toBe(false)
+    expect(r.anomalous).toBe(true)
+  })
 })
 
 describe('buildDetailCsv', () => {
@@ -70,6 +90,39 @@ describe('buildDetailCsv', () => {
     ]
     const csv = buildDetailCsv(rows, 8)
     expect(csv).toContain('"Last, First"')
+  })
+
+  // Codex P1: today's still-open record must NOT be labeled 缺卡.
+  it('today missing checkOut is NOT labeled 缺卡', () => {
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Shanghai' })
+    const rows: ExportRow[] = [
+      { name: '在岗员工', date: today, checkIn: '09:00', checkOut: null, status: 'present' },
+    ]
+    const csv = buildDetailCsv(rows, 8)
+    expect(csv).toContain('在岗员工')
+    expect(csv).not.toContain('缺卡')
+    expect(csv).toContain('在位')
+  })
+
+  // Codex P2: overnight/anomalous span → 异常, not 缺卡.
+  it('past day with both punches but overnight span is labeled 异常', () => {
+    const rows: ExportRow[] = [
+      { name: '夜班', date: '2026-07-20', checkIn: '22:00', checkOut: '02:00', status: 'present' },
+    ]
+    const csv = buildDetailCsv(rows, 8)
+    expect(csv).toContain('在位(异常)')
+    expect(csv).not.toContain('缺卡')
+  })
+
+  // Codex P2: names that look like spreadsheet formulas are neutralized.
+  it('neutralizes formula-like names (CSV injection)', () => {
+    for (const evil of ['=SUM(A1)', '+1+1', '-1-1', '@cmd']) {
+      const csv = buildDetailCsv([{ name: evil, date: '2026-07-20', checkIn: '08:00', checkOut: '18:00', status: 'present' }], 8)
+      // The cell must not START with the formula trigger char; it's prefixed
+      // with an apostrophe.
+      const line = csv.split('\n')[1]
+      expect(line.startsWith(`'${evil}`) || line.startsWith(`"'${evil}`)).toBe(true)
+    }
   })
 })
 

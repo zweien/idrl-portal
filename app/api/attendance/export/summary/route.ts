@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { buildSummaryCsv, exportWorkHours, type SummaryRow } from '@/lib/attendance'
+import { todayDateStr } from '@/lib/attendance'
 import { resolveExportScope, csvAttachmentHeaders, readTripWorkHours } from '../_shared'
 
 /**
@@ -29,6 +30,7 @@ export async function GET(request: Request) {
     include: { person: { select: { name: true } } },
   })
 
+  const today = todayDateStr()
   const byPerson = new Map<string, SummaryRow>()
   for (const r of rows) {
     let entry = byPerson.get(r.personId)
@@ -44,17 +46,27 @@ export async function GET(request: Request) {
       }
       byPerson.set(r.personId, entry)
     }
-    const { hours, missingPunch } = exportWorkHours(r.status, r.checkIn, r.checkOut, tripHours)
+    // Today's still-open record isn't 缺卡 yet (the person may not have
+    // checked out). Only settled historical days count a missing punch.
+    const isFinalized = r.date < today
+    const { hours, missingPunch } = exportWorkHours(r.status, r.checkIn, r.checkOut, tripHours, isFinalized)
     if (r.status === 'present') entry.presentDays++
     else if (r.status === 'trip') entry.tripDays++
     else if (r.status === 'leave') entry.leaveDays++
     if (missingPunch) entry.missingPunchDays++
     entry.totalHours += hours
-    // A day counts toward the average denominator only if it yielded actual
-    // hours (present/leave with full punches, or a trip day with a non-zero
-    // configured fixed value). Keeps the average meaningful when trip is
-    // configured to 0 ("trip doesn't count").
-    if (hours > 0) entry.countedDays++
+    // Average denominator = days that represent actual attendance, so a
+    // finalized missing-punch present day (the person came but forgot to
+    // punch) still dilutes the average instead of inflating it (Codex P2):
+    //  - present day         → always counted (came to work, punched or not)
+    //  - trip day            → counted only when the fixed hours are non-zero
+    //  - leave with punches  → counted (half-day leave, still worked)
+    //  - absent / leave-without-punch → excluded
+    const counted =
+      r.status === 'present' ||
+      (r.status === 'trip' && hours > 0) ||
+      (r.status === 'leave' && hours > 0)
+    if (counted) entry.countedDays++
   }
 
   const summaryRows = [...byPerson.values()].sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'))

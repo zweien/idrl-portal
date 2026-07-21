@@ -104,27 +104,44 @@ export function formatWorkHours(min: number | null): string {
  *               worked); no punches → 0
  *  - absent:    0
  *
- * Returns hours as a NUMBER (0 when not countable) plus a `missingPunch`
- * flag so the summary can count 缺卡天数 independently of the hours.
+ * `isFinalized` distinguishes today's in-progress record from a settled
+ * historical day (Codex P1): before an employee checks out, today's record
+ * is present with a null checkOut, which is NOT yet a 缺卡 — they may still
+ * punch. Only a finalized day's missing punch counts as 缺卡. Pass false
+ * for the current day; historical days are always true.
+ *
+ * Returns hours as a NUMBER (0 when not countable) plus:
+ *  - `missingPunch`: the day genuinely lacks a punch on a FINALIZED present
+ *    day (counted as 缺卡).
+ *  - `anomalous`: both punches exist but form a non-positive span (overnight
+ *    or malformed) — a data error, NOT 缺卡 (Codex P2).
  */
 export function exportWorkHours(
   status: string,
   checkIn?: string | null,
   checkOut?: string | null,
   tripHours = 8,
-): { hours: number; missingPunch: boolean } {
-  const hasFull = computeWorkMinutes(checkIn, checkOut) !== null
+  isFinalized = true,
+): { hours: number; missingPunch: boolean; anomalous: boolean } {
+  const span = computeWorkMinutes(checkIn, checkOut)
+  const bothPunched = checkIn != null && checkOut != null
   switch (status) {
     case 'present':
-      if (hasFull) return { hours: computeWorkMinutes(checkIn, checkOut)! / 60, missingPunch: false }
-      return { hours: 0, missingPunch: true }
+      if (span !== null) return { hours: span / 60, missingPunch: false, anomalous: false }
+      if (bothPunched) {
+        // Punched in AND out but the span is invalid (overnight/malformed).
+        return { hours: 0, missingPunch: false, anomalous: true }
+      }
+      // Missing a punch entirely: 缺卡 only once the day is settled.
+      return { hours: 0, missingPunch: isFinalized, anomalous: false }
     case 'trip':
-      return { hours: tripHours, missingPunch: false }
+      return { hours: tripHours, missingPunch: false, anomalous: false }
     case 'leave':
-      if (hasFull) return { hours: computeWorkMinutes(checkIn, checkOut)! / 60, missingPunch: false }
-      return { hours: 0, missingPunch: false }
+      if (span !== null) return { hours: span / 60, missingPunch: false, anomalous: false }
+      if (bothPunched) return { hours: 0, missingPunch: false, anomalous: true }
+      return { hours: 0, missingPunch: false, anomalous: false }
     default:
-      return { hours: 0, missingPunch: false }
+      return { hours: 0, missingPunch: false, anomalous: false }
   }
 }
 
@@ -144,23 +161,33 @@ export interface ExportRow {
   status: string
 }
 
-/** Escape a CSV field (wrap in quotes when it contains , " or newline). */
+/** Escape a CSV field and neutralize spreadsheet formula injection. Fields
+ * starting with = + - @ are prefixed with an apostrophe so Excel/WPS treats
+ * them as text, then normal CSV quoting is applied (Codex P2: a name sourced
+ * from DingTalk or typed by an admin could otherwise run as a formula). */
 function csvField(v: string): string {
-  if (/[",\n\r]/.test(v)) return `"${v.replace(/"/g, '""')}"`
-  return v
+  let out = v
+  if (/^[=+\-@]/.test(out)) out = `'${out}`
+  if (/[",\n\r]/.test(out)) return `"${out.replace(/"/g, '""')}"`
+  return out
 }
 
 /**
  * Build the per-day detail CSV. One row per (person, day). Hours use the
  * export rules (trip → fixed, leave → punches if present). Missing-punch
- * present days are labeled 在位(缺卡).
+ * present days are labeled 在位(缺卡) ONLY on finalized days (a still-open
+ * today isn't 缺卡 yet); anomalous spans (both punches, invalid span) are
+ * labeled 异常.
  */
 export function buildDetailCsv(rows: ExportRow[], tripHours = 8): string {
+  const today = todayDateStr()
   const lines: string[] = ['姓名,日期,上班,下班,工时(小时),状态']
   for (const r of rows) {
-    const { hours, missingPunch } = exportWorkHours(r.status, r.checkIn, r.checkOut, tripHours)
+    const isFinalized = r.date < today
+    const { hours, missingPunch, anomalous } = exportWorkHours(r.status, r.checkIn, r.checkOut, tripHours, isFinalized)
     let statusLabel = STATUS_LABEL[r.status] ?? r.status
-    if (r.status === 'present' && missingPunch) statusLabel = '在位(缺卡)'
+    if (r.status === 'present' && anomalous) statusLabel = '在位(异常)'
+    else if (r.status === 'present' && missingPunch) statusLabel = '在位(缺卡)'
     lines.push([
       csvField(r.name),
       r.date,
