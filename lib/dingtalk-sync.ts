@@ -104,15 +104,19 @@ export async function syncMembers(): Promise<{
  * Sync attendance with a finalize double-track flow:
  *
  *  - **Today (live)**: always refreshed — update Person.status / lastSeen /
- *    avatar so the personnel board reflects who's currently in. Today's data
- *    is volatile (people keep punching in through the day), so re-pulling it
- *    on every sync is necessary, not wasteful.
+ *    avatar so the personnel board reflects who's currently in, AND upsert
+ *    today's AttendanceRecord so the early-bird leaderboard shows today's
+ *    punches immediately. Today's data is volatile (people keep punching in
+ *    through the day), so re-pulling it on every sync is necessary, not
+ *    wasteful; the upsert is idempotent (same (personId, today) row
+ *    overwritten each time).
  *  - **Finalize (history)**: any day strictly AFTER `lastFinalizedDate` and
- *    strictly BEFORE today is "stable" — it gets written once into
- *    AttendanceRecord and never re-pulled. The fetch window is widened to
- *    [dayBefore, today] (max 3 days) so a late punch on the day before the
- *    finalized one isn't lost. Failure does NOT advance the water mark, so
- *    the next sync retries the same window.
+ *    strictly BEFORE today is "stable" — it gets written into AttendanceRecord
+ *    and never re-pulled as its own row (today's live upsert already covers
+ *    the edge). The fetch window is widened to [dayBefore, today] (max 3
+ *    days) so a late punch on the day before the finalized one isn't lost.
+ *    Failure does NOT advance the water mark, so the next sync retries the
+ *    same window.
  *
  * On the very first run (no Setting) lastFinalizedDate defaults to yesterday,
  * so nothing is finalized and only today's live state is written; the next
@@ -197,10 +201,15 @@ export async function syncAttendance(): Promise<{
     }
   }
 
-  // 2. Update today's live state on Person rows + collect stats.
+  // 2. Update today's live state on Person rows + collect stats. ALSO upsert
+  // today's AttendanceRecord so the early-bird leaderboard shows today's
+  // punches immediately (previously it waited until tomorrow's finalize,
+  // leaving the board empty all day). The upsert is idempotent — re-syncs
+  // overwrite the same row; tomorrow's finalize of "yesterday" re-pulls this
+  // day in the 3-day window and upserts again, correcting any late punches.
   const stats = { present: 0, leave: 0, trip: 0, absent: 0 }
   for (const [userid, personId] of useridToPersonId) {
-    const { status, onDuty } = mapStatusForDay(userid, today, tripByDay, leaveByDay, attByDay)
+    const { status, onDuty, offDuty } = mapStatusForDay(userid, today, tripByDay, leaveByDay, attByDay)
     stats[status]++
     const tripReason = tripByDay.get(userid)?.reason
     await prisma.person.update({
@@ -211,6 +220,21 @@ export async function syncAttendance(): Promise<{
         ...(onDuty?.checkTime ? { lastSeen: onDuty.checkTime } : { lastSeen: null }),
         // avatar repurposed as today's trip reason (cleared if not on trip)
         ...(tripReason ? { avatar: tripReason } : { avatar: null }),
+      },
+    })
+    await prisma.attendanceRecord.upsert({
+      where: { personId_date: { personId, date: today } },
+      create: {
+        personId,
+        date: today,
+        status,
+        checkIn: onDuty?.checkTime ?? null,
+        checkOut: offDuty?.checkTime ?? null,
+      },
+      update: {
+        status,
+        checkIn: onDuty?.checkTime ?? null,
+        checkOut: offDuty?.checkTime ?? null,
       },
     })
   }
