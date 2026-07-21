@@ -1,6 +1,9 @@
-onlyBuiltDependencies:
-  - "@prisma/engines"
-  - better-sqlite3
-  - esbuild
-  - prisma
-  - sharp
+# pnpm 11.12 起原生构建批准字段是 allowBuilds（name → true/false）。
+# 旧的 onlyBuiltDependencies 列表在本版本下不会生效（会被忽略并报
+# ERR_PNPM_IGNORED_BUILDS）。只允许下列 5 个包执行 install scripts。
+allowBuilds:
+  "@prisma/engines": true
+  better-sqlite3: true
+  esbuild: true
+  prisma: true
+  sharp: true
