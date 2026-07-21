@@ -5,8 +5,30 @@ import {
   fetchAttendance,
   fetchLeaveStatus,
   fetchTripStatus,
-  mapStatus,
+  mapStatusForDay,
 } from '@/lib/dingtalk-admin'
+import { todayDateStr, shiftDate, dateRangeDays } from '@/lib/attendance'
+
+/** Setting key for the last finalized day ("yyyy-MM-dd"). Days up to and
+ * including this value are considered stable and won't be re-finalized. */
+const LAST_FINALIZED_KEY = 'attendance.lastFinalizedDate'
+
+async function readLastFinalized(): Promise<string> {
+  // Default to yesterday on first run so the very first sync does nothing for
+  // history (no data exists yet) and just refreshes today's live state. The
+  // next day's sync finalizes "yesterday" normally.
+  const row = await prisma.setting.findUnique({ where: { key: LAST_FINALIZED_KEY } })
+  if (row?.value) return row.value
+  return shiftDate(todayDateStr(), -1)
+}
+
+async function writeLastFinalized(day: string): Promise<void> {
+  await prisma.setting.upsert({
+    where: { key: LAST_FINALIZED_KEY },
+    create: { key: LAST_FINALIZED_KEY, value: day },
+    update: { value: day },
+  })
+}
 
 /**
  * Sync DingTalk department members into Person rows (keyed by unionid) and
@@ -79,13 +101,35 @@ export async function syncMembers(): Promise<{
 }
 
 /**
- * Sync today's attendance/leave/trip for all DingTalk-synced persons, applying
- * the status priority trip > leave > present > absent. Extracted from the
- * sync-attendance route so both the HTTP route and the scheduler can call it.
+ * Sync attendance with a finalize double-track flow:
+ *
+ *  - **Today (live)**: always refreshed — update Person.status / lastSeen /
+ *    avatar so the personnel board reflects who's currently in, AND upsert
+ *    today's AttendanceRecord so the early-bird leaderboard shows today's
+ *    punches immediately. Today's data is volatile (people keep punching in
+ *    through the day), so re-pulling it on every sync is necessary, not
+ *    wasteful; the upsert is idempotent (same (personId, today) row
+ *    overwritten each time).
+ *  - **Finalize (history)**: any day strictly AFTER `lastFinalizedDate` and
+ *    strictly BEFORE today is "stable" — it gets written into AttendanceRecord
+ *    and never re-pulled as its own row (today's live upsert already covers
+ *    the edge). The fetch window is widened to [dayBefore, today] (max 3
+ *    days) so a late punch on the day before the finalized one isn't lost.
+ *    Failure does NOT advance the water mark, so the next sync retries the
+ *    same window.
+ *
+ * On the very first run (no Setting) lastFinalizedDate defaults to yesterday,
+ * so nothing is finalized and only today's live state is written; the next
+ * day's sync finalizes "yesterday" normally.
+ *
+ * Extracted from the sync-attendance route so both the HTTP route and the
+ * scheduler can call it. Returns aggregate stats (today's live state) for the
+ * caller's SyncLog entry.
  */
 export async function syncAttendance(): Promise<{
   total: number
   stats: { present: number; leave: number; trip: number; absent: number }
+  finalizedDays: number
   message?: string
 }> {
   const token = await getEnterpriseAccessToken()
@@ -107,33 +151,164 @@ export async function syncAttendance(): Promise<{
     return {
       total: 0,
       stats: { present: 0, leave: 0, trip: 0, absent: 0 },
+      finalizedDays: 0,
       message: '没有同步的钉钉成员，请先执行成员同步',
     }
   }
 
-  const [attendanceMap, leaveSet, tripMap] = await Promise.all([
-    fetchAttendance(token, userids),
-    fetchLeaveStatus(token, userids),
-    fetchTripStatus(token, userids),
+  const today = todayDateStr()
+  const yesterday = shiftDate(today, -1)
+  const lastFinalized = await readLastFinalized()
+
+  // Days to finalize = (lastFinalized, yesterday]. Empty on first run or if
+  // already up to date. Cap to the days actually covered by the fetch window
+  // (see below) so a long outage doesn't write "absent" for unfetched dates
+  // and then advance the water mark past them (Codex P1: the bounded window
+  // [today-2, today] means anything older than today-2 was never pulled, so
+  // finalizing it would permanently corrupt those days). Older days are
+  // left unfinalized — the next sync will pull them as the window advances.
+  const allMissedDays: string[] = lastFinalized < yesterday
+    ? dateRangeDays(shiftDate(lastFinalized, 1), yesterday)
+    : []
+
+  // Fetch window: cover the oldest day to finalize minus one (late-punch
+  // protection), through today. Cap to [today-2, today] so a long outage
+  // doesn't pull a huge window in one call.
+  const oldestNeeded = allMissedDays.length > 0 ? shiftDate(allMissedDays[0], -1) : yesterday
+  const windowStart = oldestNeeded < shiftDate(today, -2) ? shiftDate(today, -2) : oldestNeeded
+  const queryDays = dateRangeDays(windowStart, today)
+
+  // Only finalize the days that are actually inside the fetched window —
+  // anything older than windowStart wasn't pulled this run and must wait.
+  const daysToFinalize = allMissedDays.filter(d => d >= windowStart)
+
+  const [attByDay, leaveByDay, tripByDay] = await Promise.all([
+    fetchAttendance(token, userids, windowStart, today),
+    fetchLeaveStatus(token, userids, windowStart, today),
+    fetchTripStatus(token, userids, queryDays),
   ])
 
+  // 1. Finalize history: upsert one AttendanceRecord per (person, day).
+  for (const day of daysToFinalize) {
+    for (const [userid, personId] of useridToPersonId) {
+      const { status, onDuty, offDuty } = mapStatusForDay(userid, day, tripByDay, leaveByDay, attByDay)
+      await prisma.attendanceRecord.upsert({
+        where: { personId_date: { personId, date: day } },
+        create: {
+          personId,
+          date: day,
+          status,
+          checkIn: onDuty?.checkTime ?? null,
+          checkOut: offDuty?.checkTime ?? null,
+        },
+        update: {
+          status,
+          checkIn: onDuty?.checkTime ?? null,
+          checkOut: offDuty?.checkTime ?? null,
+        },
+      })
+    }
+  }
+
+  // 2. Update today's live state on Person rows + collect stats. ALSO upsert
+  // today's AttendanceRecord so the early-bird leaderboard shows today's
+  // punches immediately (previously it waited until tomorrow's finalize,
+  // leaving the board empty all day). The upsert is idempotent — re-syncs
+  // overwrite the same row; tomorrow's finalize of "yesterday" re-pulls this
+  // day in the 3-day window and upserts again, correcting any late punches.
   const stats = { present: 0, leave: 0, trip: 0, absent: 0 }
   for (const [userid, personId] of useridToPersonId) {
-    const status = mapStatus(userid, tripMap, leaveSet, attendanceMap)
+    const { status, onDuty, offDuty } = mapStatusForDay(userid, today, tripByDay, leaveByDay, attByDay)
     stats[status]++
-    const att = attendanceMap.get(userid)
-    const tripReason = tripMap.get(userid)
+    const tripReason = tripByDay.get(userid)?.reason
     await prisma.person.update({
       where: { id: personId },
       data: {
         status,
-        // lastSeen = punch time (e.g. "08:01"), cleared if no punch
-        ...(att?.checkTime ? { lastSeen: att.checkTime } : { lastSeen: null }),
-        // avatar repurposed as trip reason (cleared if not on trip)
+        // lastSeen = today's OnDuty punch time, cleared if no punch
+        ...(onDuty?.checkTime ? { lastSeen: onDuty.checkTime } : { lastSeen: null }),
+        // avatar repurposed as today's trip reason (cleared if not on trip)
         ...(tripReason ? { avatar: tripReason } : { avatar: null }),
+      },
+    })
+    await prisma.attendanceRecord.upsert({
+      where: { personId_date: { personId, date: today } },
+      create: {
+        personId,
+        date: today,
+        status,
+        checkIn: onDuty?.checkTime ?? null,
+        checkOut: offDuty?.checkTime ?? null,
+      },
+      update: {
+        status,
+        checkIn: onDuty?.checkTime ?? null,
+        checkOut: offDuty?.checkTime ?? null,
       },
     })
   }
 
-  return { total: userids.length, stats }
+  // 3. Advance the water mark.
+  //  - When we finalized a subset (long outage), advance only to the LAST day
+  //    actually finalized, NOT yesterday — the unfinalized older days must be
+  //    retried on the next sync (Codex P1: advancing past them would skip them).
+  //  - When there were no days to finalize (first run / already up to date),
+  //    still PERSIST the bootstrap value (Codex P1: otherwise a fresh deploy
+  //    recomputes "yesterday" every run and never creates the setting, so the
+  //    regular flow never finalizes historical records).
+  if (daysToFinalize.length > 0) {
+    await writeLastFinalized(daysToFinalize[daysToFinalize.length - 1])
+  } else {
+    await writeLastFinalized(lastFinalized)
+  }
+
+  return { total: userids.length, stats, finalizedDays: daysToFinalize.length }
+}
+
+/**
+ * One-shot backfill for a single day (admin-triggered). Re-pulls that day from
+ * DingTalk and upserts its AttendanceRecord regardless of the finalize water
+ * mark. Does NOT advance lastFinalizedDate (the regular flow owns that).
+ */
+export async function backfillDay(day: string): Promise<{ upserted: number }> {
+  const token = await getEnterpriseAccessToken()
+  const dtPersons = await prisma.person.findMany({
+    where: { id: { startsWith: 'dt-' } },
+    select: { id: true },
+  })
+  const useridToPersonId = new Map<string, string>()
+  for (const p of dtPersons) {
+    const userid = p.id.replace(/^dt-/, '')
+    if (userid) useridToPersonId.set(userid, p.id)
+  }
+  const userids = [...useridToPersonId.keys()]
+  if (userids.length === 0) return { upserted: 0 }
+
+  const [attByDay, leaveByDay, tripByDay] = await Promise.all([
+    fetchAttendance(token, userids, day, day),
+    fetchLeaveStatus(token, userids, day, day),
+    fetchTripStatus(token, userids, [day]),
+  ])
+
+  let upserted = 0
+  for (const [userid, personId] of useridToPersonId) {
+    const { status, onDuty, offDuty } = mapStatusForDay(userid, day, tripByDay, leaveByDay, attByDay)
+    await prisma.attendanceRecord.upsert({
+      where: { personId_date: { personId, date: day } },
+      create: {
+        personId,
+        date: day,
+        status,
+        checkIn: onDuty?.checkTime ?? null,
+        checkOut: offDuty?.checkTime ?? null,
+      },
+      update: {
+        status,
+        checkIn: onDuty?.checkTime ?? null,
+        checkOut: offDuty?.checkTime ?? null,
+      },
+    })
+    upserted++
+  }
+  return { upserted }
 }
