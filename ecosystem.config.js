@@ -12,9 +12,11 @@ module.exports = {
       // VPS 系统 Node 是 20（scheduling 在用），本应用用 /opt/node24 下
       // 独立安装的 Node 24，互不影响。pm2 守护进程的环境里没有这个路径，
       // 必须显式前置到 PATH。
+      // 注意：不要加 `--` 分隔符 —— npm 会剥掉它，但 pnpm 会原样传给
+      // next start，导致 `--hostname` 被当成项目目录参数而启动失败。
       args: [
         '-lc',
-        'export PATH=/opt/node24/bin:$PATH && exec corepack pnpm run start -- --hostname 127.0.0.1 --port "${PORT:-3050}"',
+        'export PATH=/opt/node24/bin:$PATH && exec corepack pnpm run start --hostname 127.0.0.1 --port "${PORT:-3050}"',
       ],
       instances: 1,
       exec_mode: 'fork',
