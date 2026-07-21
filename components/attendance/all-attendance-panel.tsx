@@ -13,6 +13,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { ExportButtons } from '@/components/attendance/export-buttons'
+import { TripHoursSetting } from '@/components/attendance/trip-hours-setting'
 import { formatWorkHours } from '@/lib/attendance'
 import { cn } from '@/lib/utils'
 import { RefreshCw } from 'lucide-react'
@@ -61,6 +63,21 @@ export function AllAttendancePanel() {
 
   return (
     <div className="space-y-4">
+      <div className="grid lg:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm">导出考勤数据</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              导出全员（或选单人）的逐日明细 / 汇总（CSV）。下方选择人员则导出该人员。
+            </p>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <ExportButtons personId={selectedId || undefined} />
+          </CardContent>
+        </Card>
+        <TripHoursSetting />
+      </div>
+
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm">补拉历史考勤</CardTitle>

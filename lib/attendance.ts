@@ -89,3 +89,123 @@ export function formatWorkHours(min: number | null): string {
   const m = min % 60
   return m === 0 ? `${h}h` : `${h}h ${m}m`
 }
+
+// ── Export domain (work-hour rules + CSV generation) ─────────────────────
+
+/**
+ * The status-driven work-hour rule for exports.
+ *
+ * Unlike computeWorkMinutes() (raw checkOut − checkIn, used for display),
+ * this applies the business rules agreed for reporting:
+ *  - present:   full punches → span; missing punch → 0 AND counted as 缺卡
+ *  - trip:      always the configured fixed hours (actual punches ignored for
+ *               the total, but still shown in the detail rows)
+ *  - leave:     full punches → span (half-day leave where the person still
+ *               worked); no punches → 0
+ *  - absent:    0
+ *
+ * Returns hours as a NUMBER (0 when not countable) plus a `missingPunch`
+ * flag so the summary can count 缺卡天数 independently of the hours.
+ */
+export function exportWorkHours(
+  status: string,
+  checkIn?: string | null,
+  checkOut?: string | null,
+  tripHours = 8,
+): { hours: number; missingPunch: boolean } {
+  const hasFull = computeWorkMinutes(checkIn, checkOut) !== null
+  switch (status) {
+    case 'present':
+      if (hasFull) return { hours: computeWorkMinutes(checkIn, checkOut)! / 60, missingPunch: false }
+      return { hours: 0, missingPunch: true }
+    case 'trip':
+      return { hours: tripHours, missingPunch: false }
+    case 'leave':
+      if (hasFull) return { hours: computeWorkMinutes(checkIn, checkOut)! / 60, missingPunch: false }
+      return { hours: 0, missingPunch: false }
+    default:
+      return { hours: 0, missingPunch: false }
+  }
+}
+
+/** Chinese status labels for CSV output. */
+const STATUS_LABEL: Record<string, string> = {
+  present: '在位',
+  trip: '出差',
+  leave: '请假',
+  absent: '未到',
+}
+
+export interface ExportRow {
+  name: string
+  date: string
+  checkIn?: string | null
+  checkOut?: string | null
+  status: string
+}
+
+/** Escape a CSV field (wrap in quotes when it contains , " or newline). */
+function csvField(v: string): string {
+  if (/[",\n\r]/.test(v)) return `"${v.replace(/"/g, '""')}"`
+  return v
+}
+
+/**
+ * Build the per-day detail CSV. One row per (person, day). Hours use the
+ * export rules (trip → fixed, leave → punches if present). Missing-punch
+ * present days are labeled 在位(缺卡).
+ */
+export function buildDetailCsv(rows: ExportRow[], tripHours = 8): string {
+  const lines: string[] = ['姓名,日期,上班,下班,工时(小时),状态']
+  for (const r of rows) {
+    const { hours, missingPunch } = exportWorkHours(r.status, r.checkIn, r.checkOut, tripHours)
+    let statusLabel = STATUS_LABEL[r.status] ?? r.status
+    if (r.status === 'present' && missingPunch) statusLabel = '在位(缺卡)'
+    lines.push([
+      csvField(r.name),
+      r.date,
+      r.checkIn ?? '—',
+      r.checkOut ?? '—',
+      hours.toFixed(2),
+      statusLabel,
+    ].join(','))
+  }
+  // UTF-8 BOM so Excel/WPS on Windows open it as Chinese, not mojibake.
+  return '﻿' + lines.join('\n')
+}
+
+export interface SummaryRow {
+  name: string
+  presentDays: number
+  tripDays: number
+  leaveDays: number
+  missingPunchDays: number
+  totalHours: number
+  /** Denominator for the average: days that actually counted toward hours
+   * (present-with-punches + trip + leave-with-punches). */
+  countedDays: number
+}
+
+/**
+ * Build the monthly/period summary CSV. One row per person. Average hours =
+ * total ÷ counted days (not ÷ present days) so trip fixed hours don't
+ * inflate the daily intensity figure.
+ */
+export function buildSummaryCsv(rows: SummaryRow[], from: string, to: string): string {
+  const lines: string[] = ['姓名,日期范围,出勤天数,出差天数,请假天数,缺卡天数,总工时(小时),平均工时(小时)']
+  const range = `${from}~${to}`
+  for (const r of rows) {
+    const avg = r.countedDays > 0 ? r.totalHours / r.countedDays : 0
+    lines.push([
+      csvField(r.name),
+      range,
+      String(r.presentDays),
+      String(r.tripDays),
+      String(r.leaveDays),
+      String(r.missingPunchDays),
+      r.totalHours.toFixed(2),
+      avg.toFixed(2),
+    ].join(','))
+  }
+  return '﻿' + lines.join('\n')
+}
