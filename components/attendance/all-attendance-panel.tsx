@@ -6,13 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { PersonPicker } from '@/components/admin/person-picker'
+import { ExportButtons } from '@/components/attendance/export-buttons'
+import { TripHoursSetting } from '@/components/attendance/trip-hours-setting'
 import { formatWorkHours } from '@/lib/attendance'
 import { cn } from '@/lib/utils'
 import { RefreshCw } from 'lucide-react'
@@ -61,6 +57,21 @@ export function AllAttendancePanel() {
 
   return (
     <div className="space-y-4">
+      <div className="grid lg:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm">导出考勤数据</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              导出全员（或选单人）的逐日明细 / 汇总（CSV）。下方选择人员则导出该人员。
+            </p>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <ExportButtons personId={selectedId || undefined} />
+          </CardContent>
+        </Card>
+        <TripHoursSetting />
+      </div>
+
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm">补拉历史考勤</CardTitle>
@@ -96,16 +107,13 @@ export function AllAttendancePanel() {
       <Card>
         <CardHeader className="pb-3 flex flex-row items-center gap-3">
           <CardTitle className="text-sm">人员考勤明细</CardTitle>
-          <Select value={effectiveId} onValueChange={setSelectedId}>
-            <SelectTrigger className="h-8 w-48 text-sm">
-              <SelectValue placeholder="选择人员" />
-            </SelectTrigger>
-            <SelectContent>
-              {sortedPersonnel.map(p => (
-                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <PersonPicker
+            value={effectiveId}
+            personnel={sortedPersonnel}
+            onChange={(id) => setSelectedId(id ?? '')}
+            placeholder="选择人员"
+            className="w-48"
+          />
         </CardHeader>
         <CardContent className="pt-0">
           {!effectiveId ? (

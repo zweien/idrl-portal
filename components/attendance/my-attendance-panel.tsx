@@ -3,6 +3,7 @@
 import { useAttendanceRecords } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { ExportButtons } from '@/components/attendance/export-buttons'
 import { formatWorkHours } from '@/lib/attendance'
 import { cn } from '@/lib/utils'
 
@@ -34,11 +35,22 @@ export function MyAttendancePanel() {
   const items = page?.items ?? []
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-sm">我的打卡明细</CardTitle>
-      </CardHeader>
-      <CardContent className="pt-0">
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm">导出我的考勤</CardTitle>
+          <p className="text-xs text-muted-foreground">选择日期范围，导出逐日明细或汇总（CSV）。</p>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <ExportButtons />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm">我的打卡明细</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
         {items.length === 0 ? (
           <p className="text-sm text-muted-foreground py-8 text-center">暂无记录</p>
         ) : (
@@ -76,7 +88,8 @@ export function MyAttendancePanel() {
             第 {page.page} / {page.totalPages} 页 · 共 {page.total} 条
           </p>
         )}
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </div>
   )
 }
