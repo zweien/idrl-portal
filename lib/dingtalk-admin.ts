@@ -333,7 +333,6 @@ export async function fetchLeaveStatus(
 
   const { startMs, endMs } = dayBounds(fromDate)
   const { endMs: rangeEndMs } = dayBounds(toDate)
-  const daysInRange = new Set(dateRangeDays(fromDate, toDate))
 
   // getleavestatus limits size to max 20 per call
   const BATCH = 20
@@ -368,23 +367,25 @@ export async function fetchLeaveStatus(
       }
       for (const ls of data.result?.leave_status ?? []) {
         if (!ls.userid) continue
-        // Expand [start_time, end_time] into per-day keys, intersected with the
-        // queried range (DingTalk timestamps are ms epochs).
+        // Expand [start_time, end_time] into per-day keys by enumerating the
+        // Shanghai CALENDAR days the interval touches, intersected with the
+        // queried range (Codex P2: a <24h leave crossing midnight, e.g. Jul20
+        // 18:00 → Jul21 09:00, must mark BOTH days — stepping by 24h from the
+        // exact start timestamp would only emit Jul20 and skip Jul21).
         const lsStart = ls.start_time ?? startMs
         const lsEnd = ls.end_time ?? endMs
-        for (let t = lsStart; t <= lsEnd; t += 24 * 60 * 60 * 1000) {
-          const d = shanghaiDateStr(t)
-          if (!daysInRange.has(d)) {
-            // The leave day's bucket might fall outside the queried range due
-            // to tz alignment; only record in-range days.
-            const b = dayBounds(d)
-            if (b.endMs < startMs || b.startMs > rangeEndMs) continue
-          }
-          let set = result.get(ls.userid)
-          if (!set) {
-            set = new Set()
-            result.set(ls.userid, set)
-          }
+        const startDay = shanghaiDateStr(lsStart)
+        const endDay = shanghaiDateStr(lsEnd)
+        let set = result.get(ls.userid)
+        if (!set) {
+          set = new Set()
+          result.set(ls.userid, set)
+        }
+        for (const d of dateRangeDays(startDay, endDay)) {
+          // Only record days that overlap the queried range (the leave may
+          // extend beyond it).
+          const b = dayBounds(d)
+          if (b.endMs < startMs || b.startMs > rangeEndMs) continue
           set.add(d)
         }
       }
@@ -683,13 +684,19 @@ export function mapStatusForDay(
   leaveByDay: Map<string, Set<string>>,
   attByDay: Map<string, Map<string, DayAttendance>>,
 ): { status: AttendanceResult; onDuty?: DayPunch; offDuty?: DayPunch } {
-  if (tripByDay.get(userid)?.days.has(day)) return { status: 'trip' }
-  if (leaveByDay.get(userid)?.has(day)) return { status: 'leave' }
+  // Resolve the day's punches FIRST, so they're preserved even when a
+  // higher-priority status wins (Codex P2: someone who punches during a
+  // partial-day leave/trip still has real attendance data that must be
+  // stored, otherwise the per-person punch history and work-minute display
+  // silently lose it).
   const dayAtt = attByDay.get(userid)?.get(day)
+  const punches = { onDuty: dayAtt?.onDuty, offDuty: dayAtt?.offDuty }
+  if (tripByDay.get(userid)?.days.has(day)) return { status: 'trip', ...punches }
+  if (leaveByDay.get(userid)?.has(day)) return { status: 'leave', ...punches }
   if (dayAtt?.onDuty && dayAtt.onDuty.timeResult !== 'NotSigned' && dayAtt.onDuty.timeResult !== 'Absenteeism') {
-    return { status: 'present', onDuty: dayAtt.onDuty, offDuty: dayAtt.offDuty }
+    return { status: 'present', ...punches }
   }
   // Absent, but still surface any OffDuty punch we have (rare, but for record).
-  return { status: 'absent', offDuty: dayAtt?.offDuty }
+  return { status: 'absent', ...punches }
 }
 

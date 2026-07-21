@@ -96,4 +96,31 @@ describe('mapStatusForDay (per-day priority: trip > leave > present > absent)', 
     expect(r.onDuty?.checkTime).toBe('09:05')
     expect(r.offDuty?.checkTime).toBe('18:32')
   })
+
+  it('preserves punches even when leave wins (partial-day leave)', () => {
+    // Someone punched in the morning, then took a half-day leave. The leave
+    // status wins for the day, but the punches must NOT be discarded (Codex
+    // P2): they're real attendance data for the punch history / work minutes.
+    const inner = new Map<string, DayAttendance>([
+      [DAY, {
+        onDuty: { timeResult: 'Normal', checkTime: '09:00' },
+        offDuty: { timeResult: 'Normal', checkTime: '12:30' },
+      }],
+    ])
+    const m = new Map([['u_leave', inner]])
+    const r = mapStatusForDay('u_leave', DAY, trip, leave, m)
+    expect(r.status).toBe('leave')
+    expect(r.onDuty?.checkTime).toBe('09:00')
+    expect(r.offDuty?.checkTime).toBe('12:30')
+  })
+
+  it('preserves punches even when trip wins (partial-day trip)', () => {
+    const inner = new Map<string, DayAttendance>([
+      [DAY, { onDuty: { timeResult: 'Normal', checkTime: '08:50' } }],
+    ])
+    const m = new Map([['u_trip', inner]])
+    const r = mapStatusForDay('u_trip', DAY, trip, leave, m)
+    expect(r.status).toBe('trip')
+    expect(r.onDuty?.checkTime).toBe('08:50')
+  })
 })

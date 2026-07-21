@@ -161,17 +161,26 @@ export async function syncAttendance(): Promise<{
   const lastFinalized = await readLastFinalized()
 
   // Days to finalize = (lastFinalized, yesterday]. Empty on first run or if
-  // already up to date.
-  const daysToFinalize: string[] = lastFinalized < yesterday
+  // already up to date. Cap to the days actually covered by the fetch window
+  // (see below) so a long outage doesn't write "absent" for unfetched dates
+  // and then advance the water mark past them (Codex P1: the bounded window
+  // [today-2, today] means anything older than today-2 was never pulled, so
+  // finalizing it would permanently corrupt those days). Older days are
+  // left unfinalized — the next sync will pull them as the window advances.
+  const allMissedDays: string[] = lastFinalized < yesterday
     ? dateRangeDays(shiftDate(lastFinalized, 1), yesterday)
     : []
 
   // Fetch window: cover the oldest day to finalize minus one (late-punch
   // protection), through today. Cap to [today-2, today] so a long outage
   // doesn't pull a huge window in one call.
-  const oldestNeeded = daysToFinalize.length > 0 ? shiftDate(daysToFinalize[0], -1) : yesterday
+  const oldestNeeded = allMissedDays.length > 0 ? shiftDate(allMissedDays[0], -1) : yesterday
   const windowStart = oldestNeeded < shiftDate(today, -2) ? shiftDate(today, -2) : oldestNeeded
   const queryDays = dateRangeDays(windowStart, today)
+
+  // Only finalize the days that are actually inside the fetched window —
+  // anything older than windowStart wasn't pulled this run and must wait.
+  const daysToFinalize = allMissedDays.filter(d => d >= windowStart)
 
   const [attByDay, leaveByDay, tripByDay] = await Promise.all([
     fetchAttendance(token, userids, windowStart, today),
@@ -239,9 +248,18 @@ export async function syncAttendance(): Promise<{
     })
   }
 
-  // 3. Advance the water mark only after both writes succeed.
+  // 3. Advance the water mark.
+  //  - When we finalized a subset (long outage), advance only to the LAST day
+  //    actually finalized, NOT yesterday — the unfinalized older days must be
+  //    retried on the next sync (Codex P1: advancing past them would skip them).
+  //  - When there were no days to finalize (first run / already up to date),
+  //    still PERSIST the bootstrap value (Codex P1: otherwise a fresh deploy
+  //    recomputes "yesterday" every run and never creates the setting, so the
+  //    regular flow never finalizes historical records).
   if (daysToFinalize.length > 0) {
-    await writeLastFinalized(yesterday)
+    await writeLastFinalized(daysToFinalize[daysToFinalize.length - 1])
+  } else {
+    await writeLastFinalized(lastFinalized)
   }
 
   return { total: userids.length, stats, finalizedDays: daysToFinalize.length }
