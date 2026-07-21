@@ -38,6 +38,9 @@ jobs:
           command_timeout: 30m
           script: |
             set -euo pipefail
+            # 系统 Node 是 20（scheduling 在用），本应用用 /opt/node24 下
+            # 独立安装的 Node 24；SSH 非交互 shell 的 PATH 里没有它。
+            export PATH=/opt/node24/bin:$PATH
             cd "${{ secrets.VPS_APP_DIR }}"
             # 强制同步远程 tags（允许覆盖），避免本地旧 tag 冲突
             git fetch --all --tags --prune --force

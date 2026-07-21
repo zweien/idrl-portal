@@ -24,14 +24,18 @@
 apt-get update
 apt-get install -y git curl build-essential python3 nginx certbot python3-certbot-nginx
 
-# 2. Node 24（NodeSource）
-curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
-apt-get install -y nodejs
-corepack enable
+# 2. Node 24（独立安装到 /opt/node24，不动系统 Node —— 系统 Node 20
+#    正在被 scheduling 使用，升级会导致它的 better-sqlite3 ABI 失配）
+NODE_VER=$(curl -fsSL https://nodejs.org/dist/index.json | python3 -c "import json,sys; d=json.load(sys.stdin); print([v['version'] for v in d if v['version'].startswith('v24')][0])")
+curl -fsSLO "https://nodejs.org/dist/${NODE_VER}/node-${NODE_VER}-linux-x64.tar.xz"
+mkdir -p /opt/node24
+tar -xJf "node-${NODE_VER}-linux-x64.tar.xz" -C /opt/node24 --strip-components=1
+rm "node-${NODE_VER}-linux-x64.tar.xz"
+/opt/node24/bin/corepack enable --install-directory /opt/node24/bin
+export PATH=/opt/node24/bin:$PATH
 
-# 3. pm2
-npm install -g pm2
-pm2 startup   # 按输出提示执行，使 pm2 开机自启
+# 3. pm2（复用系统 Node 20 的全局 pm2 即可，守护进程已开机自启）
+pm2 startup   # 若尚未执行过，按输出提示执行
 
 # 4. 拉代码
 git clone https://github.com/zweien/idrl-portal.git /opt/idrl-portal
@@ -129,6 +133,7 @@ certbot --nginx -d portal.idrl.top
 
 ```bash
 cd /opt/idrl-portal
+export PATH=/opt/node24/bin:$PATH
 corepack pnpm install --frozen-lockfile
 corepack pnpm run build
 DATABASE_URL="$(grep '^DATABASE_URL=' .env.production | cut -d= -f2- | tr -d '"')" \
@@ -190,6 +195,7 @@ workflow 不是由 `master` push 触发，而是由以下两种方式触发：
 cd /opt/idrl-portal
 git fetch --all --tags
 git checkout "tags/v0.1.0" -B release-deploy
+export PATH=/opt/node24/bin:$PATH
 corepack pnpm install --frozen-lockfile
 corepack pnpm run build
 DATABASE_URL="$(grep '^DATABASE_URL=' .env.production | cut -d= -f2- | tr -d '"')" \
@@ -219,6 +225,7 @@ pm2 save
 ```bash
 cd /opt/idrl-portal
 rm -rf node_modules
+export PATH=/opt/node24/bin:$PATH
 corepack pnpm install --frozen-lockfile
 corepack pnpm run build
 export VPS_APP_DIR=/opt/idrl-portal
