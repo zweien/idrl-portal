@@ -3,19 +3,7 @@
  * Provider: "authentik" (intranet SSO).
  */
 
-import type { NextRequest } from 'next/server'
-
-/**
- * Derive the portal's public origin from an incoming request, honoring proxy
- * headers. Used so the redirect_uri matches what Authentik has registered,
- * regardless of where the app is deployed (no hardcoded localhost in prod).
- */
-export function getRequestOrigin(req: NextRequest): string {
-  const proto = req.headers.get('x-forwarded-proto')
-  const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host')
-  if (proto && host) return `${proto}://${host}`
-  return new URL(req.url).origin
-}
+export { getRequestOrigin } from './request-origin'
 
 export interface AuthentikConfig {
   issuer: string

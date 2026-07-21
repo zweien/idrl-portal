@@ -11,8 +11,6 @@
  * Reference: https://open.dingtalk.com/document/org/scan-qr-code-to-login-3rdapp
  */
 
-import type { NextRequest } from 'next/server'
-
 export interface DingTalkConfig {
   clientId: string
   clientSecret: string
@@ -23,17 +21,7 @@ const AUTHORIZE_URL = 'https://login.dingtalk.com/oauth2/auth'
 const TOKEN_URL = 'https://api.dingtalk.com/v1.0/oauth2/userAccessToken'
 const USERINFO_URL = 'https://api.dingtalk.com/v1.0/contact/users/me'
 
-/**
- * Derive the portal's public origin from the incoming request (mirrors
- * lib/authentik's getRequestOrigin) so redirect_uri strict-matches what
- * DingTalk has registered, regardless of deployment.
- */
-export function getRequestOrigin(req: NextRequest): string {
-  const proto = req.headers.get('x-forwarded-proto')
-  const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host')
-  if (proto && host) return `${proto}://${host}`
-  return new URL(req.url).origin
-}
+export { getRequestOrigin } from './request-origin'
 
 function resolvePortalOrigin(reqOrigin?: string): string | null {
   if (reqOrigin) return reqOrigin

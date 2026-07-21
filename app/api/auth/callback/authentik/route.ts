@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
   // 1. CSRF: state must match the cookie we set at login.
   const cookieState = req.cookies.get('authentik_oauth_state')?.value
   if (!code || !state || state !== cookieState) {
-    return NextResponse.redirect(new URL(LOGIN_ERROR_URL, req.url))
+    return NextResponse.redirect(new URL(LOGIN_ERROR_URL, getRequestOrigin(req)))
   }
 
   try {
@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
 
     // 5. reject banned users before signing a session.
     if (user.disabledAt) {
-      return NextResponse.redirect(new URL(LOGIN_DISABLED_URL, req.url))
+      return NextResponse.redirect(new URL(LOGIN_DISABLED_URL, getRequestOrigin(req)))
     }
 
     // 6. sign session cookie
@@ -69,11 +69,11 @@ export async function GET(req: NextRequest) {
       role: user.role as 'admin' | 'member',
     })
 
-    const res = NextResponse.redirect(new URL('/dashboard', req.url))
+    const res = NextResponse.redirect(new URL('/dashboard', getRequestOrigin(req)))
     res.cookies.delete('authentik_oauth_state')
     return res
   } catch (e) {
     console.error('authentik callback failed:', e)
-    return NextResponse.redirect(new URL(LOGIN_ERROR_URL, req.url))
+    return NextResponse.redirect(new URL(LOGIN_ERROR_URL, getRequestOrigin(req)))
   }
 }

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getSessionFromRequest, isAuthenticated, isAdmin } from '@/lib/session'
+import { getRequestOrigin } from '@/lib/request-origin'
 
 /**
  * Route protection:
@@ -19,17 +20,17 @@ export async function middleware(req: NextRequest) {
   // Admin-only section
   if (pathname.startsWith('/dashboard/admin')) {
     if (!loggedIn) {
-      return NextResponse.redirect(new URL('/login', req.url))
+      return NextResponse.redirect(new URL('/login', getRequestOrigin(req)))
     }
     if (!isAdmin(session)) {
-      return NextResponse.redirect(new URL('/dashboard', req.url))
+      return NextResponse.redirect(new URL('/dashboard', getRequestOrigin(req)))
     }
     return NextResponse.next()
   }
 
   // General dashboard (any authenticated user)
   if (!loggedIn) {
-    return NextResponse.redirect(new URL('/login', req.url))
+    return NextResponse.redirect(new URL('/login', getRequestOrigin(req)))
   }
   return NextResponse.next()
 }
