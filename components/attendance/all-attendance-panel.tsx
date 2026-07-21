@@ -6,13 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { PersonPicker } from '@/components/admin/person-picker'
 import { ExportButtons } from '@/components/attendance/export-buttons'
 import { TripHoursSetting } from '@/components/attendance/trip-hours-setting'
 import { formatWorkHours } from '@/lib/attendance'
@@ -113,16 +107,13 @@ export function AllAttendancePanel() {
       <Card>
         <CardHeader className="pb-3 flex flex-row items-center gap-3">
           <CardTitle className="text-sm">人员考勤明细</CardTitle>
-          <Select value={effectiveId} onValueChange={setSelectedId}>
-            <SelectTrigger className="h-8 w-48 text-sm">
-              <SelectValue placeholder="选择人员" />
-            </SelectTrigger>
-            <SelectContent>
-              {sortedPersonnel.map(p => (
-                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <PersonPicker
+            value={effectiveId}
+            personnel={sortedPersonnel}
+            onChange={(id) => setSelectedId(id ?? '')}
+            placeholder="选择人员"
+            className="w-48"
+          />
         </CardHeader>
         <CardContent className="pt-0">
           {!effectiveId ? (
