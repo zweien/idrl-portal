@@ -27,7 +27,7 @@ function Row({ rank, entry, primary }: { rank: number; entry: LeaderboardEntry; 
 }
 
 export function LeaderboardPanel() {
-  const { data: todayResp, isLoading: todayLoading } = useLeaderboard('today', 10)
+  const { data: todayResp, isLoading: todayLoading } = useLeaderboard('today', 20)
   const { data: monthlyResp, isLoading: monthlyLoading } = useLeaderboard('monthly', 20)
   const today = todayResp?.data
   const monthly = monthlyResp?.data
@@ -38,7 +38,7 @@ export function LeaderboardPanel() {
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-sm">
             <Clock className="h-4 w-4 text-primary" />
-            今日最早打卡 Top 10
+            今日最早打卡 Top 20
             {today?.date && <span className="text-xs font-normal text-muted-foreground ml-auto">{today.date}</span>}
           </CardTitle>
         </CardHeader>
