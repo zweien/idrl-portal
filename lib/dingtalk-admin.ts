@@ -8,6 +8,14 @@
  * access_token is cached in-memory and refreshed ~5 min before expiry.
  */
 
+import {
+  dateStr as shanghaiDateStr,
+  dateRangeDays,
+  dayBounds,
+  SHANGHAI_TZ,
+} from '@/lib/attendance'
+export { dayBounds } from '@/lib/attendance'
+
 const TOKEN_URL = 'https://api.dingtalk.com/v1.0/oauth2/accessToken'
 const DEPT_LIST_URL = 'https://oapi.dingtalk.com/topapi/v2/department/listsub'
 const USER_LIST_URL = 'https://oapi.dingtalk.com/topapi/v2/user/list'
@@ -211,44 +219,42 @@ const PROCESS_INSTANCE_URL = 'https://oapi.dingtalk.com/topapi/processinstance/l
 
 export type AttendanceResult = 'present' | 'leave' | 'trip' | 'absent'
 
-/**
- * Get today's date boundaries in Asia/Shanghai timezone (UTC+8).
- * Returns { dateStr: "yyyy-MM-dd", startMs, endMs } for local-day queries.
- */
-function todayInShanghai(): { dateStr: string; startMs: number; endMs: number } {
-  const now = new Date()
-  // Shift to UTC+8 to get the local calendar day
-  const shanghaiOffset = 8 * 60 * 60 * 1000
-  const local = new Date(now.getTime() + shanghaiOffset + now.getTimezoneOffset() * 60 * 1000)
-  const dateStr = local.toISOString().slice(0, 10)
-  // Start/end of that day in UTC+8, converted back to ms timestamps
-  const dayStart = new Date(dateStr + 'T00:00:00+08:00')
-  const dayEnd = new Date(dateStr + 'T23:59:59+08:00')
-  return { dateStr, startMs: dayStart.getTime(), endMs: dayEnd.getTime() }
+/** Format a ms epoch as "HH:mm" in Asia/Shanghai. */
+function hmInShanghai(ms: number): string {
+  return new Date(ms).toLocaleTimeString('zh-CN', { timeZone: SHANGHAI_TZ, hour: '2-digit', minute: '2-digit' })
 }
 
 /**
- * Fetch today's attendance records for a batch of DingTalk userids.
- * Returns a Map<userId, timeResult> where timeResult is the DingTalk raw
- * value (Normal/Late/Early/NotSigned/Absenteeism).
+ * Fetch attendance records for a date range (inclusive, Shanghai dates) for a
+ * batch of DingTalk userids. Returns a nested Map:
+ *   userId → dateStr → DayAttendance (onDuty and/or offDuty punches).
+ *
+ * Both OnDuty (上班) and OffDuty (下班) records are kept so that work hours
+ * can be computed. The day key comes from DingTalk's `workDate` (the shift's
+ * calendar day), so a late-night OffDuty punch still belongs to that work day.
  *
  * Throws on DingTalk API failure (don't silently treat errors as absence).
  */
-export interface AttendanceDetail {
-  timeResult: string
-  checkTime?: string // ISO string of the OnDuty punch
+export interface DayPunch {
+  timeResult: string // DingTalk raw value (Normal/Late/Early/NotSigned/Absenteeism/SeriousLate)
+  checkTime: string // "HH:mm" in Shanghai
+}
+export interface DayAttendance {
+  onDuty?: DayPunch
+  offDuty?: DayPunch
 }
 
 export async function fetchAttendance(
   accessToken: string,
   userids: string[],
-): Promise<Map<string, AttendanceDetail>> {
-  const result = new Map<string, AttendanceDetail>()
+  fromDate: string,
+  toDate: string,
+): Promise<Map<string, Map<string, DayAttendance>>> {
+  const result = new Map<string, Map<string, DayAttendance>>()
   if (userids.length === 0) return result
 
-  const { dateStr } = todayInShanghai()
-  const workDateFrom = `${dateStr} 00:00:00`
-  const workDateTo = `${dateStr} 23:59:59`
+  const workDateFrom = `${fromDate} 00:00:00`
+  const workDateTo = `${toDate} 23:59:59`
 
   // attendance/list accepts max 50 userids per call; paginate with offset.
   const USER_BATCH = 50
@@ -279,13 +285,27 @@ export async function fetchAttendance(
         const uid = r.userId ?? r.userid
         const checkType = r.checkType
         const timeResult = r.timeResult
-        if (uid && checkType === 'OnDuty' && timeResult) {
-          const userCheckTime = r.userCheckTime as number | undefined
-          const checkTime = userCheckTime
-            ? new Date(userCheckTime).toLocaleTimeString('zh-CN', { timeZone: 'Asia/Shanghai', hour: '2-digit', minute: '2-digit' })
-            : undefined
-          result.set(String(uid), { timeResult: String(timeResult), checkTime })
+        if (!uid || !checkType || !timeResult) continue
+        // The shift's calendar day (ms epoch). Fall back to the punch time's
+        // day if DingTalk omits workDate.
+        const workDateMs = (r.workDate ?? r.userCheckTime) as number | undefined
+        if (!workDateMs) continue
+        const dateKey = shanghaiDateStr(workDateMs)
+        const userCheckTime = r.userCheckTime as number | undefined
+        if (!userCheckTime) continue
+        const punch: DayPunch = { timeResult: String(timeResult), checkTime: hmInShanghai(userCheckTime) }
+        let byDay = result.get(String(uid))
+        if (!byDay) {
+          byDay = new Map()
+          result.set(String(uid), byDay)
         }
+        let day = byDay.get(dateKey)
+        if (!day) {
+          day = {}
+          byDay.set(dateKey, day)
+        }
+        if (checkType === 'OnDuty') day.onDuty = punch
+        else if (checkType === 'OffDuty') day.offDuty = punch
       }
       if (!data.hasMore) break
       offset += 50
@@ -295,19 +315,25 @@ export async function fetchAttendance(
 }
 
 /**
- * Fetch today's leave status for a batch of DingTalk userids.
- * Returns a Set of userids that are on leave today.
+ * Fetch leave status for a date range (inclusive, Shanghai dates) for a batch
+ * of DingTalk userids. Returns userId → Set<dateStr> of days the user was on
+ * leave. DingTalk returns each leave record with start/end timestamps; we
+ * expand it to the per-day set covering the queried range.
  *
  * Throws on DingTalk API failure.
  */
 export async function fetchLeaveStatus(
   accessToken: string,
   userids: string[],
-): Promise<Set<string>> {
-  const result = new Set<string>()
+  fromDate: string,
+  toDate: string,
+): Promise<Map<string, Set<string>>> {
+  const result = new Map<string, Set<string>>()
   if (userids.length === 0) return result
 
-  const { startMs, endMs } = todayInShanghai()
+  const { startMs, endMs } = dayBounds(fromDate)
+  const { endMs: rangeEndMs } = dayBounds(toDate)
+  const daysInRange = new Set(dateRangeDays(fromDate, toDate))
 
   // getleavestatus limits size to max 20 per call
   const BATCH = 20
@@ -319,7 +345,7 @@ export async function fetchLeaveStatus(
       const res = await fetch(`${LEAVE_STATUS_URL}?access_token=${accessToken}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userid_list: batch, start_time: startMs, end_time: endMs, offset, size: BATCH }),
+        body: JSON.stringify({ userid_list: batch, start_time: startMs, end_time: rangeEndMs, offset, size: BATCH }),
         cache: 'no-store',
       })
       if (!res.ok) {
@@ -329,7 +355,11 @@ export async function fetchLeaveStatus(
         errcode?: number
         errmsg?: string
         result?: {
-          leave_status?: Array<{ userid?: string }>
+          leave_status?: Array<{
+            userid?: string
+            start_time?: number
+            end_time?: number
+          }>
           has_more?: boolean
         }
       }
@@ -337,7 +367,26 @@ export async function fetchLeaveStatus(
         throw new Error(`getleavestatus error ${data.errcode}: ${data.errmsg}`)
       }
       for (const ls of data.result?.leave_status ?? []) {
-        if (ls.userid) result.add(ls.userid)
+        if (!ls.userid) continue
+        // Expand [start_time, end_time] into per-day keys, intersected with the
+        // queried range (DingTalk timestamps are ms epochs).
+        const lsStart = ls.start_time ?? startMs
+        const lsEnd = ls.end_time ?? endMs
+        for (let t = lsStart; t <= lsEnd; t += 24 * 60 * 60 * 1000) {
+          const d = shanghaiDateStr(t)
+          if (!daysInRange.has(d)) {
+            // The leave day's bucket might fall outside the queried range due
+            // to tz alignment; only record in-range days.
+            const b = dayBounds(d)
+            if (b.endMs < startMs || b.startMs > rangeEndMs) continue
+          }
+          let set = result.get(ls.userid)
+          if (!set) {
+            set = new Set()
+            result.set(ls.userid, set)
+          }
+          set.add(d)
+        }
       }
       if (!data.result?.has_more) break
       offset += BATCH
@@ -377,19 +426,18 @@ function pruneTripCache(now: number) {
 
 /**
  * Fetch + parse a trip instance detail, using the cache when available.
- * Returns null for non-COMPLETED/agree or unparseable instances (and caches
- * that null-decision so we don't refetch).
+ * Returns the parsed trip window (or null for non-COMPLETED/agree/unparseable
+ * instances, caching that decision so we don't refetch). The caller tests a
+ * specific day against the returned window.
  */
 async function getTripDetail(
   accessToken: string,
   instanceId: string,
-): Promise<{ active: boolean; reason?: string } | null> {
-  const today = todayInShanghai()
+): Promise<{ tripStart: number; tripEnd: number; reason?: string } | null> {
   const cached = tripDetailCache.get(instanceId)
   if (cached) {
     if (!cached.parsed) return null
-    const active = cached.tripStart <= today.endMs && cached.tripEnd >= today.startMs
-    return { active, reason: cached.reason }
+    return { tripStart: cached.tripStart, tripEnd: cached.tripEnd, reason: cached.reason }
   }
   const detailRes = await fetch(`${PROCESS_DETAIL_URL}?access_token=${accessToken}`, {
     method: 'POST',
@@ -430,8 +478,7 @@ async function getTripDetail(
     reason: parsed.reason,
     parsed: true,
   })
-  const active = parsed.tripStart <= today.endMs && parsed.tripEnd >= today.startMs
-  return { active, reason: parsed.reason }
+  return { tripStart: parsed.tripStart, tripEnd: parsed.tripEnd, reason: parsed.reason }
 }
 
 /**
@@ -503,8 +550,10 @@ export function parseTripWindow(formValues: unknown[]): { tripStart: number | nu
 }
 
 /**
- * Fetch today's business-trip status. Returns userid → reason for everyone
- * currently on a trip (COMPLETED + agree, today within the trip's date range).
+ * Fetch business-trip status over the queried date range. Returns
+ * userid → { days: Set<dateStr>, reason } for every day each person was on a
+ * trip (a trip spanning Mon–Wed marks all three days). The reason is the most
+ * recently-seen active trip's reason, used for today's Person.avatar display.
  *
  * Cost optimization vs. the previous per-userid loop:
  *  - `listids` is called ONCE per processCode (without userid) instead of
@@ -514,14 +563,23 @@ export function parseTripWindow(formValues: unknown[]): { tripStart: number | nu
  *  - Each instance's detail is fetched once and CACHED (a COMPLETED trip's
  *    date range doesn't change), so steady-state syncs skip the `get` calls.
  *
+ * The listids query window is fixed at [now-30d, now] (trips don't matter
+ * past 30 days for our finalize-3-day window), but the per-day attribution
+ * tests the parsed window against each day in `queryDays`.
+ *
  * Throws on DingTalk API failure.
  */
+export interface TripStatus {
+  days: Set<string>
+  reason?: string
+}
 export async function fetchTripStatus(
   accessToken: string,
   userids: string[],
-): Promise<Map<string, string>> {
-  const result = new Map<string, string>() // userid → reason
-  if (userids.length === 0) return result
+  queryDays: string[],
+): Promise<Map<string, TripStatus>> {
+  const result = new Map<string, TripStatus>()
+  if (userids.length === 0 || queryDays.length === 0) return result
 
   const rawCodes = process.env.DINGTALK_TRIP_PROCESS_CODE
   if (!rawCodes) return result
@@ -534,6 +592,9 @@ export async function fetchTripStatus(
 
   const endTime = now
   const startTime = endTime - 30 * 24 * 60 * 60 * 1000
+
+  // Pre-compute day bounds for each queried day.
+  const dayBoundsList = queryDays.map(d => ({ day: d, ...dayBounds(d) }))
 
   // listids accepts userid_list (comma-separated, batch) and paginates with
   // cursor + size (size max 20). userid_list has a small cap (40032 above ~10),
@@ -571,12 +632,27 @@ export async function fetchTripStatus(
 
         for (const instanceId of instanceIds) {
           const detail = await getTripDetail(accessToken, instanceId)
-          if (!detail || !detail.active) continue
+          if (!detail) continue
           // Attribute the trip to its originator (recorded in the cache on
           // first fetch); only keep synced users.
           const owner = tripOriginator.get(instanceId)
           if (!owner || !useridSet.has(owner)) continue
-          result.set(owner, detail.reason ?? '出差')
+          // For each queried day, mark it if it falls inside [tripStart, tripEnd].
+          let entry = result.get(owner)
+          if (!entry) {
+            entry = { days: new Set() }
+            result.set(owner, entry)
+          }
+          let markedAny = false
+          for (const db of dayBoundsList) {
+            if (db.startMs <= detail.tripEnd && db.endMs >= detail.tripStart) {
+              entry.days.add(db.day)
+              markedAny = true
+            }
+          }
+          // Keep the reason of the most recently active trip (later iterations
+          // overwrite; fine since a person rarely has 2 concurrent trips).
+          if (markedAny) entry.reason = detail.reason
         }
 
         const next = listData.result?.next_cursor
@@ -592,24 +668,28 @@ export async function fetchTripStatus(
 }
 
 /**
- * Map attendance data to Person.status using the priority:
+ * Map attendance data for a single day to Person.status using the priority:
  * trip > leave > attendance punch > absent.
  *
  * "Punched in" = any OnDuty record exists (Normal, Late, Early, SeriousLate).
  * Only NotSigned / Absenteeism / no record at all → absent.
+ *
+ * Also returns the day's OnDuty/OffDuty punches so the caller can persist them.
  */
-export function mapStatus(
+export function mapStatusForDay(
   userid: string,
-  tripMap: Map<string, string>,
-  leaveSet: Set<string>,
-  attendanceMap: Map<string, AttendanceDetail>,
-): AttendanceResult {
-  if (tripMap.has(userid)) return 'trip'
-  if (leaveSet.has(userid)) return 'leave'
-  const att = attendanceMap.get(userid)
-  if (att && att.timeResult !== 'NotSigned' && att.timeResult !== 'Absenteeism') {
-    return 'present'
+  day: string,
+  tripByDay: Map<string, TripStatus>,
+  leaveByDay: Map<string, Set<string>>,
+  attByDay: Map<string, Map<string, DayAttendance>>,
+): { status: AttendanceResult; onDuty?: DayPunch; offDuty?: DayPunch } {
+  if (tripByDay.get(userid)?.days.has(day)) return { status: 'trip' }
+  if (leaveByDay.get(userid)?.has(day)) return { status: 'leave' }
+  const dayAtt = attByDay.get(userid)?.get(day)
+  if (dayAtt?.onDuty && dayAtt.onDuty.timeResult !== 'NotSigned' && dayAtt.onDuty.timeResult !== 'Absenteeism') {
+    return { status: 'present', onDuty: dayAtt.onDuty, offDuty: dayAtt.offDuty }
   }
-  return 'absent'
+  // Absent, but still surface any OffDuty punch we have (rare, but for record).
+  return { status: 'absent', offDuty: dayAtt?.offDuty }
 }
 

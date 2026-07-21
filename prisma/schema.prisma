@@ -49,18 +49,37 @@ model Workstation {
 }
 
 model Person {
-  id             String        @id
-  name           String
-  role           String
-  email          String?
-  phone          String?
-  dingUserId     String?
-  status         String
-  lastSeen       String?
-  researchAreas  String?
-  avatar         String?
-  workstations   Workstation[]
-  users          User[]
+  id                String              @id
+  name              String
+  role              String
+  email             String?
+  phone             String?
+  dingUserId        String?
+  status            String
+  lastSeen          String?
+  researchAreas     String?
+  avatar            String?
+  workstations      Workstation[]
+  users             User[]
+  attendanceRecords AttendanceRecord[]
+}
+
+// Daily attendance punch history (sourced from DingTalk, then finalized).
+// One row per (person, date); upserted on each sync so re-pulls are idempotent.
+// checkIn/checkOut are "HH:mm" in Asia/Shanghai; null when the punch is
+// missing for that day. status is the day's final attendance result.
+model AttendanceRecord {
+  id        String  @id @default(cuid())
+  personId  String
+  person    Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
+  date      String  // "yyyy-MM-dd" Asia/Shanghai
+  checkIn   String? // OnDuty punch "HH:mm"
+  checkOut  String? // OffDuty punch "HH:mm"
+  status    String  // present | leave | trip | absent
+
+  @@unique([personId, date])
+  @@index([date])
+  @@index([personId])
 }
 
 model User {

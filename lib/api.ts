@@ -234,3 +234,44 @@ export function useAuditLogs(params?: Record<string, string | number>) {
     fetcher,
   )
 }
+
+// ===== Attendance history & stats =====
+
+export interface LeaderboardEntry {
+  personId: string
+  name: string
+  checkIn?: string | null
+  workMinutes?: number | null
+}
+export interface LeaderboardData {
+  type: 'today' | 'monthly'
+  items: LeaderboardEntry[]
+  date?: string
+  from?: string
+  to?: string
+}
+
+export interface AttendanceRecordItem {
+  id: string
+  date: string
+  checkIn?: string | null
+  checkOut?: string | null
+  status: 'present' | 'leave' | 'trip' | 'absent'
+  workMinutes: number | null
+}
+
+export function useLeaderboard(type: 'today' | 'monthly', limit = 10) {
+  return useSWR<ApiResponse<LeaderboardData>>(
+    `/api/attendance/leaderboard?type=${type}&limit=${limit}`,
+    fetcher,
+  )
+}
+
+export function useAttendanceRecords(params?: Record<string, string | number> | null) {
+  // Passing null params disables the fetch (SWR conditional pattern).
+  const key = params === null ? null : `/api/attendance/records${qs(params ?? undefined)}`
+  return useSWR<ApiResponse<PaginatedResponse<AttendanceRecordItem>>>(
+    key,
+    fetcher,
+  )
+}

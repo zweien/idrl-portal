@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mapStatus, parseTripWindow, type AttendanceDetail } from '@/lib/dingtalk-admin'
+import { mapStatusForDay, parseTripWindow, type DayAttendance, type TripStatus } from '@/lib/dingtalk-admin'
 
 describe('parseTripWindow (trip form → date range + reason)', () => {
   it('parses 京内 format (开始/结束时间 JSON array field)', () => {
@@ -43,33 +43,57 @@ describe('parseTripWindow (trip form → date range + reason)', () => {
   })
 })
 
-describe('mapStatus (attendance priority: trip > leave > present > absent)', () => {
-  const trip = new Map<string, string>([['u_trip', '京外出差']])
-  const leave = new Set<string>(['u_leave'])
-  const att = (timeResult: string): Map<string, AttendanceDetail> =>
-    new Map([['u_present', { timeResult, checkTime: '08:01' }]])
+describe('mapStatusForDay (per-day priority: trip > leave > present > absent)', () => {
+  const DAY = '2026-07-21'
+  const tripStatus = (days: string[], reason?: string): TripStatus => ({ days: new Set(days), reason })
+  const trip = new Map<string, TripStatus>([['u_trip', tripStatus([DAY], '京外出差')]])
+  const leave = new Map<string, Set<string>>([['u_leave', new Set([DAY])]])
+  // att: Map<uid, Map<day, DayAttendance>>
+  const attDay = (timeResult: string): Map<string, Map<string, DayAttendance>> => {
+    const inner = new Map<string, DayAttendance>([[DAY, { onDuty: { timeResult, checkTime: '08:01' } }]])
+    return new Map([['u_present', inner]])
+  }
 
   it('trip wins over everything', () => {
-    // u_trip is in tripMap; also give it a punch + leave to confirm priority.
-    const m = new Map([['u_trip', { timeResult: 'Normal', checkTime: '08:01' }]])
-    const l = new Set(['u_trip'])
-    expect(mapStatus('u_trip', trip, l, m)).toBe('trip')
+    const m = attDay('Normal')
+    const l = new Map([['u_trip', new Set([DAY])]])
+    expect(mapStatusForDay('u_trip', DAY, trip, l, m).status).toBe('trip')
+  })
+
+  it('trip uses .days set (not the bare value)', () => {
+    // Confirm the new TripStatus shape works via the dedicated accessor.
+    const t = new Map([['u_x', tripStatus([DAY])]])
+    expect(mapStatusForDay('u_x', DAY, t, new Map(), new Map()).status).toBe('trip')
   })
 
   it('leave wins over present', () => {
-    const m = new Map([['u_leave', { timeResult: 'Normal', checkTime: '08:01' }]])
-    expect(mapStatus('u_leave', trip, leave, m)).toBe('leave')
+    const m = attDay('Normal')
+    expect(mapStatusForDay('u_leave', DAY, trip, leave, m).status).toBe('leave')
   })
 
   it('any real OnDuty punch (incl. Late/Early) → present', () => {
     for (const tr of ['Normal', 'Late', 'Early', 'SeriousLate']) {
-      expect(mapStatus('u_present', trip, leave, att(tr))).toBe('present')
+      expect(mapStatusForDay('u_present', DAY, trip, leave, attDay(tr)).status).toBe('present')
     }
   })
 
   it('NotSigned / Absenteeism / no record → absent', () => {
-    expect(mapStatus('u_present', trip, leave, att('NotSigned'))).toBe('absent')
-    expect(mapStatus('u_present', trip, leave, att('Absenteeism'))).toBe('absent')
-    expect(mapStatus('u_unknown', trip, leave, new Map())).toBe('absent')
+    expect(mapStatusForDay('u_present', DAY, trip, leave, attDay('NotSigned')).status).toBe('absent')
+    expect(mapStatusForDay('u_present', DAY, trip, leave, attDay('Absenteeism')).status).toBe('absent')
+    expect(mapStatusForDay('u_unknown', DAY, trip, leave, new Map()).status).toBe('absent')
+  })
+
+  it('surfaces onDuty + offDuty punches on present', () => {
+    const inner = new Map<string, DayAttendance>([
+      [DAY, {
+        onDuty: { timeResult: 'Normal', checkTime: '09:05' },
+        offDuty: { timeResult: 'Normal', checkTime: '18:32' },
+      }],
+    ])
+    const m = new Map([['u_present', inner]])
+    const r = mapStatusForDay('u_present', DAY, trip, leave, m)
+    expect(r.status).toBe('present')
+    expect(r.onDuty?.checkTime).toBe('09:05')
+    expect(r.offDuty?.checkTime).toBe('18:32')
   })
 })

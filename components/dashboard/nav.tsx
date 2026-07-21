@@ -35,12 +35,14 @@ import {
   ChevronDown,
   PanelLeftClose,
   PanelLeftOpen,
+  CalendarClock,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
 const navItems = [
   { href: '/dashboard',            label: '概览',     icon: LayoutDashboard },
   { href: '/dashboard/personnel',  label: '人员工位', icon: Users },
+  { href: '/dashboard/attendance', label: '考勤统计', icon: CalendarClock },
   { href: '/dashboard/resources',  label: '资源聚合', icon: Server },
   { href: '/dashboard/news',       label: '最新动态', icon: Newspaper },
   { href: '/dashboard/admin',      label: '信息管理', icon: Settings },
