@@ -129,13 +129,20 @@ certbot --nginx -d portal.idrl.top
 
 ```bash
 cd /opt/idrl-portal
-corepack pnpm install --frozen-lockfile --config.dangerouslyAllowAllBuilds=true
-set -a && source ./.env.production && set +a
-corepack pnpm exec prisma migrate deploy
+corepack pnpm install --frozen-lockfile
 corepack pnpm run build
+DATABASE_URL="$(grep '^DATABASE_URL=' .env.production | cut -d= -f2- | tr -d '"')" \
+  corepack pnpm exec prisma migrate deploy
+export VPS_APP_DIR=/opt/idrl-portal
 pm2 start ecosystem.config.js --env production --update-env
 pm2 save
 ```
+
+说明：
+
+- `next build` / `next start` 会自动加载 `.env.production`（Next.js 内建行为），不需要手动 `source`
+- `prisma migrate deploy` 是独立进程，只需 `DATABASE_URL`，用 grep/cut 提取而不是 `source` 整个文件（避免值里的 `$` 被 shell 展开）
+- `VPS_APP_DIR` 需要导出给 pm2，否则 `ecosystem.config.js` 里的 `appDir` 会回退到默认值
 
 查看状态：
 
@@ -157,11 +164,10 @@ workflow 不是由 `master` push 触发，而是由以下两种方式触发：
 1. 通过 SSH 登录 VPS
 2. `git fetch --all --tags` 并 `git checkout "tags/<release-tag>" -B release-deploy`
 3. `pnpm install --frozen-lockfile`
-4. 加载 `.env.production`
+4. `next build`（自动加载 `.env.production`）
 5. `prisma migrate deploy`（对线上 SQLite 应用迁移）
-6. `next build`
-7. `pm2 startOrReload ecosystem.config.js --env production --update-env`
-8. `pm2 save`
+6. `pm2 startOrReload ecosystem.config.js --env production --update-env`
+7. `pm2 save`
 
 线上部署版本严格对应指定 tag，不自动跟随 `master`。
 
@@ -184,10 +190,11 @@ workflow 不是由 `master` push 触发，而是由以下两种方式触发：
 cd /opt/idrl-portal
 git fetch --all --tags
 git checkout "tags/v0.1.0" -B release-deploy
-corepack pnpm install --frozen-lockfile --config.dangerouslyAllowAllBuilds=true
-set -a && source ./.env.production && set +a
-corepack pnpm exec prisma migrate deploy
+corepack pnpm install --frozen-lockfile
 corepack pnpm run build
+DATABASE_URL="$(grep '^DATABASE_URL=' .env.production | cut -d= -f2- | tr -d '"')" \
+  corepack pnpm exec prisma migrate deploy
+export VPS_APP_DIR=/opt/idrl-portal
 pm2 startOrReload ecosystem.config.js --env production --update-env
 pm2 save
 ```
@@ -212,9 +219,9 @@ pm2 save
 ```bash
 cd /opt/idrl-portal
 rm -rf node_modules
-corepack pnpm install --frozen-lockfile --config.dangerouslyAllowAllBuilds=true
-set -a && source ./.env.production && set +a
+corepack pnpm install --frozen-lockfile
 corepack pnpm run build
+export VPS_APP_DIR=/opt/idrl-portal
 pm2 startOrReload ecosystem.config.js --env production --update-env
 pm2 save
 ```

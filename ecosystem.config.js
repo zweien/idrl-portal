@@ -6,9 +6,12 @@ module.exports = {
       name: 'idrl-portal',
       cwd: appDir,
       script: '/bin/bash',
+      // next start 会自动加载项目根目录的 .env.production（Next.js 内建
+      // dotenv 行为），无需用 bash source —— source 会把值里的 $、` 等当
+      // shell 语法展开，有执行任意命令的风险。
       args: [
         '-lc',
-        'set -a && source ./.env.production && set +a && exec corepack pnpm run start -- --hostname 127.0.0.1 --port "${PORT:-3050}"',
+        'exec corepack pnpm run start -- --hostname 127.0.0.1 --port "${PORT:-3050}"',
       ],
       instances: 1,
       exec_mode: 'fork',
