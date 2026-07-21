@@ -26,6 +26,21 @@ describe('middleware route protection', () => {
     expect(res.headers.get('location')).toContain('/login')
   })
 
+  it('redirects to the public origin from proxy headers, not req.url (localhost)', async () => {
+    // Regression: behind nginx, req.url is http://localhost:<port>; resolving
+    // redirects against it sent users to https://localhost:3050 in prod.
+    mockGetSessionFromRequest.mockResolvedValue({})
+    const req = new NextRequest(new URL('http://localhost:3050/dashboard'), {
+      headers: {
+        'x-forwarded-proto': 'https',
+        'x-forwarded-host': 'portal.idrl.top',
+      },
+    })
+    const res = await middleware(req)
+    expect(res.status).toBe(307)
+    expect(res.headers.get('location')).toBe('https://portal.idrl.top/login')
+  })
+
   it('admits an authenticated user to /dashboard', async () => {
     mockGetSessionFromRequest.mockResolvedValue({ userId: 'u1', provider: 'local', role: 'member' })
     const res = await middleware(makeReq('/dashboard'))
