@@ -112,6 +112,9 @@ server {
         proxy_pass http://127.0.0.1:3050;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
+        # 显式覆盖 X-Forwarded-Host：nginx 默认透传客户端头，不覆盖的话
+        # 客户端可伪造该头污染 getRequestOrigin（开放重定向）
+        proxy_set_header X-Forwarded-Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
