@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { toResource, fromResource } from '@/lib/db/serialize'
-import { requireUserOrScope, requireAdmin } from '@/lib/auth-api'
+import { requireUserOrScope, requireScope } from '@/lib/auth-api'
 import { logAction, actorFromAuth } from '@/lib/audit'
 import type { Resource, ApiResponse, PaginatedResponse } from '@/lib/types'
 
@@ -43,7 +43,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireAdmin()
+  const auth = await requireScope(req, 'resource:publish')
   if (auth instanceof NextResponse) return auth
 
   let body: Partial<Resource>

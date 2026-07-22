@@ -123,6 +123,7 @@ Authorization: Bearer idrl_<48 hex>
 | `news:read` | `GET /api/news` |
 | `news:publish` | `POST / PATCH / DELETE /api/news(/:id)` |
 | `resource:read` | `GET /api/resources` |
+| `resource:publish` | `POST / PATCH / DELETE /api/resources(/:id)` |
 
 - 未列出的端点（人员、用户、布局、备份、设置、日志等管理面）**只接受 admin session**，不识别 API key
 - 无效 / 已吊销 / scope 不符的 key 会**静默回落**到 session 判定（不会报「key 无效」），所以 key 用错时看到的是 401/403
@@ -184,6 +185,13 @@ curl "$BASE/api/news?page=1&pageSize=20&pinned=true&search=论文" -H "Authoriza
 
 # 5) 读取资源
 curl "$BASE/api/resources?status=available" -H "Authorization: Bearer $KEY"
+
+# 6) 创建 / 更新 / 删除资源（resource:publish）
+curl -X POST "$BASE/api/resources" \
+  -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"name":"值班管理系统","description":"实验室值班排班与调班管理","url":"https://scheduling.idrl.top","status":"available","accessLevel":"member"}'
+curl -X PATCH  "$BASE/api/resources/<id>" -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" -d '{"status":"maintenance"}'
+curl -X DELETE "$BASE/api/resources/<id>" -H "Authorization: Bearer $KEY"
 ```
 
 > 管理面操作（人员 / 布局 / 备份 / 设置 / 用户）需要 **admin session cookie**。开发环境可用 `POST /api/auth/dev-login`（`{"username":"admin"}`）换取 cookie；生产环境目前只有 OAuth 交互登录。
@@ -202,8 +210,8 @@ curl "$BASE/api/resources?status=available" -H "Authorization: Bearer $KEY"
 | POST | `/api/news` | 🔑 `news:publish` | 创建动态（支持定时发布） |
 | PATCH · DELETE | `/api/news/:id` | 🔑 `news:publish` | 修改 / 删除动态 |
 | GET | `/api/resources` | 👤 `resource:read` | 资源列表（分页/筛选） |
-| POST | `/api/resources` | 🛡 | 创建资源 |
-| PATCH · DELETE | `/api/resources/:id` | 🛡 | 修改 / 删除资源 |
+| POST | `/api/resources` | 🔑 `resource:publish` | 创建资源 |
+| PATCH · DELETE | `/api/resources/:id` | 🔑 `resource:publish` | 修改 / 删除资源 |
 | GET | `/api/categories?kind=` | 👤 | 分类列表（news / resource 共用） |
 | POST | `/api/categories` | 🛡 | 创建分类 |
 | PATCH · DELETE | `/api/categories/:id` | 🛡 | 修改 / 删除分类（删除后引用置空） |
@@ -289,8 +297,8 @@ Resource = {
 }
 ```
 
-**POST /api/resources** — 🛡：必填 `name, description, status, accessLevel` → 201 Resource 裸 JSON。
-**PATCH / DELETE /api/resources/:id** — 🛡：语义同 news。
+**POST /api/resources** — 🔑 `resource:publish`：必填 `name, description, status, accessLevel`；可选 `url, icon, specs, categoryId` → 201 Resource 裸 JSON。
+**PATCH / DELETE /api/resources/:id** — 🔑 `resource:publish`：语义同 news。
 
 ### 分类 `/api/categories`
 

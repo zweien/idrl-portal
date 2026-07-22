@@ -177,6 +177,7 @@ export type ApiScope =
   | 'sync:attendance'
   | 'news:publish'
   | 'news:read'
+  | 'resource:publish'
   | 'resource:read'
 
 /** API key row (never includes the plaintext — only the prefix + hash). */

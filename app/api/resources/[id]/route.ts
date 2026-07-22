@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { toResource, fromResource } from '@/lib/db/serialize'
-import { requireAdmin } from '@/lib/auth-api'
+import { requireScope } from '@/lib/auth-api'
 import { logAction, actorFromAuth } from '@/lib/audit'
 import type { Resource } from '@/lib/types'
 
 /** PATCH /api/resources/:id — update a single resource. */
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireAdmin()
+  const auth = await requireScope(req, 'resource:publish')
   if (auth instanceof NextResponse) return auth
 
   const { id } = await params
@@ -34,8 +34,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 }
 
 /** DELETE /api/resources/:id — delete a single resource. */
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireAdmin()
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await requireScope(req, 'resource:publish')
   if (auth instanceof NextResponse) return auth
 
   const { id } = await params

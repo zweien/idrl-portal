@@ -8,7 +8,7 @@ import { logAction, actorFromAuth } from '@/lib/audit'
 import type { ApiKey, ApiScope, ApiResponse } from '@/lib/types'
 
 const ALL_SCOPES: ApiScope[] = [
-  'sync:members', 'sync:attendance', 'news:publish', 'news:read', 'resource:read',
+  'sync:members', 'sync:attendance', 'news:publish', 'news:read', 'resource:publish', 'resource:read',
 ]
 
 function isScope(v: unknown): v is ApiScope {
