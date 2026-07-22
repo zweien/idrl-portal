@@ -5,6 +5,12 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v0.1.3] - 2026-07-22
+
+### 新增
+
+- feat(admin): 工位布局支持调整区域显示顺序 (#52)
+
 ## [v0.1.2] - 2026-07-22
 
 ### 新增
