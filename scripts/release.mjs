@@ -26,7 +26,7 @@ if (!version || !/^\d+\.\d+\.\d+$/.test(version)) {
 const tag = `v${version}`
 
 const run = (cmd, opts = {}) =>
-  execSync(cmd, { encoding: 'utf8', stdio: opts.quiet ? 'pipe' : 'inherit', ...opts }).trim()
+  (execSync(cmd, { encoding: 'utf8', stdio: opts.quiet ? 'pipe' : 'inherit', ...opts }) ?? '').trim()
 const runOut = cmd => execSync(cmd, { encoding: 'utf8' }).trim()
 
 /** 网络型 git 操作（fetch/push）偶发 TLS 中断，自动重试。 */
