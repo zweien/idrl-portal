@@ -119,6 +119,24 @@ export function FloorEditor({ floors, onChange, selectedFloorId, onSelectedFloor
     if (selectedZoneId === zoneId) setSelectedZoneId('')
   }
 
+  const moveZone = (zoneId: string, direction: -1 | 1) => {
+    if (!selectedFloor) return
+    updateFloors(f =>
+      f.map(fl => {
+        if (fl.id !== selectedFloor.id) return fl
+        const sorted = [...fl.zones].sort((a, b) => a.order - b.order)
+        const idx = sorted.findIndex(z => z.id === zoneId)
+        if (idx < 0) return fl
+        const swapIdx = idx + direction
+        if (swapIdx < 0 || swapIdx >= sorted.length) return fl
+        const tmp = sorted[idx].order
+        sorted[idx] = { ...sorted[idx], order: sorted[swapIdx].order }
+        sorted[swapIdx] = { ...sorted[swapIdx], order: tmp }
+        return { ...fl, zones: sorted.sort((a, b) => a.order - b.order) }
+      }),
+    )
+  }
+
   const updateZoneGrid = (rows: number, cols: number) => {
     if (!selectedFloor || !selectedZone) return
     updateFloors(f =>
@@ -288,6 +306,12 @@ export function FloorEditor({ floors, onChange, selectedFloorId, onSelectedFloor
                 <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: zone.color }} />
                 <span className="flex-1">{zone.name}</span>
                 <span className="text-xs text-muted-foreground">{zone.rows}×{zone.cols}</span>
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={e => { e.stopPropagation(); moveZone(zone.id, -1) }}>
+                  <ChevronUp className="h-3 w-3" />
+                </Button>
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={e => { e.stopPropagation(); moveZone(zone.id, 1) }}>
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
                 <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive" onClick={e => { e.stopPropagation(); removeZone(zone.id) }}>
                   <Trash2 className="h-3 w-3" />
                 </Button>
