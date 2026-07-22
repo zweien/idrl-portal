@@ -50,7 +50,7 @@ export function FloorEditor({ floors, onChange, selectedFloorId, onSelectedFloor
     const newFloor: Floor = {
       id,
       name: newFloorName.trim(),
-      order: floors.length,
+      order: floors.reduce((max, fl) => Math.max(max, fl.order), -1) + 1,
       zones: [],
     }
     updateFloors(f => [...f, newFloor])
@@ -70,15 +70,15 @@ export function FloorEditor({ floors, onChange, selectedFloorId, onSelectedFloor
 
   const moveFloor = (floorId: string, direction: -1 | 1) => {
     updateFloors(f => {
-      const idx = f.findIndex(fl => fl.id === floorId)
+      const sorted = [...f].sort((a, b) => a.order - b.order)
+      const idx = sorted.findIndex(fl => fl.id === floorId)
       if (idx < 0) return f
       const swapIdx = idx + direction
-      if (swapIdx < 0 || swapIdx >= f.length) return f
-      const copy = [...f]
-      const tmp = copy[idx].order
-      copy[idx] = { ...copy[idx], order: copy[swapIdx].order }
-      copy[swapIdx] = { ...copy[swapIdx], order: tmp }
-      return copy.sort((a, b) => a.order - b.order)
+      if (swapIdx < 0 || swapIdx >= sorted.length) return f
+      const [moved] = sorted.splice(idx, 1)
+      sorted.splice(swapIdx, 0, moved)
+      // normalize: gaps/duplicates left by add/remove must not block swaps
+      return sorted.map((fl, i) => (fl.order === i ? fl : { ...fl, order: i }))
     })
   }
 
@@ -90,7 +90,7 @@ export function FloorEditor({ floors, onChange, selectedFloorId, onSelectedFloor
       name: newZoneName.trim(),
       floorId: selectedFloor.id,
       color: `oklch(0.65 0.15 ${Math.floor(Math.random() * 360)})`,
-      order: selectedFloor.zones.length,
+      order: selectedFloor.zones.reduce((max, z) => Math.max(max, z.order), -1) + 1,
       mode: 'grid' as const,
       rows: 2,
       cols: 3,
@@ -129,10 +129,10 @@ export function FloorEditor({ floors, onChange, selectedFloorId, onSelectedFloor
         if (idx < 0) return fl
         const swapIdx = idx + direction
         if (swapIdx < 0 || swapIdx >= sorted.length) return fl
-        const tmp = sorted[idx].order
-        sorted[idx] = { ...sorted[idx], order: sorted[swapIdx].order }
-        sorted[swapIdx] = { ...sorted[swapIdx], order: tmp }
-        return { ...fl, zones: sorted.sort((a, b) => a.order - b.order) }
+        const [moved] = sorted.splice(idx, 1)
+        sorted.splice(swapIdx, 0, moved)
+        // normalize: gaps/duplicates left by add/remove must not block swaps
+        return { ...fl, zones: sorted.map((z, i) => (z.order === i ? z : { ...z, order: i })) }
       }),
     )
   }
