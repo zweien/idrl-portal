@@ -36,8 +36,10 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   CalendarClock,
+  History,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
+import { APP_VERSION } from '@/lib/version'
 
 const navItems = [
   { href: '/dashboard',            label: '概览',     icon: LayoutDashboard },
@@ -46,6 +48,7 @@ const navItems = [
   { href: '/dashboard/resources',  label: '资源聚合', icon: Server },
   { href: '/dashboard/news',       label: '最新动态', icon: Newspaper },
   { href: '/dashboard/admin',      label: '信息管理', icon: Settings },
+  { href: '/dashboard/changelog',  label: '更新日志', icon: History },
 ]
 
 function ThemeToggle({ collapsed }: { collapsed: boolean }) {
@@ -112,6 +115,7 @@ export function DashboardNav() {
                 <span className="text-[10px] font-bold text-primary-foreground leading-none">ID</span>
               </div>
               <span className="text-sm font-semibold tracking-tight">IDRL Portal</span>
+              <span className="text-[10px] text-muted-foreground/70 font-mono mt-0.5">v{APP_VERSION}</span>
             </Link>
           )}
           {collapsed && (

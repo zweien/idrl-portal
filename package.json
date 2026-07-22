@@ -1,6 +1,6 @@
 {
   "name": "my-project",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "packageManager": "pnpm@11.12.0",
   "scripts": {
@@ -13,7 +13,8 @@
     "db:seed": "tsx lib/db/seed.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "release": "node scripts/release.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
