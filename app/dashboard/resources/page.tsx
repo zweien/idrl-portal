@@ -78,6 +78,7 @@ export default function ResourcesPage() {
       void mutate()
     } catch (e) {
       setEditError(e instanceof Error ? e.message : '保存失败')
+      throw e // keep the dialog open so edits aren't lost
     }
   }
 
@@ -321,6 +322,8 @@ export default function ResourcesPage() {
         <ResourceDialog
           key={`${editing.id}-${editNonce}`}
           initialData={editing}
+          // hide the dialog's default trigger — opening is driven by the pencils
+          trigger={<span className="hidden" aria-hidden />}
           onSubmit={handleEditSubmit}
         />
       )}

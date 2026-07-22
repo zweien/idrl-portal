@@ -43,7 +43,7 @@ const accessOptions: { value: Resource['accessLevel']; label: string }[] = [
 interface ResourceDialogProps {
   initialData?: Resource
   trigger?: React.ReactNode
-  onSubmit: (resource: Resource) => void
+  onSubmit: (resource: Resource) => void | Promise<void>
 }
 
 export function ResourceDialog({ initialData, trigger, onSubmit }: ResourceDialogProps) {
@@ -70,8 +70,10 @@ export function ResourceDialog({ initialData, trigger, onSubmit }: ResourceDialo
   const addSpecRow = () => setSpecRows(rows => [...rows, { k: '', v: '' }])
   const removeSpecRow = (idx: number) => setSpecRows(rows => rows.filter((_, i) => i !== idx))
 
-  const handleSubmit = () => {
-    if (!form.name) return
+  const [submitting, setSubmitting] = useState(false)
+
+  const handleSubmit = async () => {
+    if (!form.name || submitting) return
     const specsObj: Record<string, string> = {}
     for (const { k, v } of specRows) {
       const key = k.trim()
@@ -80,18 +82,27 @@ export function ResourceDialog({ initialData, trigger, onSubmit }: ResourceDialo
     // Send explicit null when cleared so the PATCH path can distinguish
     // "clear" from "omit" (JSON.stringify drops undefined, and the merge
     // would otherwise keep the previously-saved value).
-    onSubmit({
-      id: initialData?.id ?? `r-${Date.now()}`,
-      name: form.name,
-      description: form.description,
-      url: form.url || undefined,
-      status: form.status,
-      accessLevel: form.accessLevel,
-      icon: form.icon || null,
-      specs: Object.keys(specsObj).length > 0 ? specsObj : null,
-      categoryId: form.categoryId || null,
-    })
-    setOpen(false)
+    setSubmitting(true)
+    try {
+      // Close only after the parent confirms the save; a thrown error keeps
+      // the dialog open so entered changes aren't lost on transient failures.
+      await onSubmit({
+        id: initialData?.id ?? `r-${Date.now()}`,
+        name: form.name,
+        description: form.description,
+        url: form.url || undefined,
+        status: form.status,
+        accessLevel: form.accessLevel,
+        icon: form.icon || null,
+        specs: Object.keys(specsObj).length > 0 ? specsObj : null,
+        categoryId: form.categoryId || null,
+      })
+      setOpen(false)
+    } catch {
+      // parent surfaces the error
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const handleOpenChange = (val: boolean) => {
@@ -229,7 +240,7 @@ export function ResourceDialog({ initialData, trigger, onSubmit }: ResourceDialo
         </div>
         <DialogFooter>
           <Button variant="outline" size="sm" onClick={() => setOpen(false)}>取消</Button>
-          <Button size="sm" onClick={handleSubmit} disabled={!form.name}>{isEdit ? '保存' : '添加'}</Button>
+          <Button size="sm" onClick={handleSubmit} disabled={submitting || !form.name}>{isEdit ? '保存' : '添加'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

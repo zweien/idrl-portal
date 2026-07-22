@@ -47,10 +47,13 @@ export default function NewsPage() {
       await updateNews(n.id, n)
       setEditing(null)
       setEditError(null)
-      setSelected(prev => (prev?.id === n.id ? n : prev))
+      // An item flipped to draft/scheduled disappears from the reader feed;
+      // don't keep showing it in the detail view.
+      setSelected(prev => (prev?.id === n.id ? (n.status === 'published' ? n : null) : prev))
       void mutate()
     } catch (e) {
       setEditError(e instanceof Error ? e.message : '保存失败')
+      throw e // keep the dialog open so edits aren't lost
     }
   }
 
@@ -273,6 +276,8 @@ export default function NewsPage() {
         <NewsDialog
           key={`${editing.id}-${editNonce}`}
           initialData={editing}
+          // hide the dialog's default trigger — opening is driven by the pencils
+          trigger={<span className="hidden" aria-hidden />}
           onSubmit={handleEditSubmit}
         />
       )}

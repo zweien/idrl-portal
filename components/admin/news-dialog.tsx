@@ -29,7 +29,7 @@ import { Plus, Pencil } from 'lucide-react'
 interface NewsDialogProps {
   initialData?: NewsItem
   trigger?: React.ReactNode
-  onSubmit: (news: NewsItem) => void
+  onSubmit: (news: NewsItem) => void | Promise<void>
 }
 
 // datetime-local inputs emit a local wall-clock with no timezone
@@ -72,28 +72,39 @@ export function NewsDialog({ initialData, trigger, onSubmit }: NewsDialogProps) 
     imageUrl: initialData?.imageUrl ?? '',
   })
 
-  const handleSubmit = () => {
-    if (!form.title) return
+  const [submitting, setSubmitting] = useState(false)
+
+  const handleSubmit = async () => {
+    if (!form.title || submitting) return
     // 'scheduled' is a UI mode represented as status=draft + publishAt; the
     // scheduler flips draft→published once publishAt passes. publishAt is
     // cleared for non-scheduled modes so a draft stays a draft.
     const scheduled = form.status === 'scheduled'
-    onSubmit({
-      id: initialData?.id ?? `n-${Date.now()}`,
-      title: form.title,
-      content: form.content,
-      summary: form.summary || undefined,
-      author: form.author || undefined,
-      date: form.date,
-      tags: form.tags ? form.tags.split(/[,，]/).map(s => s.trim()).filter(Boolean) : undefined,
-      pinned: form.pinned || undefined,
-      link: form.link || undefined,
-      imageUrl: form.imageUrl || undefined,
-      status: (scheduled ? 'draft' : form.status === 'scheduled' ? 'published' : form.status) as NewsStatus,
-      publishAt: scheduled ? localToIso(form.publishAt) : null,
-      categoryId: form.categoryId || null,
-    })
-    setOpen(false)
+    setSubmitting(true)
+    try {
+      // Close only after the parent confirms the save; a thrown error keeps
+      // the dialog open so entered changes aren't lost on transient failures.
+      await onSubmit({
+        id: initialData?.id ?? `n-${Date.now()}`,
+        title: form.title,
+        content: form.content,
+        summary: form.summary || undefined,
+        author: form.author || undefined,
+        date: form.date,
+        tags: form.tags ? form.tags.split(/[,，]/).map(s => s.trim()).filter(Boolean) : undefined,
+        pinned: form.pinned || undefined,
+        link: form.link || undefined,
+        imageUrl: form.imageUrl || undefined,
+        status: (scheduled ? 'draft' : form.status === 'scheduled' ? 'published' : form.status) as NewsStatus,
+        publishAt: scheduled ? localToIso(form.publishAt) : null,
+        categoryId: form.categoryId || null,
+      })
+      setOpen(false)
+    } catch {
+      // parent surfaces the error
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const handleOpenChange = (val: boolean) => {
@@ -222,7 +233,7 @@ export function NewsDialog({ initialData, trigger, onSubmit }: NewsDialogProps) 
         </div>
         <DialogFooter>
           <Button variant="outline" size="sm" onClick={() => setOpen(false)}>取消</Button>
-          <Button size="sm" onClick={handleSubmit} disabled={!form.title || (form.status === 'scheduled' && !form.publishAt)}>{isEdit ? '保存' : '发布'}</Button>
+          <Button size="sm" onClick={handleSubmit} disabled={submitting || !form.title || (form.status === 'scheduled' && !form.publishAt)}>{isEdit ? '保存' : '发布'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
