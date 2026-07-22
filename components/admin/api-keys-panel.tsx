@@ -22,6 +22,7 @@ const ALL_SCOPES = [
   { value: 'sync:attendance', label: '同步考勤' },
   { value: 'news:publish', label: '发布动态' },
   { value: 'news:read', label: '读取动态' },
+  { value: 'resource:publish', label: '管理资源' },
   { value: 'resource:read', label: '读取资源' },
 ]
 
