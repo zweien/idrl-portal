@@ -29,11 +29,24 @@ const run = (cmd, opts = {}) =>
   execSync(cmd, { encoding: 'utf8', stdio: opts.quiet ? 'pipe' : 'inherit', ...opts }).trim()
 const runOut = cmd => execSync(cmd, { encoding: 'utf8' }).trim()
 
+/** 网络型 git 操作（fetch/push）偶发 TLS 中断，自动重试。 */
+function runRetry(cmd, attempts = 5) {
+  for (let i = 1; ; i++) {
+    try {
+      return run(cmd)
+    } catch (e) {
+      if (i >= attempts) throw e
+      console.log(`  网络错误，${10 * i}s 后重试 (${i}/${attempts - 1})…`)
+      execSync(`sleep ${10 * i}`)
+    }
+  }
+}
+
 // ── 1. 前置校验 ──────────────────────────────────────────────
 const branch = runOut('git rev-parse --abbrev-ref HEAD')
 if (branch !== 'master') fail(`必须在 master 分支发版（当前: ${branch}）`)
 if (runOut('git status --porcelain')) fail('工作区有未提交改动，请先提交或 stash')
-run('git fetch origin --tags', { quiet: true })
+runRetry('git fetch origin --tags')
 if (runOut('git rev-parse HEAD') !== runOut('git rev-parse origin/master'))
   fail('本地 master 与 origin/master 不同步，请先 git pull/push')
 if (runOut(`git tag -l ${tag}`)) fail(`tag ${tag} 已存在`)
@@ -99,8 +112,8 @@ if (!yes && process.stdin.isTTY) {
 run(`git add package.json CHANGELOG.md`)
 run(`git commit -m "chore(release): ${tag}"`)
 run(`git tag -a ${tag} -m "Release ${tag}"`)
-run('git push origin master')
-run(`git push origin ${tag}`)
+runRetry('git push origin master')
+runRetry(`git push origin ${tag}`)
 
 // release notes 从润色后的 CHANGELOG.md 重新提取（而不是用编辑器前的草稿）
 const finalChangelog = fs.readFileSync('CHANGELOG.md', 'utf8')
