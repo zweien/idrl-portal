@@ -1,12 +1,15 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { useNews, useCategories } from '@/lib/api'
+import { useNews, useCategories, updateNews } from '@/lib/api'
+import { useAuth } from '@/lib/auth-context'
 import type { NewsItem } from '@/lib/types'
 import { MarkdownContent } from '@/components/dashboard/markdown-content'
+import { NewsDialog } from '@/components/admin/news-dialog'
 import {
   Search,
   Newspaper,
@@ -16,10 +19,14 @@ import {
   User,
   Tag,
   ArrowLeft,
+  Pencil,
+  Settings,
 } from 'lucide-react'
 
 export default function NewsPage() {
-  const { data: newsResp } = useNews({ pageSize: 1000 })
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'admin'
+  const { data: newsResp, mutate } = useNews({ pageSize: 1000 })
   const { data: catResp } = useCategories('news')
   const news = newsResp?.data?.items ?? []
   const categories = catResp?.data ?? []
@@ -27,6 +34,25 @@ export default function NewsPage() {
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
   const [selected, setSelected] = useState<NewsItem | null>(null)
+  // Inline edit (admin only). editNonce forces a dialog remount per open so
+  // re-clicking the same item after a cancel still reopens it.
+  const [editing, setEditing] = useState<NewsItem | null>(null)
+  const [editNonce, setEditNonce] = useState(0)
+  const [editError, setEditError] = useState<string | null>(null)
+
+  const openEdit = (n: NewsItem) => { setEditing(n); setEditNonce(c => c + 1) }
+
+  const handleEditSubmit = async (n: NewsItem) => {
+    try {
+      await updateNews(n.id, n)
+      setEditing(null)
+      setEditError(null)
+      setSelected(prev => (prev?.id === n.id ? n : prev))
+      void mutate()
+    } catch (e) {
+      setEditError(e instanceof Error ? e.message : '保存失败')
+    }
+  }
 
   const catName = useMemo(() => {
     const m = new Map<string, string>()
@@ -68,10 +94,22 @@ export default function NewsPage() {
   return (
     <div className="space-y-4 py-2">
       {/* Header */}
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">最新动态</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">实验室论文发表、通知公告、活动信息</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">最新动态</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">实验室论文发表、通知公告、活动信息</p>
+        </div>
+        {isAdmin && (
+          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 shrink-0" asChild>
+            <Link href="/dashboard/admin?tab=news">
+              <Settings className="h-3.5 w-3.5" />管理
+            </Link>
+          </Button>
+        )}
       </div>
+      {editError && (
+        <p className="text-xs text-destructive">编辑保存失败：{editError}</p>
+      )}
 
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-2">
@@ -132,6 +170,11 @@ export default function NewsPage() {
                 <span className="flex items-center gap-1">
                   <User className="h-3 w-3" />{selected.author}
                 </span>
+              )}
+              {isAdmin && (
+                <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => openEdit(selected)}>
+                  <Pencil className="h-3 w-3" />编辑
+                </Button>
               )}
             </div>
           </div>
@@ -210,9 +253,28 @@ export default function NewsPage() {
                   )}
                 </div>
               </div>
+              {isAdmin && (
+                <span
+                  role="button"
+                  aria-label={`编辑 ${news.title}`}
+                  title="编辑"
+                  className="shrink-0 self-start p-1 rounded text-muted-foreground/50 hover:text-foreground hover:bg-accent transition-colors"
+                  onClick={e => { e.stopPropagation(); openEdit(news) }}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </span>
+              )}
             </button>
           ))}
         </div>
+      )}
+
+      {isAdmin && editing && (
+        <NewsDialog
+          key={`${editing.id}-${editNonce}`}
+          initialData={editing}
+          onSubmit={handleEditSubmit}
+        />
       )}
     </div>
   )
