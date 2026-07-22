@@ -5,6 +5,17 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v0.1.2] - 2026-07-22
+
+### 新增
+
+- feat(release): 统一版本信息 + 更新日志页 + 固化发版脚本 (#51)
+
+### 修复
+
+- fix(release): execSync returns null with stdio inherit — guard .trim()
+- fix(release): retry network git ops (fetch/push) on transient TLS failures
+
 ## [v0.1.1] - 2026-07-21
 
 ### 修复
