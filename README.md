@@ -231,7 +231,7 @@ curl "$BASE/api/resources?status=available" -H "Authorization: Bearer $KEY"
 | GET | `/api/backup/download?filename=` | 🛡 | 下载 .sqlite |
 | POST | `/api/backup/upload` | 🛡 | 上传 .sqlite 并恢复 |
 | GET | `/api/export` | 🛡 | 业务数据 JSON 导出（7 表） |
-| GET · PUT | `/api/admin-data` | 👤 / 🛡 | 管理端聚合读 / **全量替换**三张表 |
+| GET · PUT | `/api/admin-data` | 👤 / 🛡 | 管理端聚合读 / 全量重建三表（⚠️ 级联删考勤，见下文） |
 
 ---
 
@@ -251,7 +251,9 @@ curl "$BASE/api/resources?status=available" -H "Authorization: Bearer $KEY"
 
 **GET /api/news** — 👤 `user+scope:news:read`
 
-Query（均可选）：`page=1`、`pageSize=20`、`category=<categoryId>`、`pinned=true`、`search=<匹配标题/内容/标签>`、`includeDrafts=1`（仅 admin session 生效，否则强制只看 `published`）。
+Query（均可选）：`page=1`、`pageSize=20`、`category=<categoryId>`、`pinned=true`、`search=<匹配标题/内容>`、`includeDrafts=1`（仅 admin session 生效，否则强制只看 `published`）。
+
+> ⚠️ `search` 只在**标题和内容**中匹配（DB 层 `contains`）；标签不参与检索——仅按标签搜索会返回空结果。
 
 → 分页包裹，`items: NewsItem[]`，置顶优先 + 日期倒序。
 
@@ -337,7 +339,8 @@ Zone = {
 }
 Workstation = {
   id, name, zoneId, floorId, row, col,
-  personId?: string, status: 'occupied' | 'empty' | 'maintenance',
+  personId?: string | null,               // 省略=保留原分配；null=显式清空（仅 PUT）
+  status: 'occupied' | 'empty' | 'maintenance',
   nameCustomized?: boolean
 }
 ```
@@ -345,7 +348,11 @@ Workstation = {
 **PUT** — 🛡，**全量替换**：payload 即权威结构，DB 中不在 payload 的楼层/区域/工位全部删除，其余按 id upsert（单事务）。
 
 - Body：`{ floors: Floor[] }`（结构同 GET）
-- 保护：层级 id 重复 → 400；payload personId 为空但 DB 同位置有人 → 保留 DB 值；同一人分配到多个工位 → **400 `{ error, conflicts: [{ personId, workstationIds }] }`**
+- 保护：层级 id 重复 → 400；同一人分配到多个工位 → **400 `{ error, conflicts: [{ personId, workstationIds }] }`**
+- ⚠️ **`personId` 三态语义**（机器客户端务必注意，勿把缺省字段归一化成 `null`）：
+  - **省略**（字段不出现 / `undefined`）→ 保护机制：DB 中同几何位置已有人的，保留原分配
+  - **`null`** → 显式清空该工位的占用
+  - **字符串** → 分配给该人员
 - → `{ ok: true }`
 
 **POST /api/floor-layout/import-assignments** — 🛡，`multipart/form-data` 字段 `file`（xlsx，两列：`工位名, 姓名`，首行表头自动跳过）→ `{ assigned, skipped, warnings[] }`。按名称精确匹配；一人一工位冲突自动跳过并给 warning。
@@ -365,9 +372,9 @@ AttendanceRecordItem = {
 }
 ```
 
-**GET /api/attendance/leaderboard** — 👤。Query：`type=today|monthly`、`limit=10（≤100）`
-- `today` → `{ type, date, items: [{ personId, name, checkIn }] }`（按最早打卡升序）
-- `monthly` → `{ type, from, to, items: [{ personId, name, workMinutes }] }`（本月工时降序）
+**GET /api/attendance/leaderboard** — 👤。Query：`type=today|monthly`、`limit=10（≤100）`。两种 type 都返回 `{ success: true, data: {...} }` 包裹：
+- `today` → `data: { type, date, items: [{ personId, name, checkIn }] }`（按最早打卡升序）
+- `monthly` → `data: { type, from, to, items: [{ personId, name, workMinutes }] }`（本月工时降序）
 
 **POST /api/attendance/backfill?date=YYYY-MM-DD** — 🛡：补拉指定日钉钉考勤（幂等 upsert，不推进归档水位线）→ `{ success, data: { date, upserted } }`。
 
@@ -421,7 +428,14 @@ Query：`from`、`to`（均必填，`from <= to`）、`personId`（可选）
 ### 管理聚合 `/api/admin-data`
 
 - **GET** — 👤：一次返回 `{ personnel, news, resources }` 三张表全量（裸 JSON）。非 admin 只见 published 动态与非 admin 资源
-- **PUT** — 🛡：`{ personnel: Person[], news: NewsItem[], resources: Resource[] }` 三键必填，**单事务全量替换三张表**（未包含的数据会被清空，慎用）→ `{ ok: true }`
+- **PUT** — 🛡：`{ personnel: Person[], news: NewsItem[], resources: Resource[] }` 三键必填，单事务内先 `deleteMany` 再 `createMany` 重建三张表 → `{ ok: true }`
+
+> ⚠️ **危险操作，级联影响超出三张表**：
+> - 删 Person 会**级联删除其全部 AttendanceRecord**（考勤历史丢失），并把相关 `Workstation.personId` 置空（工位分配清空）
+> - 若有 **User 关联到某个 Person**（`onDelete: Restrict`），整个请求直接 **500 失败**
+> - 未包含在 payload 中的行全部删除
+>
+> 除非明确在做整库业务数据重建，否则请改用各资源的细粒度端点（`PATCH /api/personnel/:id`、`PUT /api/floor-layout` 等）。
 
 ## 📜 常用命令
 
