@@ -5,6 +5,16 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v0.1.4] - 2026-07-22
+
+### 新增
+
+- feat(dashboard): 资源/动态页增加管理员编辑快捷入口 (#54)
+
+### 其他
+
+- docs(readme): 重写 README，补齐面向 agent 的完整 API 参考 (#53)
+
 ## [v0.1.3] - 2026-07-22
 
 ### 新增
