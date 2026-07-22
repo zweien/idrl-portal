@@ -1,12 +1,15 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { useResources, useCategories } from '@/lib/api'
+import { useResources, useCategories, updateResource } from '@/lib/api'
+import { useAuth } from '@/lib/auth-context'
 import type { Resource } from '@/lib/types'
 import { MarkdownContent } from '@/components/dashboard/markdown-content'
+import { ResourceDialog } from '@/components/admin/resource-dialog'
 import { cn } from '@/lib/utils'
 import {
   Search,
@@ -23,6 +26,7 @@ import {
   ExternalLink,
   Settings,
   X,
+  Pencil,
 } from 'lucide-react'
 
 /** Name → lucide component, matching the admin icon picker choices. */
@@ -47,7 +51,9 @@ const accessLabels: Record<string, string> = {
 }
 
 export default function ResourcesPage() {
-  const { data: resourcesResp } = useResources({ pageSize: 1000 })
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'admin'
+  const { data: resourcesResp, mutate } = useResources({ pageSize: 1000 })
   const { data: catResp } = useCategories('resource')
   const resources = resourcesResp?.data?.items ?? []
   const categories = catResp?.data ?? []
@@ -55,6 +61,26 @@ export default function ResourcesPage() {
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
   const [selected, setSelected] = useState<Resource | null>(null)
+  // Inline edit (admin only). editNonce forces a dialog remount per open so
+  // re-clicking the same item after a cancel still reopens it.
+  const [editing, setEditing] = useState<Resource | null>(null)
+  const [editNonce, setEditNonce] = useState(0)
+  const [editError, setEditError] = useState<string | null>(null)
+
+  const openEdit = (r: Resource) => { setEditing(r); setEditNonce(c => c + 1) }
+
+  const handleEditSubmit = async (r: Resource) => {
+    try {
+      await updateResource(r.id, r)
+      setEditing(null)
+      setEditError(null)
+      setSelected(prev => (prev?.id === r.id ? r : prev))
+      void mutate()
+    } catch (e) {
+      setEditError(e instanceof Error ? e.message : '保存失败')
+      throw e // keep the dialog open so edits aren't lost
+    }
+  }
 
   const catName = useMemo(() => {
     const m = new Map<string, string>()
@@ -91,10 +117,22 @@ export default function ResourcesPage() {
   return (
     <div className="space-y-4 py-2">
       {/* Header */}
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">资源聚合</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">访问实验室计算资源、存储空间、代码仓库等</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">资源聚合</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">访问实验室计算资源、存储空间、代码仓库等</p>
+        </div>
+        {isAdmin && (
+          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 shrink-0" asChild>
+            <Link href="/dashboard/admin?tab=resources">
+              <Settings className="h-3.5 w-3.5" />管理
+            </Link>
+          </Button>
+        )}
       </div>
+      {editError && (
+        <p className="text-xs text-destructive">编辑保存失败：{editError}</p>
+      )}
 
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-2">
@@ -186,6 +224,17 @@ export default function ResourcesPage() {
                     )}
                   </div>
                 </div>
+                {isAdmin && (
+                  <span
+                    role="button"
+                    aria-label={`编辑 ${resource.name}`}
+                    title="编辑"
+                    className="shrink-0 p-1 rounded text-muted-foreground/50 hover:text-foreground hover:bg-accent transition-colors"
+                    onClick={e => { e.stopPropagation(); openEdit(resource) }}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </span>
+                )}
               </button>
             )
           })}
@@ -196,9 +245,16 @@ export default function ResourcesPage() {
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <p className="text-sm font-medium">资源详情</p>
             {selected && (
-              <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setSelected(null)}>
-                <X className="h-3.5 w-3.5" />
-              </Button>
+              <div className="flex items-center gap-1">
+                {isAdmin && (
+                  <Button variant="ghost" size="sm" className="h-6 px-2 text-xs gap-1" onClick={() => openEdit(selected)}>
+                    <Pencil className="h-3 w-3" />编辑
+                  </Button>
+                )}
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setSelected(null)}>
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             )}
           </div>
           <div className="p-4">
@@ -261,6 +317,16 @@ export default function ResourcesPage() {
           </div>
         </div>
       </div>
+
+      {isAdmin && editing && (
+        <ResourceDialog
+          key={`${editing.id}-${editNonce}`}
+          initialData={editing}
+          // hide the dialog's default trigger — opening is driven by the pencils
+          trigger={<span className="hidden" aria-hidden />}
+          onSubmit={handleEditSubmit}
+        />
+      )}
     </div>
   )
 }

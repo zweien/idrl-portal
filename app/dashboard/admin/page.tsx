@@ -129,10 +129,22 @@ function ApiCard({ method, endpoint, description }: { method: string; endpoint: 
 }
 
 /* ── Page ───────────────────────────────────────── */
+const ADMIN_TABS = ['personnel', 'users', 'resources', 'news', 'categories', 'scheduling', 'api-keys', 'backup', 'audit', 'floor-layout'] as const
+
 export default function AdminPage() {
   const { user } = useAuth()
   // Server state via SWR
   const { data, mutate } = useAdminData()
+
+  // Active tab — deep-linkable via /dashboard/admin?tab=<name> so other pages
+  // (e.g. the news/resources "管理" shortcuts) can land directly on a tab.
+  const [activeTab, setActiveTab] = useState<(typeof ADMIN_TABS)[number]>('personnel')
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get('tab')
+    if (t && (ADMIN_TABS as readonly string[]).includes(t)) {
+      setActiveTab(t as (typeof ADMIN_TABS)[number])
+    }
+  }, [])
 
   // SSO provider availability (derived from env config server-side) so the
   // integration cards reflect real availability rather than a hardcoded status.
@@ -400,7 +412,7 @@ export default function AdminPage() {
       </div>
 
       {/* Data management tabs */}
-      <Tabs defaultValue="personnel">
+      <Tabs value={activeTab} onValueChange={v => setActiveTab(v as (typeof ADMIN_TABS)[number])}>
         <TabsList className="h-9 p-1 flex-wrap">
           <TabsTrigger value="personnel" className="text-xs gap-1.5 h-7">
             <Users className="h-3.5 w-3.5" />人员管理
