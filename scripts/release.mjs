@@ -102,7 +102,14 @@ run(`git tag -a ${tag} -m "Release ${tag}"`)
 run('git push origin master')
 run(`git push origin ${tag}`)
 
-const notes = section.replace(`## [${tag}]`, '').trim()
+// release notes 从润色后的 CHANGELOG.md 重新提取（而不是用编辑器前的草稿）
+const finalChangelog = fs.readFileSync('CHANGELOG.md', 'utf8')
+const start = finalChangelog.indexOf(`## [${tag}]`)
+if (start === -1) fail(`润色后 CHANGELOG.md 中找不到 ${tag} 条目（标题被改掉了？）`)
+const rest = finalChangelog.slice(start)
+const nextHeader = rest.indexOf('\n## [')
+const notes = (nextHeader === -1 ? rest : rest.slice(0, nextHeader))
+  .replace(`## [${tag}]`, '').trim()
 fs.writeFileSync('.release-notes.tmp.md', notes)
 try {
   run(`gh release create ${tag} --title "${tag}" --notes-file .release-notes.tmp.md`)
