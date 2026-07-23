@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Image from 'next/image'
 import { useAuth } from '@/lib/auth-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -44,9 +45,7 @@ export function LoginForm() {
       {/* Wordmark */}
       <div className="space-y-1">
         <div className="flex items-center gap-2 mb-4">
-          <div className="w-7 h-7 rounded-md bg-primary flex items-center justify-center">
-            <span className="text-[11px] font-bold text-primary-foreground leading-none">ID</span>
-          </div>
+          <Image src="/favicon.svg" alt="" width={28} height={28} className="w-7 h-7 shrink-0" priority />
           <span className="text-base font-semibold tracking-tight">IDRL Portal</span>
         </div>
         <h1 className="text-xl font-semibold tracking-tight">登录</h1>
