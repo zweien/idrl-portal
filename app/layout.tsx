@@ -19,28 +19,22 @@ export const metadata: Metadata = {
   title: 'IDRL Portal - 智能数据研究实验室',
   description: '实验室信息聚合门户 - 人员在位、资源聚合、最新动态',
   generator: 'v0.app',
+  manifest: '/site.webmanifest',
   icons: {
     icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon-32x32.png', type: 'image/png', sizes: '32x32' },
+      { url: '/favicon-16x16.png', type: 'image/png', sizes: '16x16' },
     ],
-    apple: '/apple-icon.png',
+    apple: '/apple-touch-icon.png',
   },
 }
 
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
+  themeColor: '#203663',
 }
 
 export default function RootLayout({
