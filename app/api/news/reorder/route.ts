@@ -35,6 +35,14 @@ export async function POST(req: NextRequest) {
   if (rows.some(r => !r.pinned)) {
     return NextResponse.json({ error: 'only pinned items can be reordered' }, { status: 400 })
   }
+  // The contract requires the COMPLETE pinned group; accepting a subset would
+  // leave omitted rows with stale `order` values that collide with the
+  // rewritten 0..n-1 range and let the date tiebreak decide.
+  const allPinned = await prisma.newsItem.findMany({ where: { pinned: true }, select: { id: true } })
+  const supplied = new Set(ids)
+  if (allPinned.length !== ids.length || allPinned.some(r => !supplied.has(r.id))) {
+    return NextResponse.json({ error: 'ids must include all pinned items' }, { status: 400 })
+  }
 
   await prisma.$transaction(ids.map((id, i) =>
     prisma.newsItem.update({ where: { id }, data: { order: i } }),

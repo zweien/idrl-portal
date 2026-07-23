@@ -35,6 +35,15 @@ export async function POST(req: NextRequest) {
   if (categories.size !== 1) {
     return NextResponse.json({ error: 'ids must belong to a single category' }, { status: 400 })
   }
+  // The contract requires the COMPLETE category membership; accepting a subset
+  // would leave omitted rows with stale `order` values that collide with the
+  // rewritten 0..n-1 range and make the id tiebreak decide display order.
+  const categoryId = rows[0].categoryId ?? null
+  const siblings = await prisma.resource.findMany({ where: { categoryId }, select: { id: true } })
+  const supplied = new Set(ids)
+  if (siblings.length !== ids.length || siblings.some(r => !supplied.has(r.id))) {
+    return NextResponse.json({ error: 'ids must include all resources in the category' }, { status: 400 })
+  }
 
   await prisma.$transaction(ids.map((id, i) =>
     prisma.resource.update({ where: { id }, data: { order: i } }),

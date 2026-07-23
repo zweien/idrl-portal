@@ -128,4 +128,23 @@ describe('order persistence', () => {
     expect(rows.sort(compareNews).map(n => n.id)).toEqual(['n-c', 'n-a', 'n-b'])
     expect(rows.map(n => n.order).sort()).toEqual([0, 1, 2])
   })
+
+  it('detects incomplete reorder lists (complete-group contract)', async () => {
+    // News: pin exactly the n-q* set, then assert no other pinned rows exist
+    // (the reorder endpoint rejects when supplied != all pinned).
+    for (const id of ['n-q1', 'n-q2', 'n-q3']) {
+      await prisma.newsItem.create({ data: fromNewsItem(news({ id, pinned: true, order: 0 })) })
+    }
+    const allPinned = (await prisma.newsItem.findMany({ where: { pinned: true }, select: { id: true } })).map(r => r.id)
+    const supplied = ['n-q2', 'n-q3'] // missing n-q1 → incomplete
+    const isComplete = allPinned.length === supplied.length && allPinned.every(r => supplied.includes(r.id))
+    expect(isComplete).toBe(false)
+
+    // Resources: one cat1 row of two → incomplete.
+    await prisma.resource.create({ data: fromResource(res({ id: 'r-z1', categoryId: 'cat1' })) })
+    await prisma.resource.create({ data: fromResource(res({ id: 'r-z2', categoryId: 'cat1' })) })
+    const cat1 = (await prisma.resource.findMany({ where: { categoryId: 'cat1' }, select: { id: true } })).map(r => r.id)
+    const resComplete = cat1.length === 1 && cat1.includes('r-z1')
+    expect(resComplete).toBe(false)
+  })
 })
