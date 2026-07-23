@@ -5,6 +5,12 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v0.1.6] - 2026-07-23
+
+### 新增
+
+- feat(admin): 动态/资源支持手动调整显示顺序 (#56)
+
 ## [v0.1.5] - 2026-07-22
 
 ### 新增
