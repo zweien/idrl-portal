@@ -5,6 +5,13 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v0.1.7] - 2026-07-23
+
+### 其他
+
+- chore: use IDRL logo for sidebar/header/login wordmarks (#58)
+- chore: replace favicon with IDRL brand package (#57)
+
 ## [v0.1.6] - 2026-07-23
 
 ### 新增
