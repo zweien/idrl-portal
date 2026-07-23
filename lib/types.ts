@@ -92,6 +92,8 @@ export interface Resource {
   /** Record = specs; null = explicitly cleared; undefined = omitted (keep existing) */
   specs?: Record<string, string> | null
   accessLevel: AccessLevel
+  /** Manual order within the resource's category (uncategorized resources form one group). */
+  order?: number
   categoryId?: string | null
 }
 
@@ -109,6 +111,8 @@ export interface NewsItem {
   imageUrl?: string
   link?: string
   pinned?: boolean
+  /** Manual order within the pinned group; unpinned items always sort by date desc. */
+  order?: number
   status: NewsStatus
   publishAt?: string | null
   categoryId?: string | null

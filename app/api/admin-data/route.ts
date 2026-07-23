@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { toPerson, toNewsItem, toResource, fromPerson, fromNewsItem, fromResource } from '@/lib/db/serialize'
+import { compareNews, compareResources } from '@/lib/ordering'
 import { requireUser, requireAdmin } from '@/lib/auth-api'
 import { logAction, actorFromAuth } from '@/lib/audit'
 import type { Person, NewsItem, Resource } from '@/lib/types'
@@ -28,8 +29,8 @@ export async function GET() {
   ])
   return NextResponse.json({
     personnel: persons.map(toPerson),
-    news: news.map(toNewsItem),
-    resources: resources.map(toResource),
+    news: news.map(toNewsItem).sort(compareNews),
+    resources: resources.map(toResource).sort(compareResources),
   })
 }
 

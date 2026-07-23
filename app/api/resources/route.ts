@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { toResource, fromResource } from '@/lib/db/serialize'
+import { compareResources } from '@/lib/ordering'
 import { requireUserOrScope, requireScope } from '@/lib/auth-api'
 import { logAction, actorFromAuth } from '@/lib/audit'
 import type { Resource, ApiResponse, PaginatedResponse } from '@/lib/types'
@@ -30,6 +31,11 @@ export async function GET(request: Request) {
 
   const rows = (await prisma.resource.findMany({ where })).map(toResource)
 
+  // Sort: group by category (uncategorized last), manual order asc within each
+  // group, id (creation order) as tiebreak. Grouped UIs reduce in encounter
+  // order, so this preserves per-category ordering end-to-end.
+  rows.sort(compareResources)
+
   const total = rows.length
   const totalPages = Math.ceil(total / pageSize)
   const start = (page - 1) * pageSize
@@ -57,8 +63,16 @@ export async function POST(req: NextRequest) {
   }
 
   const id = `r-${Date.now()}`
+  // New resources land at the end of their category group.
+  let order = body.order ?? 0
+  if (body.order === undefined) {
+    const siblings = await prisma.resource.findMany({
+      where: { categoryId: body.categoryId ?? null }, select: { order: true },
+    })
+    order = siblings.reduce((max, r) => Math.max(max, r.order), -1) + 1
+  }
   const created = await prisma.resource.create({
-    data: fromResource({ ...(body as Resource), id }),
+    data: fromResource({ ...(body as Resource), id, order }),
   })
   void logAction({
     ...actorFromAuth(auth),

@@ -109,6 +109,7 @@ model NewsItem {
   pinned     Boolean @default(false)
   status     String  @default("published") // "draft" | "published"
   publishAt  String? // ISO datetime; when set + status=draft, scheduler flips to published
+  order      Int      @default(0) // manual order within the pinned group (unpinned sort by date desc)
   categoryId String?
   category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 }
@@ -122,6 +123,7 @@ model Resource {
   status      String
   specs       String?
   accessLevel String
+  order       Int     @default(0) // manual order within the resource's category (uncategorized = one group)
   categoryId  String?
   category    Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 }
