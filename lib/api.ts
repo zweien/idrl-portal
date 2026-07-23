@@ -76,12 +76,16 @@ export const deletePerson = (id: string) => deleteJSON(`/api/personnel/${id}`)
 export const createNews = (data: Omit<NewsItem, 'id'>) => postJSON<NewsItem>('/api/news', data)
 export const updateNews = (id: string, data: Partial<NewsItem>) => patchJSON<NewsItem>(`/api/news/${id}`, data)
 export const deleteNews = (id: string) => deleteJSON(`/api/news/${id}`)
+/** Rewrite the pinned group's manual order to the given id sequence. */
+export const reorderNews = (ids: string[]) => postJSON<{ ok: true }>('/api/news/reorder', { ids })
 
 // ===== Single-item CRUD (Resource) =====
 
 export const createResource = (data: Omit<Resource, 'id'>) => postJSON<Resource>('/api/resources', data)
 export const updateResource = (id: string, data: Partial<Resource>) => patchJSON<Resource>(`/api/resources/${id}`, data)
 export const deleteResource = (id: string) => deleteJSON(`/api/resources/${id}`)
+/** Rewrite one category's manual order to the given id sequence (single category only). */
+export const reorderResources = (ids: string[]) => postJSON<{ ok: true }>('/api/resources/reorder', { ids })
 
 // ===== Floor layout =====
 

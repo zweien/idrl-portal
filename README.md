@@ -121,9 +121,9 @@ Authorization: Bearer idrl_<48 hex>
 | `sync:members` | `POST /api/dingtalk/sync-members` |
 | `sync:attendance` | `POST /api/dingtalk/sync-attendance` |
 | `news:read` | `GET /api/news` |
-| `news:publish` | `POST / PATCH / DELETE /api/news(/:id)` |
+| `news:publish` | `POST / PATCH / DELETE /api/news(/:id)`、`POST /api/news/reorder` |
 | `resource:read` | `GET /api/resources` |
-| `resource:publish` | `POST / PATCH / DELETE /api/resources(/:id)` |
+| `resource:publish` | `POST / PATCH / DELETE /api/resources(/:id)`、`POST /api/resources/reorder` |
 
 - 未列出的端点（人员、用户、布局、备份、设置、日志等管理面）**只接受 admin session**，不识别 API key
 - 无效 / 已吊销 / scope 不符的 key 会**静默回落**到 session 判定（不会报「key 无效」），所以 key 用错时看到的是 401/403
@@ -209,9 +209,11 @@ curl -X DELETE "$BASE/api/resources/<id>" -H "Authorization: Bearer $KEY"
 | GET | `/api/news` | 👤 `news:read` | 动态列表（分页/筛选） |
 | POST | `/api/news` | 🔑 `news:publish` | 创建动态（支持定时发布） |
 | PATCH · DELETE | `/api/news/:id` | 🔑 `news:publish` | 修改 / 删除动态 |
+| POST | `/api/news/reorder` | 🔑 `news:publish` | 置顶组手动排序 |
 | GET | `/api/resources` | 👤 `resource:read` | 资源列表（分页/筛选） |
 | POST | `/api/resources` | 🔑 `resource:publish` | 创建资源 |
 | PATCH · DELETE | `/api/resources/:id` | 🔑 `resource:publish` | 修改 / 删除资源 |
+| POST | `/api/resources/reorder` | 🔑 `resource:publish` | 分类内手动排序 |
 | GET | `/api/categories?kind=` | 👤 | 分类列表（news / resource 共用） |
 | POST | `/api/categories` | 🛡 | 创建分类 |
 | PATCH · DELETE | `/api/categories/:id` | 🛡 | 修改 / 删除分类（删除后引用置空） |
@@ -263,13 +265,14 @@ Query（均可选）：`page=1`、`pageSize=20`、`category=<categoryId>`、`pin
 
 > ⚠️ `search` 只在**标题和内容**中匹配（DB 层 `contains`）；标签不参与检索——仅按标签搜索会返回空结果。
 
-→ 分页包裹，`items: NewsItem[]`，置顶优先 + 日期倒序。
+→ 分页包裹，`items: NewsItem[]`，置顶优先（置顶组内按手动 `order` 升序，日期倒序兜底），非置顶按日期倒序。
 
 ```ts
 NewsItem = {
   id: string; title: string; content: string; summary?: string; author?: string
   date: string; tags?: string[]; imageUrl?: string; link?: string
-  pinned?: boolean; status: 'draft' | 'published'; publishAt?: string; categoryId?: string
+  pinned?: boolean; order?: number // 手动顺序，仅置顶组内生效
+  status: 'draft' | 'published'; publishAt?: string; categoryId?: string
 }
 ```
 
@@ -281,6 +284,11 @@ Body：必填 `title, content, date`；可选 `summary, author, tags[], imageUrl
 **PATCH / DELETE /api/news/:id** — 🔑 `news:publish`
 
 PATCH Body 为 `Partial<NewsItem>`（浅合并）→ 200 NewsItem；DELETE → `{ "ok": true }`；不存在 → 404。
+置顶一条动态（`pinned:false→true`）时若未显式传 `order`，自动排到置顶组末尾。
+
+**POST /api/news/reorder** — 🔑 `news:publish`
+
+Body `{ "ids": string[] }`：置顶组的完整有序 id 列表（必须全部存在且均为置顶，无重复）→ 按位置重写 `order` 为 0..n-1 → `{ "ok": true }`。非置顶动态始终按日期倒序，不参与排序。
 
 ### 资源 `/api/resources`
 
@@ -288,17 +296,25 @@ PATCH Body 为 `Partial<NewsItem>`（浅合并）→ 200 NewsItem；DELETE → `
 
 Query：`page, pageSize, category=<categoryId>, status=available|maintenance|restricted, search`。非 admin 身份（含 API key）看不到 `accessLevel:"admin"` 的资源。
 
+→ 按分类分组排序（未分类在最后），分类内按手动 `order` 升序，创建先后兜底。
+
 ```ts
 Resource = {
   id: string; name: string; description: string; url?: string; icon?: string
   status: 'available' | 'maintenance' | 'restricted'
   specs?: Record<string, string>
-  accessLevel: 'public' | 'member' | 'admin'; categoryId?: string
+  accessLevel: 'public' | 'member' | 'admin'
+  order?: number // 手动顺序，分类内生效
+  categoryId?: string
 }
 ```
 
-**POST /api/resources** — 🔑 `resource:publish`：必填 `name, description, status, accessLevel`；可选 `url, icon, specs, categoryId` → 201 Resource 裸 JSON。
+**POST /api/resources** — 🔑 `resource:publish`：必填 `name, description, status, accessLevel`；可选 `url, icon, specs, categoryId, order` → 201 Resource 裸 JSON。未传 `order` 时自动排到所属分类末尾（改 `categoryId` 同理排到新分类末尾）。
 **PATCH / DELETE /api/resources/:id** — 🔑 `resource:publish`：语义同 news。
+
+**POST /api/resources/reorder** — 🔑 `resource:publish`
+
+Body `{ "ids": string[] }`：**同一分类**的完整有序 id 列表（未分类资源自成一组；必须全部存在、无重复）→ 按位置重写 `order` 为 0..n-1 → `{ "ok": true }`。
 
 ### 分类 `/api/categories`
 

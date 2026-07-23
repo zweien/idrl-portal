@@ -36,6 +36,7 @@ export function toNewsItem(n: DBNews): NewsItem {
     imageUrl: n.imageUrl ?? undefined,
     link: n.link ?? undefined,
     pinned: n.pinned,
+    order: n.order,
     status: n.status as NewsItem['status'],
     publishAt: n.publishAt ?? undefined,
     categoryId: n.categoryId ?? undefined,
@@ -52,6 +53,7 @@ export function toResource(r: DBResource): Resource {
     status: r.status as Resource['status'],
     specs: r.specs ? JSON.parse(r.specs) : undefined,
     accessLevel: r.accessLevel as Resource['accessLevel'],
+    order: r.order,
     categoryId: r.categoryId ?? undefined,
   }
 }
@@ -160,6 +162,7 @@ export function fromNewsItem(n: NewsItem) {
     imageUrl: n.imageUrl ?? null,
     link: n.link ?? null,
     pinned: n.pinned ?? false,
+    order: n.order ?? 0,
     status: n.status ?? 'published',
     // Normalize publishAt to a canonical UTC ISO instant (e.g. "+08:00" → "Z")
     // so the scheduler's publishDueNews string comparison against
@@ -179,6 +182,7 @@ export function fromResource(r: Resource) {
     status: r.status,
     specs: r.specs ? JSON.stringify(r.specs) : null,
     accessLevel: r.accessLevel,
+    order: r.order ?? 0,
     categoryId: r.categoryId ?? null,
   }
 }

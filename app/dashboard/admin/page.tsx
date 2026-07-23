@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-import { useAdminData, useCategories, createPerson, updatePerson, deletePerson, createResource, updateResource, deleteResource, createNews, updateNews, deleteNews } from '@/lib/api'
+import { useAdminData, useCategories, createPerson, updatePerson, deletePerson, createResource, updateResource, deleteResource, createNews, updateNews, deleteNews, reorderNews, reorderResources } from '@/lib/api'
+import { compareNews, compareResources } from '@/lib/ordering'
 import type { Person, Resource, NewsItem } from '@/lib/types'
 import { useAuth } from '@/lib/auth-context'
 import { PersonDialog } from '@/components/admin/person-dialog'
@@ -18,7 +19,7 @@ import { BackupPanel } from '@/components/admin/backup-panel'
 import { UsersPanel } from '@/components/admin/users-panel'
 import { AuditLogPanel } from '@/components/admin/audit-log-panel'
 import {
-  Users, Server, Newspaper, Pencil, Trash2,
+  Users, Server, Newspaper, Pencil, Trash2, ChevronUp, ChevronDown,
   Database, AlertTriangle, CheckCircle, Info,
   ShieldAlert, MapPin, RefreshCw, Upload, Key, Clock, Folder, UserCog, DatabaseBackup,
   ScrollText,
@@ -35,12 +36,15 @@ function catNameOf(categories: { id: string; name: string }[], categoryId?: stri
 
 /* ── Generic table ──────────────────────────────── */
 function DataTable<T extends { id: string }>({
-  data, columns, onEdit, onDelete,
+  data, columns, onEdit, onDelete, onMove, moveDisabled,
 }: {
   data: T[]
   columns: { key: keyof T; label: string; render?: (v: T[keyof T], item: T) => React.ReactNode }[]
   onEdit: (item: T) => void
   onDelete: (item: T) => void
+  /** When provided, rows get up/down buttons for manual ordering. */
+  onMove?: (item: T, dir: 'up' | 'down') => void
+  moveDisabled?: (item: T, dir: 'up' | 'down') => boolean
 }) {
   return (
     <div className="overflow-x-auto">
@@ -65,6 +69,18 @@ function DataTable<T extends { id: string }>({
               ))}
               <td className="py-2.5 px-3 text-right">
                 <div className="flex items-center justify-end gap-0.5">
+                  {onMove && (
+                    <>
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                        disabled={moveDisabled?.(item, 'up')} onClick={() => onMove(item, 'up')}>
+                        <ChevronUp className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                        disabled={moveDisabled?.(item, 'down')} onClick={() => onMove(item, 'down')}>
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      </Button>
+                    </>
+                  )}
                   <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground" onClick={() => onEdit(item)}>
                     <Pencil className="h-3.5 w-3.5" />
                   </Button>
@@ -275,6 +291,58 @@ export default function AdminPage() {
       setSaveError(null)
       void mutate()
     } catch (e) { reportErr(e); if (snapshot) setNewsData(snapshot) }
+  }
+
+  // ---- Manual ordering (news pinned group / resource categories) ----
+  // Display order is derived from local state with the same comparators the
+  // APIs use, so optimistic order updates re-sort consistently everywhere.
+  const sortedResources = useMemo(() => [...(resourcesData ?? [])].sort(compareResources), [resourcesData])
+  const sortedNews = useMemo(() => [...(newsData ?? [])].sort(compareNews), [newsData])
+
+  async function handleResourceMove(r: Resource, dir: 'up' | 'down') {
+    const group = sortedResources.filter(x => (x.categoryId ?? null) === (r.categoryId ?? null))
+    const i = group.findIndex(x => x.id === r.id)
+    const j = dir === 'up' ? i - 1 : i + 1
+    if (i < 0 || j < 0 || j >= group.length) return
+    const reordered = [...group]
+    ;[reordered[i], reordered[j]] = [reordered[j], reordered[i]]
+    const orderOf = new Map(reordered.map((x, idx) => [x.id, idx]))
+    const snapshot = resourcesData
+    setResourcesData(prev => prev!.map(x => orderOf.has(x.id) ? { ...x, order: orderOf.get(x.id)! } : x))
+    try {
+      await reorderResources(reordered.map(x => x.id))
+      setSaveError(null)
+      void mutate()
+    } catch (e) { reportErr(e); if (snapshot) setResourcesData(snapshot) }
+  }
+  function resourceMoveDisabled(item: Resource, dir: 'up' | 'down') {
+    const group = sortedResources.filter(x => (x.categoryId ?? null) === (item.categoryId ?? null))
+    const i = group.findIndex(x => x.id === item.id)
+    return dir === 'up' ? i <= 0 : i === group.length - 1
+  }
+
+  async function handleNewsMove(n: NewsItem, dir: 'up' | 'down') {
+    if (!n.pinned) return
+    const pinned = sortedNews.filter(x => x.pinned)
+    const i = pinned.findIndex(x => x.id === n.id)
+    const j = dir === 'up' ? i - 1 : i + 1
+    if (i < 0 || j < 0 || j >= pinned.length) return
+    const reordered = [...pinned]
+    ;[reordered[i], reordered[j]] = [reordered[j], reordered[i]]
+    const orderOf = new Map(reordered.map((x, idx) => [x.id, idx]))
+    const snapshot = newsData
+    setNewsData(prev => prev!.map(x => orderOf.has(x.id) ? { ...x, order: orderOf.get(x.id)! } : x))
+    try {
+      await reorderNews(reordered.map(x => x.id))
+      setSaveError(null)
+      void mutate()
+    } catch (e) { reportErr(e); if (snapshot) setNewsData(snapshot) }
+  }
+  function newsMoveDisabled(item: NewsItem, dir: 'up' | 'down') {
+    if (!item.pinned) return true
+    const pinned = sortedNews.filter(x => x.pinned)
+    const i = pinned.findIndex(x => x.id === item.id)
+    return dir === 'up' ? i <= 0 : i === pinned.length - 1
   }
 
   const [editingPerson, setEditingPerson]     = useState<Person | null>(null)
@@ -506,13 +574,13 @@ export default function AdminPage() {
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
               <div>
                 <p className="text-sm font-medium">资源管理</p>
-                <p className="text-xs text-muted-foreground mt-0.5">管理实验室资源信息</p>
+                <p className="text-xs text-muted-foreground mt-0.5">管理实验室资源信息，↑↓ 调整分类内显示顺序</p>
               </div>
               <ResourceDialog onSubmit={handleResourceCreate} />
             </div>
             <div className="px-4">
               <DataTable
-                data={resourcesData}
+                data={sortedResources}
                 columns={[
                   { key: 'name',   label: '名称' },
                   { key: 'categoryId', label: '分类', render: v => (
@@ -533,6 +601,8 @@ export default function AdminPage() {
                 ]}
                 onEdit={item => setEditingResource(item)}
                 onDelete={handleResourceDelete}
+                onMove={handleResourceMove}
+                moveDisabled={resourceMoveDisabled}
               />
             </div>
           </div>
@@ -549,13 +619,13 @@ export default function AdminPage() {
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
               <div>
                 <p className="text-sm font-medium">动态管理</p>
-                <p className="text-xs text-muted-foreground mt-0.5">管理实验室新闻与通知</p>
+                <p className="text-xs text-muted-foreground mt-0.5">管理实验室新闻与通知，↑↓ 调整置顶动态的显示顺序</p>
               </div>
               <NewsDialog onSubmit={handleNewsCreate} />
             </div>
             <div className="px-4">
               <DataTable
-                data={newsData}
+                data={sortedNews}
                 columns={[
                   { key: 'title',  label: '标题', render: v => (
                     <span className="truncate max-w-[220px] block text-sm">{String(v)}</span>
@@ -581,6 +651,8 @@ export default function AdminPage() {
                 ]}
                 onEdit={item => setEditingNews(item)}
                 onDelete={handleNewsDelete}
+                onMove={handleNewsMove}
+                moveDisabled={newsMoveDisabled}
               />
             </div>
           </div>

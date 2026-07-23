@@ -21,9 +21,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const existing = await prisma.newsItem.findUnique({ where: { id } })
   if (!existing) return NextResponse.json({ error: 'not found' }, { status: 404 })
 
+  const merged = { ...(toNewsItem(existing)), ...(body as NewsItem), id }
+  // Pinning an item appends it to the end of the pinned group (unless the
+  // caller passed an explicit order).
+  if (merged.pinned && !existing.pinned && body.order === undefined) {
+    const pinned = await prisma.newsItem.findMany({ where: { pinned: true }, select: { order: true } })
+    merged.order = pinned.reduce((max, n) => Math.max(max, n.order), -1) + 1
+  }
+
   const updated = await prisma.newsItem.update({
     where: { id },
-    data: fromNewsItem({ ...(toNewsItem(existing)), ...(body as NewsItem), id }),
+    data: fromNewsItem(merged),
   })
   void logAction({
     ...actorFromAuth(auth),

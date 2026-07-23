@@ -21,9 +21,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const existing = await prisma.resource.findUnique({ where: { id } })
   if (!existing) return NextResponse.json({ error: 'not found' }, { status: 404 })
 
+  const merged = { ...(toResource(existing)), ...(body as Resource), id }
+  // Moving to another category appends the resource to the end of the new
+  // category group (unless the caller passed an explicit order).
+  if ((merged.categoryId ?? null) !== existing.categoryId && body.order === undefined) {
+    const siblings = await prisma.resource.findMany({
+      where: { categoryId: merged.categoryId ?? null }, select: { order: true },
+    })
+    merged.order = siblings.reduce((max, r) => Math.max(max, r.order), -1) + 1
+  }
+
   const updated = await prisma.resource.update({
     where: { id },
-    data: fromResource({ ...(toResource(existing)), ...(body as Resource), id }),
+    data: fromResource(merged),
   })
   void logAction({
     ...actorFromAuth(auth),

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { toNewsItem, fromNewsItem } from '@/lib/db/serialize'
+import { compareNews } from '@/lib/ordering'
 import { requireUserOrScope, requireScope } from '@/lib/auth-api'
 import { logAction, actorFromAuth } from '@/lib/audit'
 import type { NewsItem, ApiResponse, PaginatedResponse } from '@/lib/types'
@@ -46,12 +47,8 @@ export async function GET(request: Request) {
     )
   }
 
-  // Sort: pinned first, then date desc
-  rows.sort((a, b) => {
-    if (a.pinned && !b.pinned) return -1
-    if (!a.pinned && b.pinned) return 1
-    return new Date(b.date).getTime() - new Date(a.date).getTime()
-  })
+  // Sort: pinned first (manual order asc, date desc as tiebreak), then date desc
+  rows.sort(compareNews)
 
   const total = rows.length
   const totalPages = Math.ceil(total / pageSize)
@@ -80,8 +77,15 @@ export async function POST(req: NextRequest) {
   }
 
   const id = `n-${Date.now()}`
+  // New pinned items land at the end of the pinned group; unpinned order is
+  // irrelevant (that group sorts by date desc).
+  let order = body.order ?? 0
+  if (body.pinned && body.order === undefined) {
+    const pinned = await prisma.newsItem.findMany({ where: { pinned: true }, select: { order: true } })
+    order = pinned.reduce((max, n) => Math.max(max, n.order), -1) + 1
+  }
   const created = await prisma.newsItem.create({
-    data: fromNewsItem({ ...(body as NewsItem), id }),
+    data: fromNewsItem({ ...(body as NewsItem), id, order }),
   })
   void logAction({
     ...actorFromAuth(auth),

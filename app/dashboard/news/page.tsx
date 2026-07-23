@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useNews, useCategories, updateNews } from '@/lib/api'
+import { compareNews } from '@/lib/ordering'
 import { useAuth } from '@/lib/auth-context'
 import type { NewsItem } from '@/lib/types'
 import { MarkdownContent } from '@/components/dashboard/markdown-content'
@@ -70,11 +71,7 @@ export default function NewsPage() {
       n.tags?.some(t => t.toLowerCase().includes(search.toLowerCase()))
     const matchCat = !categoryFilter || n.categoryId === categoryFilter
     return matchSearch && matchCat
-  }).sort((a, b) => {
-    if (a.pinned && !b.pinned) return -1
-    if (!a.pinned && b.pinned) return 1
-    return new Date(b.date).getTime() - new Date(a.date).getTime()
-  }), [search, categoryFilter, news])
+  }).sort(compareNews), [search, categoryFilter, news])
 
   const counts = useMemo(() => {
     const c = new Map<string, number>()
