@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { useSidebar } from '@/lib/sidebar-context'
@@ -111,18 +112,14 @@ export function DashboardNav() {
         )}>
           {!collapsed && (
             <Link href="/dashboard" className="flex items-center gap-2 group">
-              <div className="w-5 h-5 rounded bg-primary flex items-center justify-center">
-                <span className="text-[10px] font-bold text-primary-foreground leading-none">ID</span>
-              </div>
+              <Image src="/favicon.svg" alt="" width={20} height={20} className="w-5 h-5 shrink-0" priority />
               <span className="text-sm font-semibold tracking-tight">IDRL Portal</span>
               <span className="text-[10px] text-muted-foreground/70 font-mono mt-0.5">v{APP_VERSION}</span>
             </Link>
           )}
           {collapsed && (
             <Link href="/dashboard">
-              <div className="w-5 h-5 rounded bg-primary flex items-center justify-center">
-                <span className="text-[10px] font-bold text-primary-foreground leading-none">ID</span>
-              </div>
+              <Image src="/favicon.svg" alt="" width={20} height={20} className="w-5 h-5 shrink-0" priority />
             </Link>
           )}
           {!collapsed && (
@@ -244,9 +241,7 @@ export function DashboardNav() {
       <header className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-sm border-b border-border">
         <div className="flex items-center justify-between h-12 px-4">
           <Link href="/dashboard" className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded bg-primary flex items-center justify-center">
-              <span className="text-[10px] font-bold text-primary-foreground leading-none">ID</span>
-            </div>
+            <Image src="/favicon.svg" alt="" width={20} height={20} className="w-5 h-5 shrink-0" priority />
             <span className="text-sm font-semibold">IDRL Portal</span>
           </Link>
 
