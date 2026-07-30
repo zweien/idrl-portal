@@ -70,18 +70,29 @@ export async function syncMembers(): Promise<{
       })
       updated++
     } else {
-      await prisma.person.create({
-        data: {
-          id: `dt-${m.userid}`,
-          name: m.name,
-          // New person: store whatever title DingTalk gave (blank → '').
-          role: title,
-          dingUserId: m.unionid,
-          status: 'absent',
-          ...(m.email ? { email: m.email } : {}),
-          ...(m.mobile ? { phone: m.mobile } : {}),
-        },
-      })
+      // New person: store whatever title DingTalk gave (blank → '').
+      // An org migration can leave a stale row reusing the same `dt-<userid>`
+      // id (userid is per-org; collisions across migrations are possible) whose
+      // unionid no longer matches. On a PK clash, adopt that row instead of
+      // failing the whole sync.
+      const newId = `dt-${m.userid}`
+      const data = {
+        name: m.name,
+        role: title,
+        dingUserId: m.unionid,
+        status: 'absent' as const,
+        ...(m.email ? { email: m.email } : {}),
+        ...(m.mobile ? { phone: m.mobile } : {}),
+      }
+      try {
+        await prisma.person.create({ data: { id: newId, ...data } })
+      } catch (e) {
+        if (e instanceof Error && /Unique constraint failed/.test(e.message)) {
+          await prisma.person.update({ where: { id: newId }, data })
+        } else {
+          throw e
+        }
+      }
       created++
     }
   }
