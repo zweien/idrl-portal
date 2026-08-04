@@ -31,10 +31,12 @@ export class UploadValidationError extends Error {
  */
 export function uploadsDir(): string {
   if (process.env.UPLOADS_DIR) return process.env.UPLOADS_DIR
-  // lib/ → up one level to the project root. import.meta.url gives a valid
-  // file: URL base (new URL('.') alone throws "Invalid URL").
-  const projectRoot = join(fileURLToPath(new URL('.', import.meta.url)), '..')
-  return join(projectRoot, 'uploads')
+  // lib/uploads.ts → up one level to the project root. import.meta.url is the
+  // file URL of this module; its directory is lib/, so dirname then '..' gives
+  // the project root. (Avoid new URL('.', base) — Turbopack treats '.' as a
+  // module specifier and fails the build.)
+  const thisDir = join(fileURLToPath(import.meta.url), '..')
+  return join(thisDir, '..', 'uploads')
 }
 
 /** Random 10-hex suffix to avoid filename collisions. */
