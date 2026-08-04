@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { NewsItem, NewsStatus } from '@/lib/types'
-import { useCategories } from '@/lib/api'
+import { useCategories, uploadNewsImage } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -24,7 +24,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { Plus, Pencil } from 'lucide-react'
+import { Plus, Pencil, ImagePlus, Loader2 } from 'lucide-react'
 
 interface NewsDialogProps {
   initialData?: NewsItem
@@ -73,6 +73,33 @@ export function NewsDialog({ initialData, trigger, onSubmit }: NewsDialogProps) 
   })
 
   const [submitting, setSubmitting] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const contentRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  /** Upload the chosen file and splice `![](url)` into the textarea at the cursor. */
+  const handleInsertImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = '' // reset so picking the same file twice re-fires
+    if (!file) return
+    setUploading(true)
+    try {
+      const { url } = await uploadNewsImage(file)
+      const ta = contentRef.current
+      const md = `![](${url})`
+      // Use the functional update so edits made while the upload was in flight
+      // are preserved (reading `form.content` here would be stale).
+      setForm(f => {
+        const start = ta ? ta.selectionStart : f.content.length
+        const end = ta ? ta.selectionEnd : f.content.length
+        return { ...f, content: f.content.slice(0, start) + md + f.content.slice(end) }
+      })
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '上传失败')
+    } finally {
+      setUploading(false)
+    }
+  }
 
   const handleSubmit = async () => {
     if (!form.title || submitting) return
@@ -187,8 +214,34 @@ export function NewsDialog({ initialData, trigger, onSubmit }: NewsDialogProps) 
             <Input value={form.summary} onChange={e => setForm({ ...form, summary: e.target.value })} placeholder="简短摘要（可选）" className="h-9" />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">内容（支持 Markdown）</Label>
-            <Textarea value={form.content} onChange={e => setForm({ ...form, content: e.target.value })} placeholder="支持 Markdown 语法" className="min-h-[200px] text-sm font-mono" />
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">内容（支持 Markdown）</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1.5 text-xs text-muted-foreground"
+                disabled={uploading}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImagePlus className="h-3.5 w-3.5" />}
+                {uploading ? '上传中…' : '插入图片'}
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                className="hidden"
+                onChange={handleInsertImage}
+              />
+            </div>
+            <Textarea
+              ref={contentRef}
+              value={form.content}
+              onChange={e => setForm({ ...form, content: e.target.value })}
+              placeholder="支持 Markdown 语法"
+              className="min-h-[200px] text-sm font-mono"
+            />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
@@ -233,7 +286,7 @@ export function NewsDialog({ initialData, trigger, onSubmit }: NewsDialogProps) 
         </div>
         <DialogFooter>
           <Button variant="outline" size="sm" onClick={() => setOpen(false)}>取消</Button>
-          <Button size="sm" onClick={handleSubmit} disabled={submitting || !form.title || (form.status === 'scheduled' && !form.publishAt)}>{isEdit ? '保存' : '发布'}</Button>
+          <Button size="sm" onClick={handleSubmit} disabled={submitting || uploading || !form.title || (form.status === 'scheduled' && !form.publishAt)}>{isEdit ? '保存' : '发布'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
