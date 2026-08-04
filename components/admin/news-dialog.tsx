@@ -1,6 +1,6 @@
 'use client'
 
-import { useDeferredValue, useRef, useState } from 'react'
+import { useDeferredValue, useMemo, useRef, useState } from 'react'
 import type { NewsItem, NewsStatus } from '@/lib/types'
 import { useCategories, uploadNewsImage } from '@/lib/api'
 import { MarkdownContent } from '@/components/dashboard/markdown-content'
@@ -78,8 +78,10 @@ export function NewsDialog({ initialData, trigger, onSubmit }: NewsDialogProps) 
   const contentRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   // Deferred so rapid typing / large pastes don't re-render Markdown on every
-  // keystroke; the preview catches up a tick later.
+  // keystroke; the preview catches up a tick later. Memoized so the urgent
+  // render (during typing) reuses the last deferred parse instead of reparsing.
   const deferredContent = useDeferredValue(form.content)
+  const preview = useMemo(() => <MarkdownContent content={deferredContent} />, [deferredContent])
 
   /** Upload the chosen file and splice `![](url)` into the textarea at the cursor. */
   const handleInsertImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -168,7 +170,7 @@ export function NewsDialog({ initialData, trigger, onSubmit }: NewsDialogProps) 
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{isEdit ? '编辑动态' : '发布新动态'}</DialogTitle>
           <DialogDescription>{isEdit ? '修改动态信息' : '填写动态内容，支持 Markdown 语法。'}</DialogDescription>
@@ -250,7 +252,7 @@ export function NewsDialog({ initialData, trigger, onSubmit }: NewsDialogProps) 
               />
               <div className="min-h-[300px] max-h-[480px] overflow-y-auto rounded-md border border-border bg-muted/20 p-3">
                 {deferredContent.trim() ? (
-                  <MarkdownContent content={deferredContent} />
+                  preview
                 ) : (
                   <p className="text-sm text-muted-foreground/60">预览区（输入内容后实时渲染）</p>
                 )}
