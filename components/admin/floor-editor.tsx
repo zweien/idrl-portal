@@ -152,7 +152,7 @@ export function FloorEditor({ floors, onChange, selectedFloorId, onSelectedFloor
                   const existing = z.workstations.find(w => w.row === r && w.col === c)
                   ws.push(existing ?? {
                     id: genId(`ws-${z.id}`),
-                    name: `${z.name.charAt(0)}-${String(idx).padStart(2, '0')}`,
+                    name: `${z.name.trim() || 'Z'}-${String(idx).padStart(2, '0')}`,
                     zoneId: z.id,
                     floorId: fl.id,
                     row: r,

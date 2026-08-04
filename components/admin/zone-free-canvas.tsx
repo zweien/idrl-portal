@@ -48,7 +48,9 @@ function genWsId(zoneId: string, seq: number) {
 }
 
 function defaultWsName(zone: Zone, seq: number) {
-  const prefix = zone.name.charAt(0) || 'Z'
+  // Use the full zone name (e.g. "1006") as the prefix, not just its first
+  // char — charAt(0) turned "1006" into "1", which read as the floor number.
+  const prefix = zone.name.trim() || 'Z'
   return `${prefix}-${String(seq).padStart(2, '0')}`
 }
 
