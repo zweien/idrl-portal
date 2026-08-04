@@ -1,8 +1,9 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useDeferredValue, useRef, useState } from 'react'
 import type { NewsItem, NewsStatus } from '@/lib/types'
 import { useCategories, uploadNewsImage } from '@/lib/api'
+import { MarkdownContent } from '@/components/dashboard/markdown-content'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -76,6 +77,9 @@ export function NewsDialog({ initialData, trigger, onSubmit }: NewsDialogProps) 
   const [uploading, setUploading] = useState(false)
   const contentRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // Deferred so rapid typing / large pastes don't re-render Markdown on every
+  // keystroke; the preview catches up a tick later.
+  const deferredContent = useDeferredValue(form.content)
 
   /** Upload the chosen file and splice `![](url)` into the textarea at the cursor. */
   const handleInsertImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -235,13 +239,23 @@ export function NewsDialog({ initialData, trigger, onSubmit }: NewsDialogProps) 
                 onChange={handleInsertImage}
               />
             </div>
-            <Textarea
-              ref={contentRef}
-              value={form.content}
-              onChange={e => setForm({ ...form, content: e.target.value })}
-              placeholder="支持 Markdown 语法"
-              className="min-h-[200px] text-sm font-mono"
-            />
+            {/* Edit | preview split-pane. Side-by-side on lg+, stacked on窄屏. */}
+            <div className="grid gap-2 lg:grid-cols-2">
+              <Textarea
+                ref={contentRef}
+                value={form.content}
+                onChange={e => setForm({ ...form, content: e.target.value })}
+                placeholder="支持 Markdown 语法"
+                className="min-h-[300px] text-sm font-mono resize-y"
+              />
+              <div className="min-h-[300px] max-h-[480px] overflow-y-auto rounded-md border border-border bg-muted/20 p-3">
+                {deferredContent.trim() ? (
+                  <MarkdownContent content={deferredContent} />
+                ) : (
+                  <p className="text-sm text-muted-foreground/60">预览区（输入内容后实时渲染）</p>
+                )}
+              </div>
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
