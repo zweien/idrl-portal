@@ -5,6 +5,12 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v0.2.1] - 2026-08-04
+
+### 新增
+
+- feat(news): 编辑动态增加 Markdown 实时预览 (#65)
+
 ## [v0.2.0] - 2026-08-04
 
 ### 新增
