@@ -5,6 +5,17 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v0.1.9] - 2026-08-04
+
+### 新增
+
+- feat(attendance): 榜单前三名做成领奖台突出展示 (#62)
+
+### 修复
+
+- fix(ui): unify sidebar toggle, visible workstation status, denser personnel grid (#61)
+- fix(floor-editor): use full zone name as workstation name prefix (#60)
+
 ## [v0.1.8] - 2026-07-30
 
 ### 修复
