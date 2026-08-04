@@ -65,10 +65,11 @@ function Row({ rank, entry, primary }: { rank: number; entry: LeaderboardEntry; 
 
 /** Renders a leaderboard card: top-3 podium on top, ranks 4–20 as a compact list. */
 function LeaderboardCard({
-  icon, title, dateLabel, loading, empty, emptyIcon, items, formatPrimary, primaryLabel,
+  icon, title, dateLabel, loading, empty, emptyIcon, emptyTitle, emptyHint, items, formatPrimary, primaryLabel,
 }: {
   icon: React.ReactNode; title: string; dateLabel?: React.ReactNode
   loading: boolean; empty: boolean; emptyIcon: React.ReactNode
+  emptyTitle: string; emptyHint: string
   items: LeaderboardEntry[]
   formatPrimary: (e: LeaderboardEntry) => React.ReactNode
   primaryLabel: (e: LeaderboardEntry) => string
@@ -90,8 +91,8 @@ function LeaderboardCard({
         ) : empty ? (
           <div className="flex flex-col items-center justify-center py-8 text-center gap-2">
             {emptyIcon}
-            <p className="text-sm text-muted-foreground">今日数据将在首次同步后更新</p>
-            <p className="text-xs text-muted-foreground/70">每天首次考勤同步后，本榜单自动生成</p>
+            <p className="text-sm text-muted-foreground">{emptyTitle}</p>
+            <p className="text-xs text-muted-foreground/70">{emptyHint}</p>
           </div>
         ) : (
           <>
@@ -131,6 +132,8 @@ export function LeaderboardPanel() {
         loading={todayLoading}
         empty={!today || today.items.length === 0}
         emptyIcon={<Info className="h-6 w-6 text-muted-foreground/40" />}
+        emptyTitle="今日数据将在首次同步后更新"
+        emptyHint="每天首次考勤同步后，本榜单自动生成"
         items={today?.items ?? []}
         formatPrimary={e => e.checkIn ?? '—'}
         primaryLabel={() => '打卡时间'}
@@ -142,6 +145,8 @@ export function LeaderboardPanel() {
         loading={monthlyLoading}
         empty={!monthly || monthly.items.length === 0}
         emptyIcon={<Trophy className="h-6 w-6 text-muted-foreground/40" />}
+        emptyTitle="暂无数据"
+        emptyHint="次月同步后会显示本月累计工时"
         items={monthly?.items ?? []}
         formatPrimary={e => formatWorkHours(e.workMinutes ?? null)}
         primaryLabel={() => '本月工时'}
