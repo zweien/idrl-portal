@@ -105,7 +105,7 @@ export function DashboardNav() {
           collapsed ? 'w-14' : 'w-56'
         )}
       >
-        {/* Wordmark */}
+        {/* Wordmark + collapse toggle (same position expanded or collapsed) */}
         <div className={cn(
           'flex items-center h-12 border-b border-sidebar-border transition-all duration-200',
           collapsed ? 'justify-center px-2' : 'justify-between px-4'
@@ -122,16 +122,23 @@ export function DashboardNav() {
               <Image src="/favicon.svg" alt="" width={20} height={20} className="w-5 h-5 shrink-0" priority />
             </Link>
           )}
-          {!collapsed && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={toggle}
-              className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
-            >
-              <PanelLeftClose className="h-4 w-4" />
-            </Button>
-          )}
+          {/* Collapse/expand toggle lives in the wordmark row so its position
+              is identical in both states (was: close on top, open on bottom). */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={toggle}
+                className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+              >
+                {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="right" sideOffset={8}>
+              {collapsed ? '展开侧栏' : '收起侧栏'}
+            </TooltipContent>
+          </Tooltip>
         </div>
 
         {/* Nav items */}
@@ -173,23 +180,6 @@ export function DashboardNav() {
         <div className={cn('px-2 py-3 border-t border-sidebar-border space-y-1', collapsed && 'px-1.5')}>
           <div className={cn('flex items-center', collapsed ? 'justify-center' : 'justify-between px-0.5')}>
             <ThemeToggle collapsed={collapsed} />
-            {collapsed && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={toggle}
-                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-                  >
-                    <PanelLeftOpen className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="right" sideOffset={8}>
-                  展开侧栏
-                </TooltipContent>
-              </Tooltip>
-            )}
           </div>
 
           {/* User row */}

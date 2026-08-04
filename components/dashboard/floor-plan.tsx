@@ -279,7 +279,16 @@ export function FloorPlan({ floor, personnel, onSelectWorkstation, selectedWorks
                             {person ? (
                               <>
                                 <p className="text-sm">{person.name}</p>
-                                <Badge variant="outline" className="text-xs">
+                                <Badge
+                                  variant="outline"
+                                  className={cn(
+                                    'text-xs border-transparent',
+                                    person.status === 'present' && 'bg-[var(--status-present)]/15 text-[var(--status-present)]',
+                                    person.status === 'trip' && 'bg-[var(--status-trip)]/15 text-[var(--status-trip)]',
+                                    person.status === 'leave' && 'bg-[var(--status-leave)]/15 text-[var(--status-leave)]',
+                                    person.status === 'absent' && 'bg-[var(--status-absent)]/15 text-[var(--status-absent)]',
+                                  )}
+                                >
                                   {statusLabels[person.status] ?? '未知'}
                                 </Badge>
                               </>
