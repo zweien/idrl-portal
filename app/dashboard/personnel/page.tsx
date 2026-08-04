@@ -292,7 +292,7 @@ export default function PersonnelPage() {
             {filtered.length} 人{search && ` · 搜索 "${search}"`}
           </span>
         </div>
-        <div className="p-4 grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+        <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2">
           {filtered.map(person => {
             const isSelected = selectedPerson?.id === person.id
             return (
@@ -300,26 +300,25 @@ export default function PersonnelPage() {
                 key={person.id}
                 onClick={() => handlePersonSelect(person)}
                 className={cn(
-                  'flex items-center gap-3 p-3 rounded-md border text-left transition-colors w-full relative overflow-hidden',
+                  'flex items-center gap-2 p-2 rounded-md border text-left transition-colors w-full relative overflow-hidden',
                   isSelected
                     ? 'border-primary/50 bg-primary/5'
                     : 'border-border hover:bg-accent hover:border-border'
                 )}
               >
                 <span className={cn('absolute left-0 top-0 bottom-0 w-1', statusBg[person.status])} />
-                <Avatar className="h-8 w-8 shrink-0">
-                  <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                <Avatar className="h-7 w-7 shrink-0">
+                  <AvatarFallback className="bg-primary/10 text-primary text-[11px] font-semibold">
                     {person.name.charAt(0)}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-sm font-medium truncate">{person.name}</span>
+                    <span className="text-xs font-medium truncate">{person.name}</span>
                   </div>
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <span className={cn('inline-block h-1.5 w-1.5 rounded-full', statusBg[person.status])} />
-                    <span className="text-xs text-muted-foreground">{statusConfig[person.status].label}</span>
-                    {person.role && <span className="text-xs text-muted-foreground/60">· {person.role}</span>}
+                    <span className="text-[10px] text-muted-foreground">{statusConfig[person.status].label}</span>
                   </div>
                 </div>
               </button>
