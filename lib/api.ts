@@ -65,6 +65,29 @@ async function deleteJSON(url: string): Promise<void> {
   }
 }
 
+// ===== News image upload =====
+
+export interface UploadedImage {
+  url: string
+  filename: string
+  mime: string
+}
+
+/**
+ * Upload an image file for embedding in news content. Returns the public URL
+ * (served by GET /api/uploads/[...path]) to splice into Markdown.
+ */
+export async function uploadNewsImage(file: File): Promise<UploadedImage> {
+  const fd = new FormData()
+  fd.append('file', file)
+  const r = await fetch('/api/uploads', { method: 'POST', body: fd })
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({ error: r.statusText }))
+    throw new Error(err.error || `上传失败: ${r.status}`)
+  }
+  return r.json() as Promise<UploadedImage>
+}
+
 // ===== Single-item CRUD (Person) =====
 
 export const createPerson = (data: Omit<Person, 'id'>) => postJSON<Person>('/api/personnel', data)

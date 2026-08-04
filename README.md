@@ -121,7 +121,7 @@ Authorization: Bearer idrl_<48 hex>
 | `sync:members` | `POST /api/dingtalk/sync-members` |
 | `sync:attendance` | `POST /api/dingtalk/sync-attendance` |
 | `news:read` | `GET /api/news` |
-| `news:publish` | `POST / PATCH / DELETE /api/news(/:id)`、`POST /api/news/reorder` |
+| `news:publish` | `POST / PATCH / DELETE /api/news(/:id)`、`POST /api/news/reorder`、`POST /api/uploads` |
 | `resource:read` | `GET /api/resources` |
 | `resource:publish` | `POST / PATCH / DELETE /api/resources(/:id)`、`POST /api/resources/reorder` |
 
@@ -210,6 +210,8 @@ curl -X DELETE "$BASE/api/resources/<id>" -H "Authorization: Bearer $KEY"
 | POST | `/api/news` | 🔑 `news:publish` | 创建动态（支持定时发布） |
 | PATCH · DELETE | `/api/news/:id` | 🔑 `news:publish` | 修改 / 删除动态 |
 | POST | `/api/news/reorder` | 🔑 `news:publish` | 置顶组手动排序 |
+| POST | `/api/uploads` | 🔑 `news:publish` | 上传动态图片 |
+| GET | `/api/uploads/:path` | 🌐 公开 | 读取已上传图片 |
 | GET | `/api/resources` | 👤 `resource:read` | 资源列表（分页/筛选） |
 | POST | `/api/resources` | 🔑 `resource:publish` | 创建资源 |
 | PATCH · DELETE | `/api/resources/:id` | 🔑 `resource:publish` | 修改 / 删除资源 |
@@ -289,6 +291,19 @@ PATCH Body 为 `Partial<NewsItem>`（浅合并）→ 200 NewsItem；DELETE → `
 **POST /api/news/reorder** — 🔑 `news:publish`
 
 Body `{ "ids": string[] }`：置顶组的完整有序 id 列表（必须全部存在且均为置顶，无重复）→ 按位置重写 `order` 为 0..n-1 → `{ "ok": true }`。非置顶动态始终按日期倒序，不参与排序。
+
+### 图片上传 `/api/uploads`
+
+**POST /api/uploads** — 🔑 `news:publish`
+
+multipart `file` 字段，仅接受 jpg/jpeg/png/gif/webp（按**魔数**校验，不只是扩展名），≤5MB。
+→ 201 `{ "url": "/api/uploads/<timestamp>-<random>.<ext>", "filename", "mime" }`。把返回的 `url` 以 `![](url)` 插入动态正文 Markdown 即可内嵌显示。
+
+**GET /api/uploads/:path** — 🌐 公开（无需认证）
+
+读取已上传的图片，带 1 年 immutable 缓存。URL 形态由上传端点返回，无需自行拼装。
+
+> 图片存于项目根 `uploads/`（gitignore，部署 `git reset --hard` 不清理）。无 DB 记录；删除动态不会自动删除其引用的图片（孤儿文件需手动清理）。
 
 ### 资源 `/api/resources`
 

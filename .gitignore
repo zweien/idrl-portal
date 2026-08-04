@@ -36,4 +36,7 @@ next-env.d.ts
 prisma/db.sqlite
 prisma/db.sqlite-journal
 prisma/backups/
+
+# uploaded news images (runtime-only, served via /api/uploads)
+uploads/
 .zcode/
