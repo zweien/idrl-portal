@@ -31,8 +31,9 @@ export class UploadValidationError extends Error {
  */
 export function uploadsDir(): string {
   if (process.env.UPLOADS_DIR) return process.env.UPLOADS_DIR
-  // __dirname-equivalent for ESM: lib/ → up one level to the project root.
-  const projectRoot = join(fileURLToPath(new URL('.')), '..')
+  // lib/ → up one level to the project root. import.meta.url gives a valid
+  // file: URL base (new URL('.') alone throws "Invalid URL").
+  const projectRoot = join(fileURLToPath(new URL('.', import.meta.url)), '..')
   return join(projectRoot, 'uploads')
 }
 
@@ -51,6 +52,10 @@ export function validateImage(buf: Buffer, kind: ImageKind): { ext: string; mime
   if (buf.length > MAX_BYTES) throw new UploadValidationError('文件超过 5MB 限制')
   if (!buf.subarray(0, t.magic.length).equals(t.magic)) {
     throw new UploadValidationError('文件内容与扩展名不符（魔数校验失败）')
+  }
+  // WebP is a RIFF container shared with WAV/AVI; confirm the format tag.
+  if (kind === 'webp' && buf.subarray(8, 12).toString('ascii') !== 'WEBP') {
+    throw new UploadValidationError('文件内容与扩展名不符（非 WebP）')
   }
   return { ext: t.ext, mime: t.mime }
 }

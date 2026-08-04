@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { validateImage, resolveUploadPath, randomSuffix, IMAGE_TYPES, UploadValidationError } from '@/lib/uploads'
+import { validateImage, resolveUploadPath, randomSuffix, uploadsDir, IMAGE_TYPES, UploadValidationError } from '@/lib/uploads'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -34,11 +34,18 @@ describe('validateImage', () => {
       ['jpg', [0xff, 0xd8, 0xff, 0xe0]],
       ['jpeg', [0xff, 0xd8, 0xff, 0xe1]],
       ['gif', [0x47, 0x49, 0x46, 0x38, 0x39, 0x61]],
+      // RIFF....WEBP — a real WebP header.
       ['webp', [0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50]],
     ]
     for (const [kind, header] of cases) {
       expect(() => validateImage(Buffer.from(header), kind)).not.toThrow()
     }
+  })
+
+  it('rejects a RIFF file whose format tag is not WEBP (e.g. WAV)', () => {
+    // RIFF....WAVE — a WAV header renamed to .webp must fail.
+    const wav = Buffer.from([0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00, 0x57, 0x41, 0x56, 0x45])
+    expect(() => validateImage(wav, 'webp')).toThrow('WebP')
   })
 })
 
@@ -47,6 +54,21 @@ describe('randomSuffix', () => {
     const s = randomSuffix()
     expect(s).toHaveLength(10)
     expect(s).toMatch(/^[0-9a-f]+$/)
+  })
+})
+
+describe('uploadsDir default', () => {
+  it('resolves without throwing when UPLOADS_DIR is unset', () => {
+    const saved = process.env.UPLOADS_DIR
+    delete process.env.UPLOADS_DIR
+    try {
+      const dir = uploadsDir()
+      expect(typeof dir).toBe('string')
+      expect(dir.length).toBeGreaterThan(0)
+      expect(dir.endsWith('uploads')).toBe(true)
+    } finally {
+      process.env.UPLOADS_DIR = saved
+    }
   })
 })
 

@@ -87,13 +87,13 @@ export function NewsDialog({ initialData, trigger, onSubmit }: NewsDialogProps) 
       const { url } = await uploadNewsImage(file)
       const ta = contentRef.current
       const md = `![](${url})`
-      if (ta) {
-        const { selectionStart: start, selectionEnd: end } = ta
-        const next = form.content.slice(0, start) + md + form.content.slice(end)
-        setForm(f => ({ ...f, content: next }))
-      } else {
-        setForm(f => ({ ...f, content: f.content + md }))
-      }
+      // Use the functional update so edits made while the upload was in flight
+      // are preserved (reading `form.content` here would be stale).
+      setForm(f => {
+        const start = ta ? ta.selectionStart : f.content.length
+        const end = ta ? ta.selectionEnd : f.content.length
+        return { ...f, content: f.content.slice(0, start) + md + f.content.slice(end) }
+      })
     } catch (err) {
       alert(err instanceof Error ? err.message : '上传失败')
     } finally {
@@ -286,7 +286,7 @@ export function NewsDialog({ initialData, trigger, onSubmit }: NewsDialogProps) 
         </div>
         <DialogFooter>
           <Button variant="outline" size="sm" onClick={() => setOpen(false)}>取消</Button>
-          <Button size="sm" onClick={handleSubmit} disabled={submitting || !form.title || (form.status === 'scheduled' && !form.publishAt)}>{isEdit ? '保存' : '发布'}</Button>
+          <Button size="sm" onClick={handleSubmit} disabled={submitting || uploading || !form.title || (form.status === 'scheduled' && !form.publishAt)}>{isEdit ? '保存' : '发布'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
