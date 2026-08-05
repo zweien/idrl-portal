@@ -108,7 +108,8 @@ export interface NewsItem {
   author?: string
   date: string
   tags?: string[]
-  imageUrl?: string
+  /** string = cover URL; null = explicitly cleared; undefined = omitted (keep existing) */
+  imageUrl?: string | null
   link?: string
   pinned?: boolean
   /** Manual order within the pinned group; unpinned items always sort by date desc. */
