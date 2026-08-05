@@ -78,22 +78,23 @@ export async function requireAdmin(): Promise<SessionData | NextResponse> {
 }
 
 type ApiKeyResolve =
-  | { ok: true; id: string }
+  | { ok: true; id: string; admin: boolean }
   | { rateLimited: true; retryAfter: number }
   | null
 
 /**
  * Resolve a Bearer API key from the Authorization header.
- * - returns `{ ok, id }` when a valid, in-scope, under-limit key is present
+ * - returns `{ ok, id, admin }` when a valid, in-scope, under-limit key is
+ *   present; `admin` is true when the key carries the `admin` scope
  * - returns `{ rateLimited, retryAfter }` when the key has exceeded its rate
  *   limit (caller surfaces a 429 with Retry-After)
  * - returns null when no valid key is present (no header, unknown, revoked, or
- *   scope mismatch) — caller then falls back to session auth
+ *   no scope match) — caller then falls back to session auth
  *
- * Revoked keys and keys lacking the requested scope are rejected. Updates
- * lastUsedAt on a successful (under-limit) resolution.
+ * Revoked keys and keys lacking any of the requested scopes are rejected.
+ * Updates lastUsedAt on a successful (under-limit) resolution.
  */
-async function resolveApiKey(req: Request, scope: ApiScope): Promise<ApiKeyResolve> {
+async function resolveApiKey(req: Request, scopes: ApiScope[]): Promise<ApiKeyResolve> {
   const authHeader = req.headers.get('authorization')
   if (!authHeader?.startsWith('Bearer ')) return null
   const plaintext = authHeader.slice('Bearer '.length).trim()
@@ -106,13 +107,13 @@ async function resolveApiKey(req: Request, scope: ApiScope): Promise<ApiKeyResol
   // Unknown key, or revoked → treat as no valid key.
   if (!row || row.revokedAt) return null
 
-  let scopes: string[] = []
+  let keyScopes: string[] = []
   try {
-    scopes = JSON.parse(row.scopes) as string[]
+    keyScopes = JSON.parse(row.scopes) as string[]
   } catch {
     return null
   }
-  if (!scopes.includes(scope)) return null
+  if (!scopes.some(s => keyScopes.includes(s))) return null
 
   // Rate limit before counting as a use. A limited key gets a 429, not a write.
   // Resolved limit: per-key override, else the global default.
@@ -127,7 +128,7 @@ async function resolveApiKey(req: Request, scope: ApiScope): Promise<ApiKeyResol
     where: { id: row.id },
     data: { lastUsedAt: new Date() },
   })
-  return { ok: true, id: row.id }
+  return { ok: true, id: row.id, admin: keyScopes.includes('admin') }
 }
 
 /**
@@ -144,7 +145,7 @@ export async function requireScope(
   scope: ApiScope,
 ): Promise<SessionData | NextResponse> {
   // Try API key first (machine-to-machine).
-  const apiKey = await resolveApiKey(req, scope)
+  const apiKey = await resolveApiKey(req, [scope])
   if (apiKey) {
     if ('rateLimited' in apiKey) {
       return NextResponse.json(
@@ -177,7 +178,7 @@ export async function requireUserOrScope(
   req: Request,
   scope: ApiScope,
 ): Promise<SessionData | NextResponse> {
-  const apiKey = await resolveApiKey(req, scope)
+  const apiKey = await resolveApiKey(req, [scope])
   if (apiKey) {
     if ('rateLimited' in apiKey) {
       return NextResponse.json(
@@ -188,4 +189,50 @@ export async function requireUserOrScope(
     return { userId: `apikey:${apiKey.id}`, provider: 'apikey', role: 'member' } as unknown as SessionData
   }
   return requireUser()
+}
+
+/**
+ * Require either (a) any authenticated session, OR (b) a valid Bearer API key
+ * carrying at least one of `scopes`. Unlike requireUserOrScope, a key with the
+ * `admin` scope authenticates as an ADMIN identity, so the route's admin-only
+ * branches (draft visibility, non-self attendance queries, …) apply to it.
+ * Keys without `admin` authenticate as member (existing behavior).
+ */
+export async function requireUserOrScopeAny(
+  req: Request,
+  scopes: ApiScope[],
+): Promise<SessionData | NextResponse> {
+  const apiKey = await resolveApiKey(req, scopes)
+  if (apiKey) {
+    if ('rateLimited' in apiKey) {
+      return NextResponse.json(
+        { error: 'rate limit exceeded' },
+        { status: 429, headers: { 'Retry-After': String(apiKey.retryAfter) } },
+      )
+    }
+    return { userId: `apikey:${apiKey.id}`, provider: 'apikey', role: apiKey.admin ? 'admin' : 'member' } as unknown as SessionData
+  }
+  return requireUser()
+}
+
+/**
+ * Require either (a) an admin session, OR (b) a valid Bearer API key carrying
+ * at least one of `scopes` (authenticated as admin). Used by admin-only reads
+ * (sync/audit logs) so a management key can inspect them.
+ */
+export async function requireAdminOrScope(
+  req: Request,
+  scopes: ApiScope[],
+): Promise<SessionData | NextResponse> {
+  const apiKey = await resolveApiKey(req, scopes)
+  if (apiKey) {
+    if ('rateLimited' in apiKey) {
+      return NextResponse.json(
+        { error: 'rate limit exceeded' },
+        { status: 429, headers: { 'Retry-After': String(apiKey.retryAfter) } },
+      )
+    }
+    return { userId: `apikey:${apiKey.id}`, provider: 'apikey', role: 'admin' } as unknown as SessionData
+  }
+  return requireAdmin()
 }

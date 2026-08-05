@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { requireAdmin } from '@/lib/auth-api'
+import { requireAdminOrScope } from '@/lib/auth-api'
 import type { AuditLog, ApiResponse, PaginatedResponse } from '@/lib/types'
 
 /**
@@ -9,7 +9,7 @@ import type { AuditLog, ApiResponse, PaginatedResponse } from '@/lib/types'
  * Joins actor name (User.name for users, ApiKey.name for api keys).
  */
 export async function GET(request: Request) {
-  const auth = await requireAdmin()
+  const auth = await requireAdminOrScope(request, ['admin'])
   if (auth instanceof NextResponse) return auth
 
   const { searchParams } = new URL(request.url)

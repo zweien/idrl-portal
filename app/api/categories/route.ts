@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { toCategory } from '@/lib/db/serialize'
-import { requireUser, requireAdmin } from '@/lib/auth-api'
+import { requireUserOrScopeAny, requireAdmin } from '@/lib/auth-api'
 import { logAction, actorFromAuth } from '@/lib/audit'
 import type { Category, CategoryKind, ApiResponse } from '@/lib/types'
 
@@ -10,7 +10,7 @@ import type { Category, CategoryKind, ApiResponse } from '@/lib/types'
  * Returns categories of the given kind, ordered by `order` then name.
  */
 export async function GET(req: Request) {
-  const auth = await requireUser()
+  const auth = await requireUserOrScopeAny(req, ['admin'])
   if (auth instanceof NextResponse) return auth
 
   const { searchParams } = new URL(req.url)

@@ -24,6 +24,7 @@ const ALL_SCOPES = [
   { value: 'news:read', label: '读取动态' },
   { value: 'resource:publish', label: '管理资源' },
   { value: 'resource:read', label: '读取资源' },
+  { value: 'admin', label: '管理门户' },
 ]
 
 export function ApiKeysPanel() {
