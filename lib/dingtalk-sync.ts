@@ -277,6 +277,18 @@ export async function syncAttendance(): Promise<{
 }
 
 /**
+ * Flatten the attendance sync result for SyncLog.stats persistence:
+ * `{total, stats:{present,leave,trip,absent}, finalizedDays}` →
+ * `{total, present, leave, trip, absent, finalizedDays}`. The nested `stats`
+ * key used to leak into the log row, producing a confusing `stats.stats`.
+ */
+export function flattenAttendanceStats(
+  result: { total: number; stats: { present: number; leave: number; trip: number; absent: number }; finalizedDays: number },
+): Record<string, unknown> {
+  return { total: result.total, finalizedDays: result.finalizedDays, ...result.stats }
+}
+
+/**
  * One-shot backfill for a single day (admin-triggered). Re-pulls that day from
  * DingTalk and upserts its AttendanceRecord regardless of the finalize water
  * mark. Does NOT advance lastFinalizedDate (the regular flow owns that).
