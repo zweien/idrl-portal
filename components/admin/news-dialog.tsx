@@ -127,7 +127,9 @@ export function NewsDialog({ initialData, trigger, onSubmit }: NewsDialogProps) 
         tags: form.tags ? form.tags.split(/[,，]/).map(s => s.trim()).filter(Boolean) : undefined,
         pinned: form.pinned || undefined,
         link: form.link || undefined,
-        imageUrl: form.imageUrl || undefined,
+        // null = explicitly clear the cover URL. `|| undefined` would be
+        // dropped by JSON.stringify, silently keeping the old image.
+        imageUrl: form.imageUrl || null,
         status: (scheduled ? 'draft' : form.status === 'scheduled' ? 'published' : form.status) as NewsStatus,
         publishAt: scheduled ? localToIso(form.publishAt) : null,
         categoryId: form.categoryId || null,
