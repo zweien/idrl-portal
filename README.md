@@ -126,7 +126,7 @@ Authorization: Bearer idrl_<48 hex>
 | `resource:publish` | `POST / PATCH / DELETE /api/resources(/:id)`、`POST /api/resources/reorder` |
 | `admin` | `GET /api/news?includeDrafts=1`、`GET /api/personnel`、`GET /api/categories`、`GET /api/attendance/*`（查询+导出）、`GET /api/sync-logs`、`GET /api/audit-logs` |
 
-- 未列出的端点（人员、用户、布局、备份、设置、日志等管理面）**只接受 admin session**，不识别 API key
+- 未列出的端点（用户、布局、备份、设置、人员/分类**写**等管理面）**只接受 admin session**，不识别 API key（`admin` scope 解锁的是读取/审核类，见上表）
 - 无效 / 已吊销 / scope 不符的 key 会**静默回落**到 session 判定（不会报「key 无效」），所以 key 用错时看到的是 401/403
 
 #### Guard 语义速查
