@@ -1,6 +1,6 @@
 import cron, { type ScheduledTask } from 'node-cron'
 import { prisma } from '@/lib/db'
-import { syncMembers, syncAttendance } from '@/lib/dingtalk-sync'
+import { syncMembers, syncAttendance, flattenAttendanceStats } from '@/lib/dingtalk-sync'
 import { createBackup, pruneBackups, readKeepCount } from '@/lib/backup'
 import { pruneAuditLogs, readKeepDays } from '@/lib/audit'
 
@@ -38,8 +38,9 @@ interface JobDef {
   enableKey: string       // enable toggle setting
   defaultCron: string
   run: () => Promise<unknown>
+  /** Optional transform of the result before persisting it as SyncLog.stats. */
+  flattenStats?: (result: unknown) => Record<string, unknown>
 }
-
 /**
  * Validate a 5-field cron expression. node-cron.validate() also accepts the
  * optional-seconds 6-field syntax, but cronMatchesMinute() only implements the
@@ -201,6 +202,9 @@ const JOB_DEFS: JobDef[] = [
     enableKey: 'cron.enabled.attendance',
     defaultCron: CRON_DEFAULTS['sync-attendance'],
     run: syncAttendance,
+    // Persist flattened stats ({total, present, leave, trip, absent, finalizedDays})
+    // instead of leaking the nested {stats:{...}} shape into the log row.
+    flattenStats: (result) => flattenAttendanceStats(result as Awaited<ReturnType<typeof syncAttendance>>),
   },
   {
     job: 'publish-news',
@@ -245,7 +249,7 @@ async function executeJob(def: JobDef) {
         job: def.job,
         source: 'cron',
         status: 'success',
-        stats: JSON.stringify(result ?? {}),
+        stats: JSON.stringify(def.flattenStats ? def.flattenStats(result) : (result ?? {})),
       },
     })
   } catch (e) {

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { requireScope } from '@/lib/auth-api'
-import { syncAttendance } from '@/lib/dingtalk-sync'
+import { syncAttendance, flattenAttendanceStats } from '@/lib/dingtalk-sync'
 import type { SyncSource } from '@/lib/types'
 
 /**
@@ -26,7 +26,8 @@ export async function POST(req: Request) {
         job: 'sync-attendance',
         source,
         status: 'success',
-        stats: JSON.stringify(result),
+        // Flatten so the log row doesn't carry the nested {stats:{...}} shape.
+        stats: JSON.stringify(flattenAttendanceStats(result)),
       },
     })
     return NextResponse.json(result)

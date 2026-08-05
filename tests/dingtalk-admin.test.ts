@@ -124,3 +124,17 @@ describe('mapStatusForDay (per-day priority: trip > leave > present > absent)', 
     expect(r.onDuty?.checkTime).toBe('08:50')
   })
 })
+
+describe('flattenAttendanceStats', () => {
+  it('flattens the nested stats shape for SyncLog persistence', async () => {
+    const { flattenAttendanceStats } = await import('@/lib/dingtalk-sync')
+    const flat = flattenAttendanceStats({
+      total: 94,
+      stats: { present: 26, leave: 6, trip: 0, absent: 62 },
+      finalizedDays: 1,
+    })
+    expect(flat).toEqual({ total: 94, finalizedDays: 1, present: 26, leave: 6, trip: 0, absent: 62 })
+    // No nested `stats` key leaks through.
+    expect(flat.stats).toBeUndefined()
+  })
+})
