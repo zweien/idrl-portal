@@ -5,6 +5,12 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v0.2.4] - 2026-08-05
+
+### 修复
+
+- fix(news): clearing the cover URL in the editor now persists (#68)
+
 ## [v0.2.3] - 2026-08-05
 
 ### 修复
