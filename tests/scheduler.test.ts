@@ -20,6 +20,7 @@ vi.mock('@/lib/db', () => ({
 vi.mock('@/lib/dingtalk-sync', () => ({
   syncMembers: vi.fn().mockResolvedValue({ total: 1, created: 0, updated: 1, linked: 0 }),
   syncAttendance: vi.fn().mockResolvedValue({ total: 1, stats: { present: 1, leave: 0, trip: 0, absent: 0 } }),
+  flattenAttendanceStats: (r: unknown) => r as Record<string, unknown>,
 }))
 
 const { isValidCron, CRON_PRESETS, runJob, registerScheduler, unregisterScheduler, cronMatchesMinute } =
