@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { requireAdmin } from '@/lib/auth-api'
+import { requireAdminOrScope } from '@/lib/auth-api'
 import type { SyncLog, ApiResponse } from '@/lib/types'
 
 /**
@@ -8,7 +8,7 @@ import type { SyncLog, ApiResponse } from '@/lib/types'
  * Recent background-job audit entries (sync + publishing), newest first.
  */
 export async function GET(req: Request) {
-  const auth = await requireAdmin()
+  const auth = await requireAdminOrScope(req, ['admin'])
   if (auth instanceof NextResponse) return auth
 
   const { searchParams } = new URL(req.url)

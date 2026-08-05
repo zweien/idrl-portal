@@ -33,7 +33,7 @@ vi.mock('@/lib/session', () => ({
     s?.role === 'admin' && Boolean(s?.userId),
 }))
 
-const { requireScope } = await import('@/lib/auth-api')
+const { requireScope, requireUserOrScopeAny, requireAdminOrScope } = await import('@/lib/auth-api')
 
 beforeEach(() => {
   mockFindUnique.mockReset()
@@ -122,5 +122,70 @@ describe('requireScope', () => {
     const res = await requireScope(req({ authorization: 'Bearer idrl_unknown' }), 'sync:attendance')
     expect(res).toBeInstanceOf(Response)
     expect((res as Response).status).toBe(401)
+  })
+})
+
+describe('requireUserOrScopeAny', () => {
+  it('admits a key carrying one of the requested scopes as member', async () => {
+    const plain = 'idrl_any1'
+    mockFindUnique.mockResolvedValue({
+      id: 'k10', revokedAt: null, scopes: JSON.stringify(['news:read']),
+    })
+    mockUpdate.mockResolvedValue({})
+    mockExecuteRawUnsafe.mockResolvedValue(1)
+    const res = await requireUserOrScopeAny(req({ authorization: `Bearer ${plain}` }), ['news:read', 'admin'])
+    expect(res).not.toBeInstanceOf(Response)
+    expect((res as { role: string }).role).toBe('member')
+  })
+
+  it('elevates a key carrying the admin scope to admin identity', async () => {
+    const plain = 'idrl_admin1'
+    mockFindUnique.mockResolvedValue({
+      id: 'k11', revokedAt: null, scopes: JSON.stringify(['admin']),
+    })
+    mockUpdate.mockResolvedValue({})
+    mockExecuteRawUnsafe.mockResolvedValue(1)
+    const res = await requireUserOrScopeAny(req({ authorization: `Bearer ${plain}` }), ['news:read', 'admin'])
+    expect(res).not.toBeInstanceOf(Response)
+    expect((res as { role: string }).role).toBe('admin')
+  })
+
+  it('rejects a key with none of the requested scopes (falls back to session)', async () => {
+    const plain = 'idrl_none1'
+    mockFindUnique.mockResolvedValue({
+      id: 'k12', revokedAt: null, scopes: JSON.stringify(['resource:read']),
+    })
+    mockGetSession.mockResolvedValue({})
+    const res = await requireUserOrScopeAny(req({ authorization: `Bearer ${plain}` }), ['admin'])
+    expect(res).toBeInstanceOf(Response)
+    expect((res as Response).status).toBe(401)
+  })
+
+  it('falls back to any authenticated session when no key is present', async () => {
+    const session = { userId: 'u9', provider: 'dingtalk', role: 'member' }
+    mockGetSession.mockResolvedValue(session)
+    const res = await requireUserOrScopeAny(req(), ['admin'])
+    expect(res).toEqual(session)
+  })
+})
+
+describe('requireAdminOrScope', () => {
+  it('admits an admin-scope key as admin identity', async () => {
+    const plain = 'idrl_admin2'
+    mockFindUnique.mockResolvedValue({
+      id: 'k13', revokedAt: null, scopes: JSON.stringify(['sync:members', 'admin']),
+    })
+    mockUpdate.mockResolvedValue({})
+    mockExecuteRawUnsafe.mockResolvedValue(1)
+    const res = await requireAdminOrScope(req({ authorization: `Bearer ${plain}` }), ['admin'])
+    expect(res).not.toBeInstanceOf(Response)
+    expect((res as { role: string }).role).toBe('admin')
+  })
+
+  it('rejects a member session (requires admin session or admin-scope key)', async () => {
+    mockGetSession.mockResolvedValue({ userId: 'u7', provider: 'dingtalk', role: 'member' })
+    const res = await requireAdminOrScope(req(), ['admin'])
+    expect(res).toBeInstanceOf(Response)
+    expect((res as Response).status).toBe(403)
   })
 })

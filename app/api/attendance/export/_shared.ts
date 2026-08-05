@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { requireUser } from '@/lib/auth-api'
+import { requireUserOrScopeAny } from '@/lib/auth-api'
 
 /**
  * Shared logic for the attendance export endpoints (detail + summary):
@@ -21,7 +21,7 @@ export type ExportScope =
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 export async function resolveExportScope(request: Request): Promise<ExportScope> {
-  const auth = await requireUser()
+  const auth = await requireUserOrScopeAny(request, ['admin'])
   if (auth instanceof NextResponse) return { ok: false, response: auth }
 
   const { searchParams } = new URL(request.url)

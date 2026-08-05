@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { requireUser } from '@/lib/auth-api'
+import { requireUserOrScopeAny } from '@/lib/auth-api'
 import { computeWorkMinutes, todayDateStr, monthStart } from '@/lib/attendance'
 import type { ApiResponse } from '@/lib/types'
 
@@ -22,7 +22,7 @@ export interface LeaderboardEntry {
  *                 ordered by total descending.
  */
 export async function GET(request: Request) {
-  const auth = await requireUser()
+  const auth = await requireUserOrScopeAny(request, ['admin'])
   if (auth instanceof NextResponse) return auth
 
   const { searchParams } = new URL(request.url)

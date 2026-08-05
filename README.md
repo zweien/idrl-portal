@@ -124,6 +124,7 @@ Authorization: Bearer idrl_<48 hex>
 | `news:publish` | `POST / PATCH / DELETE /api/news(/:id)`、`POST /api/news/reorder`、`POST /api/uploads` |
 | `resource:read` | `GET /api/resources` |
 | `resource:publish` | `POST / PATCH / DELETE /api/resources(/:id)`、`POST /api/resources/reorder` |
+| `admin` | `GET /api/news?includeDrafts=1`、`GET /api/personnel`、`GET /api/categories`、`GET /api/attendance/*`（查询+导出）、`GET /api/sync-logs`、`GET /api/audit-logs` |
 
 - 未列出的端点（人员、用户、布局、备份、设置、日志等管理面）**只接受 admin session**，不识别 API key
 - 无效 / 已吊销 / scope 不符的 key 会**静默回落**到 session 判定（不会报「key 无效」），所以 key 用错时看到的是 401/403
@@ -216,10 +217,10 @@ curl -X DELETE "$BASE/api/resources/<id>" -H "Authorization: Bearer $KEY"
 | POST | `/api/resources` | 🔑 `resource:publish` | 创建资源 |
 | PATCH · DELETE | `/api/resources/:id` | 🔑 `resource:publish` | 修改 / 删除资源 |
 | POST | `/api/resources/reorder` | 🔑 `resource:publish` | 分类内手动排序 |
-| GET | `/api/categories?kind=` | 👤 | 分类列表（news / resource 共用） |
+| GET | `/api/categories?kind=` | 🔑 `admin` | 分类列表（news / resource 共用） |
 | POST | `/api/categories` | 🛡 | 创建分类 |
 | PATCH · DELETE | `/api/categories/:id` | 🛡 | 修改 / 删除分类（删除后引用置空） |
-| GET | `/api/personnel` | 👤 | 人员列表（分页/状态/搜索） |
+| GET | `/api/personnel` | 🔑 `admin` | 人员列表（分页/状态/搜索） |
 | POST | `/api/personnel` | 🛡 | 创建人员档案 |
 | PATCH · DELETE | `/api/personnel/:id` | 🛡 | 修改 / 删除人员 |
 | GET | `/api/users` | 🛡 | 登录账号列表 |
@@ -229,10 +230,12 @@ curl -X DELETE "$BASE/api/resources/<id>" -H "Authorization: Bearer $KEY"
 | GET | `/api/floor-layout` | 👤 | 楼层→区域→工位全量结构 |
 | PUT | `/api/floor-layout` | 🛡 | **全量替换**布局（一人一工位校验） |
 | POST | `/api/floor-layout/import-assignments` | 🛡 | xlsx 批量导入工位分配 |
-| GET | `/api/attendance/records` | 👤 | 考勤记录（非 admin 仅本人） |
-| GET | `/api/attendance/leaderboard` | 👤 | 今日最早打卡 / 本月工时榜 |
+| GET | `/api/attendance/records` | 🔑 `admin` | 考勤记录（非 admin 仅本人） |
+| GET | `/api/attendance/leaderboard` | 🔑 `admin` | 今日最早打卡 / 本月工时榜 |
 | POST | `/api/attendance/backfill?date=` | 🛡 | 补拉指定日考勤 |
-| GET | `/api/attendance/export/detail` · `/summary` | 👤 | 考勤 CSV 导出（明细 / 汇总） |
+| GET | `/api/attendance/export/detail` · `/summary` | 🔑 `admin` | 考勤 CSV 导出（明细 / 汇总） |
+| GET | `/api/sync-logs` | 🔑 `admin` | 后台同步/发布任务日志 |
+| GET | `/api/audit-logs` | 🔑 `admin` | 管理操作审计日志（分页/过滤） |
 | POST | `/api/dingtalk/sync-members` | 🔑 `sync:members` | 触发成员同步 |
 | POST | `/api/dingtalk/sync-attendance` | 🔑 `sync:attendance` | 触发考勤同步 |
 | GET · PATCH | `/api/settings` | 🛡 | 读 / 改配置（cron 周期等） |
@@ -263,7 +266,7 @@ curl -X DELETE "$BASE/api/resources/<id>" -H "Authorization: Bearer $KEY"
 
 **GET /api/news** — 👤 `user+scope:news:read`
 
-Query（均可选）：`page=1`、`pageSize=20`、`category=<categoryId>`、`pinned=true`、`search=<匹配标题/内容>`、`includeDrafts=1`（仅 admin session 生效，否则强制只看 `published`）。
+Query（均可选）：`page=1`、`pageSize=20`、`category=<categoryId>`、`pinned=true`、`search=<匹配标题/内容>`、`includeDrafts=1`（admin session 或带 `admin` scope 的 key 生效，否则强制只看 `published`）。
 
 > ⚠️ `search` 只在**标题和内容**中匹配（DB 层 `contains`）；标签不参与检索——仅按标签搜索会返回空结果。
 

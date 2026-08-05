@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { toPerson, fromPerson } from '@/lib/db/serialize'
-import { requireUser, requireAdmin } from '@/lib/auth-api'
+import { requireUserOrScopeAny, requireAdmin } from '@/lib/auth-api'
 import { logAction, actorFromAuth } from '@/lib/audit'
 import type { Person, ApiResponse, PaginatedResponse } from '@/lib/types'
 
 export async function GET(request: Request) {
-  const auth = await requireUser()
+  const auth = await requireUserOrScopeAny(request, ['admin'])
   if (auth instanceof NextResponse) return auth
 
   const { searchParams } = new URL(request.url)

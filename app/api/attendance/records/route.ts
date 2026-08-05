@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { requireUser } from '@/lib/auth-api'
+import { requireUserOrScopeAny } from '@/lib/auth-api'
 import { computeWorkMinutes } from '@/lib/attendance'
 import type { ApiResponse, PaginatedResponse, AttendanceStatus } from '@/lib/types'
 
@@ -24,7 +24,7 @@ export interface AttendanceRecordItem {
  * for missing punches or overnight anomalies).
  */
 export async function GET(request: Request) {
-  const auth = await requireUser()
+  const auth = await requireUserOrScopeAny(request, ['admin'])
   if (auth instanceof NextResponse) return auth
 
   const { searchParams } = new URL(request.url)

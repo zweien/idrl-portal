@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { toNewsItem, fromNewsItem } from '@/lib/db/serialize'
 import { compareNews } from '@/lib/ordering'
-import { requireUserOrScope, requireScope } from '@/lib/auth-api'
+import { requireUserOrScopeAny, requireScope } from '@/lib/auth-api'
 import { logAction, actorFromAuth } from '@/lib/audit'
 import type { NewsItem, ApiResponse, PaginatedResponse } from '@/lib/types'
 
 export async function GET(request: Request) {
-  const session = await requireUserOrScope(request, 'news:read')
+  // admin-scope keys authenticate as admin, so includeDrafts applies to them
+  // (agent draft review); plain news:read keys stay member (drafts hidden).
+  const session = await requireUserOrScopeAny(request, ['news:read', 'admin'])
   if (session instanceof NextResponse) return session
 
   const { searchParams } = new URL(request.url)

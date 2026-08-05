@@ -183,6 +183,7 @@ export type ApiScope =
   | 'news:read'
   | 'resource:publish'
   | 'resource:read'
+  | 'admin' // portal management: drafts visibility, attendance reads, personnel, logs
 
 /** API key row (never includes the plaintext — only the prefix + hash). */
 export interface ApiKey {
