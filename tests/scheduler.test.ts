@@ -3,12 +3,16 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 // Mock prisma.settings lookups + syncLog writes used by runJob.
 const mockSettingFindUnique = vi.fn()
 const mockSyncLogCreate = vi.fn()
+const mockSyncLogFindFirst = vi.fn()
 const mockNewsUpdate = vi.fn()
 const mockNewsFindMany = vi.fn()
 vi.mock('@/lib/db', () => ({
   prisma: {
     setting: { findUnique: (...a: unknown[]) => mockSettingFindUnique(...a) },
-    syncLog: { create: (...a: unknown[]) => mockSyncLogCreate(...a) },
+    syncLog: {
+      create: (...a: unknown[]) => mockSyncLogCreate(...a),
+      findFirst: (...a: unknown[]) => mockSyncLogFindFirst(...a),
+    },
     newsItem: {
       findMany: (...a: unknown[]) => mockNewsFindMany(...a),
       update: (...a: unknown[]) => mockNewsUpdate(...a),
@@ -23,7 +27,7 @@ vi.mock('@/lib/dingtalk-sync', () => ({
   flattenAttendanceStats: (r: unknown) => r as Record<string, unknown>,
 }))
 
-const { isValidCron, CRON_PRESETS, runJob, registerScheduler, unregisterScheduler, cronMatchesMinute } =
+const { isValidCron, CRON_PRESETS, runJob, runCatchupOnBoot, registerScheduler, unregisterScheduler, cronMatchesMinute } =
   await import('@/lib/scheduler')
 
 describe('isValidCron', () => {
@@ -108,10 +112,12 @@ describe('runJob', () => {
   beforeEach(() => {
     mockSettingFindUnique.mockReset()
     mockSyncLogCreate.mockReset()
+    mockSyncLogFindFirst.mockReset()
     mockNewsUpdate.mockReset()
     mockNewsFindMany.mockReset()
     mockSyncLogCreate.mockResolvedValue({})
     mockNewsUpdate.mockResolvedValue({})
+    mockSyncLogFindFirst.mockResolvedValue(null)
   })
 
   // Use '* * * * *' (every minute) so cronMatchesMinute is always true, and
@@ -181,6 +187,93 @@ describe('runJob', () => {
       defaultCron: '* * * * *',
       run: async () => ({ published: 0 }),
     })
+    expect(mockSyncLogCreate).not.toHaveBeenCalled()
+  })
+
+  it('skips a tick when the same job is already running (overlap guard)', async () => {
+    // Drive the same job name twice concurrently: the second invocation must
+    // observe the mutex held by the first and skip without writing a syncLog.
+    let release!: () => void
+    const gate = new Promise<void>(r => { release = r })
+    let runs = 0
+    mockSettingFindUnique.mockImplementation(({ where }: { where: { key: string } }) =>
+      Promise.resolve(where.key === 'cron.enabled.publish' ? { value: 'true' } : { value: '* * * * *' }),
+    )
+    const def = {
+      job: 'publish-news' as const,
+      settingKey: 'cron.publish',
+      enableKey: 'cron.enabled.publish',
+      defaultCron: '* * * * *',
+      run: async () => { runs++; await gate; return { published: runs } },
+    }
+    const first = runJob(def)            // acquires the mutex, blocks on gate
+    // Let the first call enter `run` and set the mutex. A microtask cycle is
+    // enough because executeJob awaits isEnabled/readSetting before run().
+    await Promise.resolve()
+    await runJob(def)                    // second tick: mutex held → must skip
+    expect(runs).toBe(1)                 // only the first call entered run()
+    expect(mockSyncLogCreate).not.toHaveBeenCalled() // neither finished yet
+    release()                            // let the first finish + log
+    await first
+    expect(mockSyncLogCreate).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('runCatchupOnBoot', () => {
+  beforeEach(() => {
+    mockSettingFindUnique.mockReset()
+    mockSyncLogCreate.mockReset()
+    mockSyncLogFindFirst.mockReset()
+    mockSyncLogCreate.mockResolvedValue({})
+    mockSyncLogFindFirst.mockResolvedValue(null) // default: no prior run → stale
+  })
+
+  it('fires jobs with catchupMs when no prior run exists', async () => {
+    // All jobs enabled; no SyncLog rows → publish-news + backup should fire.
+    mockSettingFindUnique.mockResolvedValue({ value: 'true' })
+    await runCatchupOnBoot()
+    const jobs = mockSyncLogCreate.mock.calls.map(c => c[0].data.job)
+    // publish-news and backup have catchupMs; sync-* do not.
+    expect(jobs).toContain('publish-news')
+    expect(jobs).toContain('backup')
+    expect(jobs).not.toContain('sync-members')
+    expect(jobs).not.toContain('sync-attendance')
+    // source labeled as catchup
+    for (const c of mockSyncLogCreate.mock.calls) {
+      expect(c[0].data.source).toBe('catchup')
+    }
+  })
+
+  it('skips a job whose last run is within the catchup window', async () => {
+    mockSettingFindUnique.mockResolvedValue({ value: 'true' })
+    // publish-news last ran 1 minute ago (within its 10min window) → skip.
+    // backup has no row → still fires.
+    mockSyncLogFindFirst.mockImplementation(({ where }: { where: { job: string } }) =>
+      Promise.resolve(where.job === 'publish-news'
+        ? { createdAt: new Date(Date.now() - 60_000) }
+        : null),
+    )
+    await runCatchupOnBoot()
+    const jobs = mockSyncLogCreate.mock.calls.map(c => c[0].data.job)
+    expect(jobs).not.toContain('publish-news')
+    expect(jobs).toContain('backup')
+  })
+
+  it('fires a job whose last run is older than its catchup window', async () => {
+    mockSettingFindUnique.mockResolvedValue({ value: 'true' })
+    // backup last ran 2 days ago (> 25h window) → fire.
+    mockSyncLogFindFirst.mockResolvedValue({ createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) })
+    await runCatchupOnBoot()
+    const jobs = mockSyncLogCreate.mock.calls.map(c => c[0].data.job)
+    expect(jobs).toContain('backup')
+    expect(jobs).toContain('publish-news') // publish-news has no row → fire
+  })
+
+  it('skips a disabled job even when stale', async () => {
+    mockSettingFindUnique.mockImplementation(({ where }: { where: { key: string } }) =>
+      Promise.resolve(where.key.startsWith('cron.enabled') ? { value: 'false' } : { value: 'true' }),
+    )
+    await runCatchupOnBoot()
     expect(mockSyncLogCreate).not.toHaveBeenCalled()
   })
 })
