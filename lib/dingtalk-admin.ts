@@ -487,6 +487,28 @@ async function getTripDetail(
  * checkTripToday to separate "parse the form" from "is today in range", so the
  * parsed window can be cached independently of the current day.
  */
+/**
+ * Parse a DingTalk trip datetime value into epoch ms (Asia/Shanghai).
+ *
+ * DingTalk date fields come in two shapes:
+ *   "2026-08-04 09:00"       — yyyy-MM-dd HH:mm (京内 format)
+ *   "2026-08-04 下午"         — yyyy-MM-dd A (京外 商旅出差 format; A = 上午/下午)
+ * The plain `new Date("... 下午")` is Invalid, which silently killed trip
+ * recognition after the org migrated to the 商旅出差 template. Map 上午→08:00
+ * and 下午→14:00 (midpoint-ish, fine for day-boundary matching). Returns null
+ * for anything unparseable.
+ */
+function parseTripDateTime(v: string): number | null {
+  const withHalf = v.match(/^(\d{4}-\d{2}-\d{2})\s*(上午|下午)$/)
+  if (withHalf) {
+    const hour = withHalf[2] === '下午' ? 14 : 8
+    const d = new Date(`${withHalf[1]}T${String(hour).padStart(2, '0')}:00+08:00`)
+    return isNaN(d.getTime()) ? null : d.getTime()
+  }
+  const d = new Date(v.replace(' ', 'T') + '+08:00')
+  return isNaN(d.getTime()) ? null : d.getTime()
+}
+
 export function parseTripWindow(formValues: unknown[]): { tripStart: number | null; tripEnd: number | null; reason?: string } {
   let tripStart: number | null = null
   let tripEnd: number | null = null
@@ -501,8 +523,12 @@ export function parseTripWindow(formValues: unknown[]): { tripStart: number | nu
       try {
         const arr = JSON.parse(f.value)
         if (Array.isArray(arr) && arr.length >= 2) {
-          tripStart = new Date(String(arr[0]).replace(' ', 'T') + '+08:00').getTime()
-          tripEnd = new Date(String(arr[1]).replace(' ', 'T') + '+08:00').getTime()
+          const s = parseTripDateTime(String(arr[0]))
+          const e = parseTripDateTime(String(arr[1]))
+          if (s !== null && e !== null) {
+            tripStart = s
+            tripEnd = e
+          }
         }
       } catch { /* not JSON */ }
     }
@@ -524,12 +550,12 @@ export function parseTripWindow(formValues: unknown[]): { tripStart: number | nu
                 const cAlias = cell.bizAlias || ''
                 const cVal = cell.value || ''
                 if (cAlias === 'startTime' && cVal) {
-                  const ts = new Date(cVal.replace(' ', 'T') + '+08:00').getTime()
-                  if (tripStart === null || ts < tripStart) tripStart = ts
+                  const ts = parseTripDateTime(String(cVal))
+                  if (ts !== null && (tripStart === null || ts < tripStart)) tripStart = ts
                 }
                 if (cAlias === 'endTime' && cVal) {
-                  const ts = new Date(cVal.replace(' ', 'T') + '+08:00').getTime()
-                  if (tripEnd === null || ts > tripEnd) tripEnd = ts
+                  const ts = parseTripDateTime(String(cVal))
+                  if (ts !== null && (tripEnd === null || ts > tripEnd)) tripEnd = ts
                 }
               }
             }

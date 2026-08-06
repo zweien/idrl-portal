@@ -138,3 +138,41 @@ describe('flattenAttendanceStats', () => {
     expect(flat.stats).toBeUndefined()
   })
 })
+
+describe('parseTripWindow — 京外 商旅出差 (yyyy-MM-dd 上午/下午)', () => {
+  function tripForm(startVal: string, endVal: string) {
+    return [{
+      name: '商旅出差',
+      value: JSON.stringify([
+        { props: { bizAlias: 'reason' }, value: '技术交流' },
+        { props: { bizAlias: 'itinerary' }, value: JSON.stringify([{ rowValue: [
+          { bizAlias: 'startTime', value: startVal },
+          { bizAlias: 'endTime', value: endVal },
+        ]}]) },
+      ]),
+    }]
+  }
+  it('parses 下午 half-day values (org-migration regression)', () => {
+    const w = parseTripWindow(tripForm('2026-08-04 下午', '2026-08-06 下午'))
+    expect(w.tripStart).not.toBeNull()
+    expect(w.tripEnd).not.toBeNull()
+    // 下午 → 14:00 Asia/Shanghai
+    expect(new Date(w.tripStart!).toISOString()).toBe('2026-08-04T06:00:00.000Z')
+    expect(new Date(w.tripEnd!).toISOString()).toBe('2026-08-06T06:00:00.000Z')
+    expect(w.reason).toBe('技术交流')
+  })
+  it('parses 上午 half-day values', () => {
+    const w = parseTripWindow(tripForm('2026-08-04 上午', '2026-08-05 上午'))
+    expect(new Date(w.tripStart!).toISOString()).toBe('2026-08-04T00:00:00.000Z')
+    expect(new Date(w.tripEnd!).toISOString()).toBe('2026-08-05T00:00:00.000Z')
+  })
+  it('still parses explicit HH:mm values (京内 format)', () => {
+    const w = parseTripWindow(tripForm('2026-08-04 09:00', '2026-08-04 18:00'))
+    expect(new Date(w.tripStart!).toISOString()).toBe('2026-08-04T01:00:00.000Z')
+    expect(new Date(w.tripEnd!).toISOString()).toBe('2026-08-04T10:00:00.000Z')
+  })
+  it('returns null window for unparseable values (no crash)', () => {
+    const w = parseTripWindow(tripForm('not-a-date', '2026-08-06 下午'))
+    expect(w.tripStart).toBeNull()
+  })
+})
