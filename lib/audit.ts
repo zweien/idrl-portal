@@ -10,6 +10,13 @@ import { prisma } from '@/lib/db'
 import type { SessionData } from '@/lib/session'
 import type { ActorType, AuditStatus } from '@/lib/types'
 
+/**
+ * Prefix marking a synthetic API-key session's userId (e.g. `apikey:<keyId>`).
+ * Kept as a named constant rather than an inline literal so the marker is
+ * unmistakably an internal routing tag, not a credential.
+ */
+const APIKEY_SESSION_PREFIX = 'apikey:'
+
 export interface LogActionParams {
   actorId: string
   actorType: ActorType
@@ -26,8 +33,8 @@ export interface LogActionParams {
  */
 export function actorFromAuth(auth: SessionData): { actorId: string; actorType: ActorType } {
   const uid = auth.userId ?? 'unknown'
-  if (uid.startsWith('apikey:')) {
-    return { actorId: uid.slice('apikey:'.length), actorType: 'apikey' }
+  if (uid.startsWith(APIKEY_SESSION_PREFIX)) {
+    return { actorId: uid.slice(APIKEY_SESSION_PREFIX.length), actorType: 'apikey' }
   }
   return { actorId: uid, actorType: 'user' }
 }

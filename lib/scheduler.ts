@@ -224,13 +224,40 @@ const JOB_DEFS: JobDef[] = [
       const info = await createBackup('auto')
       const keep = await readKeepCount()
       const pruned = pruneBackups(keep)
-      // Also prune old audit logs on the same cadence.
+      // Also prune old audit + sync logs on the same cadence. SyncLog grows
+      // fastest (one row per job tick that fires) and had no retention before,
+      // so default it shorter than audit logs.
       const keepDays = await readKeepDays()
       const prunedLogs = await pruneAuditLogs(keepDays)
-      return { file: info.filename, kept: keep, pruned: pruned.deleted.length, prunedLogs: prunedLogs.deleted }
+      const prunedSync = await pruneSyncLogs(await readSyncKeepDays())
+      return {
+        file: info.filename,
+        kept: keep,
+        pruned: pruned.deleted.length,
+        prunedLogs: prunedLogs.deleted,
+        prunedSyncLogs: prunedSync.deleted,
+      }
     },
   },
 ]
+
+/**
+ * Delete SyncLog rows older than `keepDays`. SyncLog records every job tick
+ * (members/attendance/publish/backup success+error), so it grows fastest and
+ * had no retention before this — a dev DB had thousands of rows after weeks.
+ */
+async function pruneSyncLogs(keepDays: number): Promise<{ deleted: number }> {
+  const cutoff = new Date(Date.now() - keepDays * 24 * 60 * 60 * 1000)
+  const result = await prisma.syncLog.deleteMany({ where: { createdAt: { lt: cutoff } } })
+  return { deleted: result.count }
+}
+
+/** SyncLog retention (Setting `synclog.keepDays`, default 30). */
+async function readSyncKeepDays(): Promise<number> {
+  const row = await prisma.setting.findUnique({ where: { key: 'synclog.keepDays' } })
+  const n = row ? parseInt(row.value, 10) : 30
+  return Number.isInteger(n) && n > 0 ? n : 30
+}
 
 async function executeJob(def: JobDef) {
   // Re-read config on every tick so admin changes take effect without a restart.
@@ -289,4 +316,4 @@ export function unregisterScheduler() {
   registered = false
 }
 
-export { executeJob as runJob, cronMatchesMinute } // exported for testing
+export { executeJob as runJob, pruneSyncLogs, readSyncKeepDays, cronMatchesMinute } // exported for testing
