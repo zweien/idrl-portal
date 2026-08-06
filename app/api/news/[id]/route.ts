@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db'
 import { toNewsItem, fromNewsItem } from '@/lib/db/serialize'
 import { requireScope } from '@/lib/auth-api'
 import { logAction, actorFromAuth } from '@/lib/audit'
+import { updateNewsBodySchema } from '@/lib/validation'
 import type { NewsItem } from '@/lib/types'
 
 /** PATCH /api/news/:id — update a single news item. */
@@ -20,6 +21,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   } catch {
     return NextResponse.json({ error: 'invalid json' }, { status: 400 })
   }
+  // Validate + strip unknown keys before merging into the existing row.
+  const parsed = updateNewsBodySchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: 'invalid body', details: parsed.error.flatten().fieldErrors },
+      { status: 400 },
+    )
+  }
+  body = parsed.data as unknown as Partial<NewsItem>
 
   const existing = await prisma.newsItem.findUnique({ where: { id } })
   if (!existing) return NextResponse.json({ error: 'not found' }, { status: 404 })

@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth-api'
 import { logAction, actorFromAuth } from '@/lib/audit'
 import { backfillDay } from '@/lib/dingtalk-sync'
+import { toSafeError } from '@/lib/safe-error'
 
 /**
  * POST /api/attendance/backfill?date=YYYY-MM-DD
@@ -36,7 +37,8 @@ export async function POST(req: Request) {
     })
     return NextResponse.json({ success: true, data: { date, ...result } })
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'unknown error'
+    console.error('attendance backfill failed:', e)
+    const { message: msg } = toSafeError(e)
     await prisma.syncLog.create({
       data: { job: 'sync-attendance', source: 'manual', status: 'error', message: `backfill ${date}: ${msg}` },
     })

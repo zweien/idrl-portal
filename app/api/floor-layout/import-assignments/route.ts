@@ -1,4 +1,5 @@
 import { assertSameOrigin } from '@/lib/csrf'
+import { safeErrorResponse } from '@/lib/safe-error'
 import { NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 import { prisma } from '@/lib/db'
@@ -129,7 +130,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ assigned, skipped, warnings: warnings.slice(0, 20) })
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'unknown error'
-    return NextResponse.json({ error: msg }, { status: 500 })
+    console.error('import-assignments failed:', e)
+    return safeErrorResponse(e, 500)
   }
 }

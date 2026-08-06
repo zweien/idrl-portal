@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { requireScope } from '@/lib/auth-api'
 import { syncMembers } from '@/lib/dingtalk-sync'
+import { toSafeError } from '@/lib/safe-error'
 import type { SyncSource } from '@/lib/types'
 
 /**
@@ -35,7 +36,8 @@ export async function POST(req: Request) {
     })
     return NextResponse.json(result)
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'unknown error'
+    console.error('sync-members failed:', e)
+    const { message: msg } = toSafeError(e)
     await prisma.syncLog.create({
       data: { job: 'sync-members', source, status: 'error', message: msg },
     })

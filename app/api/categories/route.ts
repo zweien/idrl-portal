@@ -1,4 +1,5 @@
 import { assertSameOrigin } from '@/lib/csrf'
+import { safeErrorResponse } from '@/lib/safe-error'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { toCategory } from '@/lib/db/serialize'
@@ -56,7 +57,7 @@ export async function POST(req: Request) {
     })
     return NextResponse.json(toCategory(created), { status: 201 })
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'unknown error'
-    return NextResponse.json({ error: msg }, { status: 400 })
+    console.error('categories failed:', e)
+    return safeErrorResponse(e, 400)
   }
 }
