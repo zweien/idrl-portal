@@ -18,7 +18,9 @@ export interface AttendanceRecordItem {
  *
  * Per-person daily punch history, newest first. Non-admin callers can ONLY
  * query their own personId — the requested personId is overridden with the
- * one linked to their session User. Admins may query anyone.
+ * one linked to their session User. Admins may query anyone via personId;
+ * without it they query their own linked Person (the "我的考勤" self-service
+ * tab never sends a personId). API keys must always pass an explicit personId.
  *
  * Returns workMinutes per day (checkOut − checkIn, no lunch deduction; null
  * for missing punches or overnight anomalies).
@@ -49,6 +51,19 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'no linked person' }, { status: 403 })
     }
     // Force self — ignore any personId the client sent.
+    personId = me.personId
+  } else if (!personId && auth.userId && !auth.userId.startsWith('apikey:')) {
+    // Self-service query (the "我的考勤" tab sends no personId): an admin
+    // without an explicit personId is querying their own record — fall back
+    // to their linked Person, like a member. (API keys carry no linked Person
+    // and must pass an explicit personId, handled by the final check below.)
+    const me = await prisma.user.findUnique({
+      where: { id: auth.userId },
+      select: { personId: true },
+    })
+    if (!me?.personId) {
+      return NextResponse.json({ error: 'no linked person' }, { status: 403 })
+    }
     personId = me.personId
   }
 
