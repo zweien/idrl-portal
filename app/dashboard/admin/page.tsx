@@ -222,6 +222,7 @@ export default function AdminPage() {
     } catch (e) { reportErr(e); if (prevPerson) setPersonnelData(prev => prev!.map(x => x.id === p.id ? prevPerson : x)) }
   }
   async function handlePersonDelete(p: Person) {
+    if (!window.confirm(`确定删除人员「${p.name}」？该操作不可撤销。`)) return
     const snapshot = personnelData
     setPersonnelData(prev => prev!.filter(x => x.id !== p.id))
     try {
@@ -253,6 +254,7 @@ export default function AdminPage() {
     } catch (e) { reportErr(e); if (prevRes) setResourcesData(prev => prev!.map(x => x.id === r.id ? prevRes : x)) }
   }
   async function handleResourceDelete(r: Resource) {
+    if (!window.confirm(`确定删除资源「${r.name}」？该操作不可撤销。`)) return
     const snapshot = resourcesData
     setResourcesData(prev => prev!.filter(x => x.id !== r.id))
     try {
@@ -284,6 +286,7 @@ export default function AdminPage() {
     } catch (e) { reportErr(e); if (prevNews) setNewsData(prev => prev!.map(x => x.id === n.id ? prevNews : x)) }
   }
   async function handleNewsDelete(n: NewsItem) {
+    if (!window.confirm(`确定删除动态「${n.title}」？该操作不可撤销。`)) return
     const snapshot = newsData
     setNewsData(prev => prev!.filter(x => x.id !== n.id))
     try {
