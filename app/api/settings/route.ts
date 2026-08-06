@@ -48,13 +48,19 @@ export async function PATCH(req: Request) {
       }
     }
   }
-  for (const [key, value] of Object.entries(body)) {
-    await prisma.setting.upsert({
-      where: { key },
-      update: { value },
-      create: { key, value },
-    })
-  }
+  // Apply all upserts inside one transaction so a multi-key PATCH is atomic
+  // at the DB level too: a mid-loop failure (e.g. SQLITE_BUSY) rolls back the
+  // keys already written, keeping the settings table consistent with what the
+  // panel reported as a single save.
+  await prisma.$transaction(
+    Object.entries(body).map(([key, value]) =>
+      prisma.setting.upsert({
+        where: { key },
+        update: { value },
+        create: { key, value },
+      }),
+    ),
+  )
   const changedKeys = Object.keys(body)
   void logAction({
     ...actorFromAuth(auth),
