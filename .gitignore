@@ -41,3 +41,6 @@ prisma/backups/
 # Anchored to the repo root so it doesn't also ignore app/api/uploads/.
 /uploads/
 .zcode/
+
+# mimosa security-scan session state (local-only)
+.mimosa/

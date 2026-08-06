@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { exchangeAuthentikCode, fetchAuthentikUserInfo, getRequestOrigin } from '@/lib/authentik'
 import { saveSession } from '@/lib/session'
 import { prisma } from '@/lib/db'
+import { logAction } from '@/lib/audit'
 
 const LOGIN_ERROR_URL = '/login?error=authentik_failed'
 const LOGIN_DISABLED_URL = '/login?error=disabled'
@@ -67,6 +68,11 @@ export async function GET(req: NextRequest) {
       userId: user.id,
       provider: 'authentik',
       role: user.role as 'admin' | 'member',
+    })
+    void logAction({
+      actorId: user.id, actorType: 'user',
+      action: 'auth.login', targetType: 'user', targetId: user.id,
+      summary: `Authentik 登录（${user.role}）`,
     })
 
     const res = NextResponse.redirect(new URL('/dashboard', getRequestOrigin(req)))

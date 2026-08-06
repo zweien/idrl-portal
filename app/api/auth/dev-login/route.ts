@@ -2,6 +2,7 @@ import { assertSameOrigin } from '@/lib/csrf'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { saveSession } from '@/lib/session'
+import { logAction } from '@/lib/audit'
 
 /**
  * DEVELOPMENT ONLY local-login session issuer.
@@ -46,6 +47,11 @@ export async function POST(req: NextRequest) {
   }
 
   await saveSession({ userId: user.id, provider: 'local', role: user.role as 'admin' | 'member' })
+  void logAction({
+    actorId: user.id, actorType: 'user',
+    action: 'auth.login', targetType: 'user', targetId: user.id,
+    summary: `本地登录（${user.role}）`,
+  })
 
   return NextResponse.json({ ok: true, role: user.role })
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { exchangeDingTalkCode, fetchDingTalkUserInfo, getRequestOrigin } from '@/lib/dingtalk'
 import { saveSession } from '@/lib/session'
 import { prisma } from '@/lib/db'
+import { logAction } from '@/lib/audit'
 
 const LOGIN_ERROR_URL = '/login?error=dingtalk_failed'
 const LOGIN_DISABLED_URL = '/login?error=disabled'
@@ -77,6 +78,11 @@ export async function GET(req: NextRequest) {
       userId: user.id,
       provider: 'dingtalk',
       role: user.role as 'admin' | 'member',
+    })
+    void logAction({
+      actorId: user.id, actorType: 'user',
+      action: 'auth.login', targetType: 'user', targetId: user.id,
+      summary: `钉钉登录（${user.role}）`,
     })
 
     const res = NextResponse.redirect(new URL('/dashboard', getRequestOrigin(req)))
