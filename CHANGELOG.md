@@ -5,6 +5,40 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v0.3.0] - 2026-08-06
+
+### 新增
+
+- feat(ux,a11y): Radix Dialog for news modal, delete confirmations, Toaster
+- feat(ops): pm2 healthcheck, deploy smoke test, off-site backup script
+- feat(observability): /api/health, SyncLog retention, login audit
+- feat(security): crypto-random upload names + bounded pagination
+- feat(security): safe error responses + zod input validation
+- feat(security): CSRF origin guard on mutations + sanitize news HTML
+- feat(security): add HTTP security response headers + CSP
+- feat(db): wrap multi-write operations in transactions
+- feat(scheduler): per-job overlap guard + boot catch-up
+- feat(db): enable WAL journal mode for concurrent read/write
+
+### 优化
+
+- perf(db,ui): hot-column indexes + lazy-load markdown in detail dialogs
+
+### 其他
+
+- Merge #80: CI migration dry-run (resolve .gitignore + session.test.ts comment conflicts)
+- Merge branch 'phase5-ux-a11y'
+- Merge branch 'phase4-perf'
+- Merge branch 'phase3b-ops'
+- Merge #76: observability (resolve scheduler.ts runAndLog+pruneSyncLogs overlap with #70)
+- Merge #75: upload crypto-random + bounded pagination (resolve news route import conflict)
+- Merge #74: validation + safeError (resolve additive CSRF+safeError import conflicts)
+- Merge branch 'phase2b-csrf-sanitize'
+- Merge branch 'phase2a-security-headers'
+- Merge branch 'phase1c-write-transactions'
+- Merge branch 'phase1b-scheduler-hardening'
+- ci: migration dry-run step in CI (+ document test coverage/gaps)
+
 ## [v0.2.4] - 2026-08-05
 
 ### 修复
