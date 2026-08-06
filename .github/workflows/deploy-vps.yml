@@ -58,12 +58,16 @@ jobs:
             # 先完成构建再迁移线上库：若 build 失败，set -e 中止，旧应用
             # 继续跑在旧 schema 上，不会出现"新 schema + 旧代码"的中间态。
             corepack pnpm run build
+            # 停掉运行中的本应用，释放 SQLite 写锁，再跑迁移。否则 migrate
+            # 与正在服务的旧应用争写锁，报 "database is locked"。scheduling
+            # 等其他 pm2 应用不受影响（只 stop 本应用）。短暂中断换取迁移稳定。
+            pm2 stop idrl-portal 2>/dev/null || true
             # prisma migrate deploy 只需要 DATABASE_URL；用 grep/cut 提取而
             # 不 source 整个 .env.production，避免值里的 $ 等被 shell 展开。
             DATABASE_URL="$(grep '^DATABASE_URL=' .env.production | cut -d= -f2- | tr -d '"')" \
               corepack pnpm exec prisma migrate deploy
             # VPS 上还跑着 scheduling，不能 pm2 kill（会杀掉所有应用）。
-            # 只重启本应用，pm2 save 会保留全部进程列表。
+            # 启动本应用（迁移已完成），pm2 save 保留全部进程列表。
             export VPS_APP_DIR="${{ secrets.VPS_APP_DIR }}"
             pm2 startOrReload ecosystem.config.js --env production --update-env
             pm2 save
