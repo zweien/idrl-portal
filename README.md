@@ -576,7 +576,11 @@ pnpm release 0.1.4 --yes  # 免交互
 
 ## 🧪 测试
 
-使用 Vitest（`pnpm test`），当前 22 个测试文件 / 160 个测试，覆盖：session round-trip / 篡改拒绝 / `SESSION_SECRET` fail-fast、`requireUser`/`requireAdmin`/`requireScope`（含 429/封禁/live-role）、middleware 路由保护（含反向代理 origin）、User upsert 唯一性、Workstation 一人一工位唯一约束、Category 唯一约束、API key 限流原子计数与限额校验、调度 cron 匹配（北京时间）、钉钉考勤优先级映射、定时发布时间戳归一、备份/恢复/裁剪、审计日志、考勤导出 CSV、changelog 解析。CI（`.github/workflows/ci.yml`）在 push / PR 时跑 tsc + test + build。
+使用 Vitest（`pnpm test`），覆盖：session round-trip / 篡改拒绝 / `SESSION_SECRET` fail-fast、`requireUser`/`requireAdmin`/`requireScope`（含 429/封禁/live-role）、middleware 路由保护、CSRF origin 校验、Markdown sanitize、zod 入参校验、safeError 错误映射、分页夹紧、上传 CSPRNG 文件名、User/Workstation/Category 唯一约束、API key 限流原子计数、调度 cron 匹配 + 互斥 + 补漏、钉钉考勤优先级映射、事务边界契约、备份/恢复/裁剪、审计日志、SyncLog 轮转、WAL 模式、热列索引守卫、考勤导出、changelog 解析。
+
+CI（`.github/workflows/ci.yml`）在 push / PR 时跑 **tsc + test + 迁移 dry-run + build**。迁移 dry-run 对一个临时空 DB 跑 `prisma migrate deploy`，在发布前验证迁移 SQL 语法、顺序与 schema 声明一致——此前迁移只在部署时对线上库执行。
+
+**已知缺口**：当前测试以单元/契约测试为主（mock 数据库或纯逻辑）。API 路由的端到端集成测试（真实 better-sqlite3 + route handler 调用，断言 HTTP 状态/响应体/副作用）尚未建立——这是后续测试基础设施的重点。
 
 ## 📄 许可证
 

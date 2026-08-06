@@ -44,3 +44,6 @@ prisma/backups/
 
 # mimosa security-scan session state (local-only)
 .mimosa/
+
+# CI migration dry-run scratch DB
+prisma/ci-migrate-check.sqlite
