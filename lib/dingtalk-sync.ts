@@ -22,14 +22,6 @@ async function readLastFinalized(): Promise<string> {
   return shiftDate(todayDateStr(), -1)
 }
 
-async function writeLastFinalized(day: string): Promise<void> {
-  await prisma.setting.upsert({
-    where: { key: LAST_FINALIZED_KEY },
-    create: { key: LAST_FINALIZED_KEY, value: day },
-    update: { value: day },
-  })
-}
-
 /**
  * Sync DingTalk department members into Person rows (keyed by unionid) and
  * link unlinked DingTalk login Users. Extracted from the sync-members route so
@@ -45,68 +37,76 @@ export async function syncMembers(): Promise<{
   const members = await listDeptMembers()
   let created = 0
   let updated = 0
+  let linked = 0
 
-  for (const m of members) {
-    if (!m.unionid) continue
-    // Store the DingTalk 职位 (title) verbatim — preserves the real title
-    // (研究员/工程师/访问学者/...) instead of collapsing it to a fixed enum.
-    // A blank/whitespace title is treated as "no title" so it doesn't wipe a
-    // manually-set role on re-sync; the UI shows blank as "—".
-    const title = m.title?.trim() || ''
-    const hasTitle = title !== ''
-    const existing = await prisma.person.findFirst({ where: { dingUserId: m.unionid } })
+  // All member writes + the subsequent user-link pass run inside one
+  // transaction so a mid-sync failure (network blip, SQLITE_BUSY) rolls back
+  // the partial member set instead of leaving half-linked rows. The network
+  // call (listDeptMembers) is already done above, so the tx body is DB-only.
+  // Counters are declared outside and mutated inside the tx callback.
+  await prisma.$transaction(async (tx) => {
+    for (const m of members) {
+      if (!m.unionid) continue
+      // Store the DingTalk 职位 (title) verbatim — preserves the real title
+      // (研究员/工程师/访问学者/...) instead of collapsing it to a fixed enum.
+      // A blank/whitespace title is treated as "no title" so it doesn't wipe a
+      // manually-set role on re-sync; the UI shows blank as "—".
+      const title = m.title?.trim() || ''
+      const hasTitle = title !== ''
+      const existing = await tx.person.findFirst({ where: { dingUserId: m.unionid } })
 
-    if (existing) {
-      await prisma.person.update({
-        where: { id: existing.id },
-        data: {
+      if (existing) {
+        await tx.person.update({
+          where: { id: existing.id },
+          data: {
+            name: m.name,
+            // Only overwrite the title when DingTalk provided a non-empty one,
+            // so a missing/blank title field doesn't wipe a manually-set role.
+            ...(hasTitle ? { role: title } : {}),
+            ...(m.email ? { email: m.email } : {}),
+            ...(m.mobile ? { phone: m.mobile } : {}),
+          },
+        })
+        updated++
+      } else {
+        // New person: store whatever title DingTalk gave (blank → '').
+        // An org migration can leave a stale row reusing the same `dt-<userid>`
+        // id (userid is per-org; collisions across migrations are possible) whose
+        // unionid no longer matches. On a PK clash, adopt that row instead of
+        // failing the whole sync.
+        const newId = `dt-${m.userid}`
+        const data = {
           name: m.name,
-          // Only overwrite the title when DingTalk provided a non-empty one,
-          // so a missing/blank title field doesn't wipe a manually-set role.
-          ...(hasTitle ? { role: title } : {}),
+          role: title,
+          dingUserId: m.unionid,
+          status: 'absent' as const,
           ...(m.email ? { email: m.email } : {}),
           ...(m.mobile ? { phone: m.mobile } : {}),
-        },
-      })
-      updated++
-    } else {
-      // New person: store whatever title DingTalk gave (blank → '').
-      // An org migration can leave a stale row reusing the same `dt-<userid>`
-      // id (userid is per-org; collisions across migrations are possible) whose
-      // unionid no longer matches. On a PK clash, adopt that row instead of
-      // failing the whole sync.
-      const newId = `dt-${m.userid}`
-      const data = {
-        name: m.name,
-        role: title,
-        dingUserId: m.unionid,
-        status: 'absent' as const,
-        ...(m.email ? { email: m.email } : {}),
-        ...(m.mobile ? { phone: m.mobile } : {}),
-      }
-      try {
-        await prisma.person.create({ data: { id: newId, ...data } })
-      } catch (e) {
-        if (e instanceof Error && /Unique constraint failed/.test(e.message)) {
-          await prisma.person.update({ where: { id: newId }, data })
-        } else {
-          throw e
         }
+        try {
+          await tx.person.create({ data: { id: newId, ...data } })
+        } catch (e) {
+          if (e instanceof Error && /Unique constraint failed/.test(e.message)) {
+            await tx.person.update({ where: { id: newId }, data })
+          } else {
+            throw e
+          }
+        }
+        created++
       }
-      created++
     }
-  }
 
-  // Link existing DingTalk login users to their synced Person
-  let linked = 0
-  const dtUsers = await prisma.user.findMany({ where: { provider: 'dingtalk', personId: null } })
-  for (const u of dtUsers) {
-    const person = await prisma.person.findFirst({ where: { dingUserId: u.externalId } })
-    if (person) {
-      await prisma.user.update({ where: { id: u.id }, data: { personId: person.id } })
-      linked++
+    // Link existing DingTalk login users to their synced Person (same tx so a
+    // half-linked set can't survive a failure).
+    const dtUsers = await tx.user.findMany({ where: { provider: 'dingtalk', personId: null } })
+    for (const u of dtUsers) {
+      const person = await tx.person.findFirst({ where: { dingUserId: u.externalId } })
+      if (person) {
+        await tx.user.update({ where: { id: u.id }, data: { personId: person.id } })
+        linked++
+      }
     }
-  }
+  })
 
   return { total: members.length, created, updated, linked }
 }
@@ -199,15 +199,60 @@ export async function syncAttendance(): Promise<{
     fetchTripStatus(token, userids, queryDays),
   ])
 
-  // 1. Finalize history: upsert one AttendanceRecord per (person, day).
-  for (const day of daysToFinalize) {
+  // All DB writes (history finalize + today's live state + watermark advance)
+  // run inside one transaction. This keeps the watermark advance atomic with
+  // the records it covers: if the write batch fails partway, the watermark
+  // isn't advanced, so the next sync retries the whole window. Network calls
+  // are done above; the tx body is DB-only.
+  const stats = { present: 0, leave: 0, trip: 0, absent: 0 }
+  await prisma.$transaction(async (tx) => {
+    // 1. Finalize history: upsert one AttendanceRecord per (person, day).
+    for (const day of daysToFinalize) {
+      for (const [userid, personId] of useridToPersonId) {
+        const { status, onDuty, offDuty } = mapStatusForDay(userid, day, tripByDay, leaveByDay, attByDay)
+        await tx.attendanceRecord.upsert({
+          where: { personId_date: { personId, date: day } },
+          create: {
+            personId,
+            date: day,
+            status,
+            checkIn: onDuty?.checkTime ?? null,
+            checkOut: offDuty?.checkTime ?? null,
+          },
+          update: {
+            status,
+            checkIn: onDuty?.checkTime ?? null,
+            checkOut: offDuty?.checkTime ?? null,
+          },
+        })
+      }
+    }
+
+    // 2. Update today's live state on Person rows + collect stats. ALSO upsert
+    // today's AttendanceRecord so the early-bird leaderboard shows today's
+    // punches immediately (previously it waited until tomorrow's finalize,
+    // leaving the board empty all day). The upsert is idempotent — re-syncs
+    // overwrite the same row; tomorrow's finalize of "yesterday" re-pulls this
+    // day in the 3-day window and upserts again, correcting any late punches.
     for (const [userid, personId] of useridToPersonId) {
-      const { status, onDuty, offDuty } = mapStatusForDay(userid, day, tripByDay, leaveByDay, attByDay)
-      await prisma.attendanceRecord.upsert({
-        where: { personId_date: { personId, date: day } },
+      const { status, onDuty, offDuty } = mapStatusForDay(userid, today, tripByDay, leaveByDay, attByDay)
+      stats[status]++
+      const tripReason = tripByDay.get(userid)?.reason
+      await tx.person.update({
+        where: { id: personId },
+        data: {
+          status,
+          // lastSeen = today's OnDuty punch time, cleared if no punch
+          ...(onDuty?.checkTime ? { lastSeen: onDuty.checkTime } : { lastSeen: null }),
+          // avatar repurposed as today's trip reason (cleared if not on trip)
+          ...(tripReason ? { avatar: tripReason } : { avatar: null }),
+        },
+      })
+      await tx.attendanceRecord.upsert({
+        where: { personId_date: { personId, date: today } },
         create: {
           personId,
-          date: day,
+          date: today,
           status,
           checkIn: onDuty?.checkTime ?? null,
           checkOut: offDuty?.checkTime ?? null,
@@ -219,59 +264,24 @@ export async function syncAttendance(): Promise<{
         },
       })
     }
-  }
 
-  // 2. Update today's live state on Person rows + collect stats. ALSO upsert
-  // today's AttendanceRecord so the early-bird leaderboard shows today's
-  // punches immediately (previously it waited until tomorrow's finalize,
-  // leaving the board empty all day). The upsert is idempotent — re-syncs
-  // overwrite the same row; tomorrow's finalize of "yesterday" re-pulls this
-  // day in the 3-day window and upserts again, correcting any late punches.
-  const stats = { present: 0, leave: 0, trip: 0, absent: 0 }
-  for (const [userid, personId] of useridToPersonId) {
-    const { status, onDuty, offDuty } = mapStatusForDay(userid, today, tripByDay, leaveByDay, attByDay)
-    stats[status]++
-    const tripReason = tripByDay.get(userid)?.reason
-    await prisma.person.update({
-      where: { id: personId },
-      data: {
-        status,
-        // lastSeen = today's OnDuty punch time, cleared if no punch
-        ...(onDuty?.checkTime ? { lastSeen: onDuty.checkTime } : { lastSeen: null }),
-        // avatar repurposed as today's trip reason (cleared if not on trip)
-        ...(tripReason ? { avatar: tripReason } : { avatar: null }),
-      },
+    // 3. Advance the water mark (inside the tx so it commits with the records).
+    //  - When we finalized a subset (long outage), advance only to the LAST day
+    //    actually finalized, NOT yesterday — the unfinalized older days must be
+    //    retried on the next sync (advancing past them would skip them).
+    //  - When there were no days to finalize (first run / already up to date),
+    //    still PERSIST the bootstrap value (otherwise a fresh deploy recomputes
+    //    "yesterday" every run and never creates the setting, so the regular
+    //    flow never finalizes historical records).
+    const nextFinalized = daysToFinalize.length > 0
+      ? daysToFinalize[daysToFinalize.length - 1]
+      : lastFinalized
+    await tx.setting.upsert({
+      where: { key: LAST_FINALIZED_KEY },
+      create: { key: LAST_FINALIZED_KEY, value: nextFinalized },
+      update: { value: nextFinalized },
     })
-    await prisma.attendanceRecord.upsert({
-      where: { personId_date: { personId, date: today } },
-      create: {
-        personId,
-        date: today,
-        status,
-        checkIn: onDuty?.checkTime ?? null,
-        checkOut: offDuty?.checkTime ?? null,
-      },
-      update: {
-        status,
-        checkIn: onDuty?.checkTime ?? null,
-        checkOut: offDuty?.checkTime ?? null,
-      },
-    })
-  }
-
-  // 3. Advance the water mark.
-  //  - When we finalized a subset (long outage), advance only to the LAST day
-  //    actually finalized, NOT yesterday — the unfinalized older days must be
-  //    retried on the next sync (Codex P1: advancing past them would skip them).
-  //  - When there were no days to finalize (first run / already up to date),
-  //    still PERSIST the bootstrap value (Codex P1: otherwise a fresh deploy
-  //    recomputes "yesterday" every run and never creates the setting, so the
-  //    regular flow never finalizes historical records).
-  if (daysToFinalize.length > 0) {
-    await writeLastFinalized(daysToFinalize[daysToFinalize.length - 1])
-  } else {
-    await writeLastFinalized(lastFinalized)
-  }
+  })
 
   return { total: userids.length, stats, finalizedDays: daysToFinalize.length }
 }
@@ -314,24 +324,28 @@ export async function backfillDay(day: string): Promise<{ upserted: number }> {
   ])
 
   let upserted = 0
-  for (const [userid, personId] of useridToPersonId) {
-    const { status, onDuty, offDuty } = mapStatusForDay(userid, day, tripByDay, leaveByDay, attByDay)
-    await prisma.attendanceRecord.upsert({
-      where: { personId_date: { personId, date: day } },
-      create: {
-        personId,
-        date: day,
-        status,
-        checkIn: onDuty?.checkTime ?? null,
-        checkOut: offDuty?.checkTime ?? null,
-      },
-      update: {
-        status,
-        checkIn: onDuty?.checkTime ?? null,
-        checkOut: offDuty?.checkTime ?? null,
-      },
-    })
-    upserted++
-  }
+  // One transaction for the whole day's upserts: a mid-loop failure rolls
+  // back the partial day so a retry re-pulls cleanly. Network calls are done.
+  await prisma.$transaction(async (tx) => {
+    for (const [userid, personId] of useridToPersonId) {
+      const { status, onDuty, offDuty } = mapStatusForDay(userid, day, tripByDay, leaveByDay, attByDay)
+      await tx.attendanceRecord.upsert({
+        where: { personId_date: { personId, date: day } },
+        create: {
+          personId,
+          date: day,
+          status,
+          checkIn: onDuty?.checkTime ?? null,
+          checkOut: offDuty?.checkTime ?? null,
+        },
+        update: {
+          status,
+          checkIn: onDuty?.checkTime ?? null,
+          checkOut: offDuty?.checkTime ?? null,
+        },
+      })
+      upserted++
+    }
+  })
   return { upserted }
 }
