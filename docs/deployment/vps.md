@@ -250,3 +250,18 @@ SQLite 使用本地文件存储，请确保：
 
 - `prisma/` 目录在 VPS 上可写（`prisma/db.sqlite` 已在 .gitignore 中，部署不会覆盖）
 - 备份策略覆盖 `prisma/db.sqlite`
+
+### 异地备份（强烈建议）
+
+应用内置备份存在 `prisma/backups/`，与 `db.sqlite` 在**同一块盘**上——盘故障会同时丢失数据库和所有备份。`scripts/offsite-backup.sh` 用 rsync 把 `prisma/backups/` 增量同步到另一个位置（远程主机、外挂卷、或 rclone/S3 挂载点）：
+
+```bash
+# cron 每小时同步（在应用每日备份任务之后）
+0 * * * * BACKUP_OFFSITE_TARGET=user@host:/srv/idrl-backups /opt/idrl-portal/scripts/offsite-backup.sh >> /var/log/idrl-offsite.log 2>&1
+```
+
+`BACKUP_OFFSITE_TARGET` 可指向任意 rsync 接受的目标。rsync 增量传输，重跑只传新快照；`--delete` 保持镜像与本地一致（本地裁剪掉的旧备份也会从远端删除）。
+
+### 部署后健康检查
+
+`deploy-vps.yml` 在 `pm2 startOrReload` 后轮询 `/api/health`（最多 10 次 × 2s）。返回非 2xx 则 workflow 标红退出，提醒人工介入——避免「SSH 退出 0 但应用已 wedged」的假成功。`ecosystem.config.js` 配置了 `healthcheck_url`，pm2 也会独立轮询并在连续失败时重启进程。

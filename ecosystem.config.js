@@ -22,6 +22,13 @@ module.exports = {
       exec_mode: 'fork',
       autorestart: true,
       max_restarts: 10,
+      // PM2 polls this URL and restarts the process if it stops returning 2xx
+      // — catches a wedged process (booted but DB-locked / 500ing) that mere
+      // process liveness would miss. /api/health does a scalar DB count, so a
+      // 503 here means the DB is genuinely unreachable.
+      wait_ready: true,
+      healthcheck_url: 'http://127.0.0.1:3050/api/health',
+      healthcheck_max_retries: 3,
       env: {
         NODE_ENV: 'production',
         PORT: '3050',
