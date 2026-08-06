@@ -233,6 +233,35 @@ export interface AuditLog {
   createdAt: string
 }
 
+// ============ Feedback Board ============
+
+export type FeedbackCategory = 'bug' | 'suggestion' | 'question' | 'other'
+export type FeedbackStatus = 'open' | 'resolved'
+
+/** A feedback post. authorName is the submitter's Person name (or fallback). */
+export interface Feedback {
+  id: string
+  userId: string
+  authorName: string
+  content: string
+  category: FeedbackCategory
+  contact?: string | null
+  status: FeedbackStatus
+  replyCount: number
+  createdAt: string
+  lastReplyAt: string
+}
+
+/** A single-layer reply under a feedback post. */
+export interface FeedbackReply {
+  id: string
+  feedbackId: string
+  userId: string
+  authorName: string
+  content: string
+  createdAt: string
+}
+
 export interface PaginatedResponse<T> {
   items: T[]
   total: number

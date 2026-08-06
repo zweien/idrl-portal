@@ -38,6 +38,7 @@ import {
   PanelLeftOpen,
   CalendarClock,
   History,
+  MessageSquarePlus,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { APP_VERSION } from '@/lib/version'
@@ -48,6 +49,7 @@ const navItems = [
   { href: '/dashboard/attendance', label: '考勤统计', icon: CalendarClock },
   { href: '/dashboard/resources',  label: '资源聚合', icon: Server },
   { href: '/dashboard/news',       label: '最新动态', icon: Newspaper },
+  { href: '/dashboard/feedback',   label: '问题反馈', icon: MessageSquarePlus },
   { href: '/dashboard/admin',      label: '信息管理', icon: Settings },
   { href: '/dashboard/changelog',  label: '更新日志', icon: History },
 ]

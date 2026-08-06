@@ -75,3 +75,26 @@ export const createNewsBodySchema = newsItemSchema.omit({ id: true })
 
 /** Body for PATCH /api/news/:id (partial update). */
 export const updateNewsBodySchema = newsItemSchema.partial()
+
+// ===== Feedback board =====
+
+const feedbackCategory = z.enum(['bug', 'suggestion', 'question', 'other'])
+const feedbackStatus = z.enum(['open', 'resolved'])
+
+/** Body for POST /api/feedback (create a post). userId is taken from the session. */
+export const createFeedbackBodySchema = z.object({
+  content: z.string().trim().min(5, '内容至少 5 个字').max(2000, '内容不超过 2000 字'),
+  category: feedbackCategory,
+  contact: z.string().trim().max(200).nullable().optional(),
+})
+
+/** Body for PATCH /api/feedback/:id (admin status change). */
+export const updateFeedbackBodySchema = z.object({
+  status: feedbackStatus,
+})
+
+/** Body for POST /api/feedback/:id/replies (create a reply). */
+export const createFeedbackReplyBodySchema = z.object({
+  // trim before length checks so a whitespace-only reply is rejected.
+  content: z.string().trim().min(1, '回复不能为空').max(2000, '回复不超过 2000 字'),
+})

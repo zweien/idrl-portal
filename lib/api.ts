@@ -3,6 +3,7 @@ import useSWR from 'swr'
 import type {
   Floor, Person, NewsItem, Resource,
   Category, ApiKey, SyncLog, UserListItem, AuditLog,
+  Feedback, FeedbackReply, FeedbackCategory, FeedbackStatus,
   ApiResponse, PaginatedResponse,
 } from '@/lib/types'
 
@@ -110,6 +111,18 @@ export const deleteResource = (id: string) => deleteJSON(`/api/resources/${id}`)
 /** Rewrite one category's manual order to the given id sequence (single category only). */
 export const reorderResources = (ids: string[]) => postJSON<{ ok: true }>('/api/resources/reorder', { ids })
 
+// ===== Feedback board (member-writable) =====
+
+export const createFeedback = (data: { content: string; category: FeedbackCategory; contact?: string | null }) =>
+  postJSON<Feedback>('/api/feedback', data)
+export const deleteFeedback = (id: string) => deleteJSON(`/api/feedback/${id}`)
+export const updateFeedbackStatus = (id: string, status: FeedbackStatus) =>
+  patchJSON<Feedback>(`/api/feedback/${id}`, { status })
+export const createFeedbackReply = (id: string, content: string) =>
+  postJSON<FeedbackReply>(`/api/feedback/${id}/replies`, { content })
+export const deleteFeedbackReply = (id: string, replyId: string) =>
+  deleteJSON(`/api/feedback/${id}/replies/${replyId}`)
+
 // ===== Floor layout =====
 
 export function useFloorLayout() {
@@ -159,6 +172,23 @@ export function useResources(params?: Record<string, string | number>) {
 
 export function useCategories(kind: 'news' | 'resource') {
   return useSWR<ApiResponse<Category[]>>(`/api/categories?kind=${kind}`, fetcher)
+}
+
+// ===== Feedback board =====
+
+export function useFeedback(params?: { status?: FeedbackStatus; category?: FeedbackCategory; page?: number }) {
+  return useSWR<ApiResponse<PaginatedResponse<Feedback>>>(
+    `/api/feedback${qs(params as Record<string, string | number> | undefined)}`,
+    fetcher,
+  )
+}
+
+export function useFeedbackDetail(id: string | null) {
+  // Conditional key: skip fetch until an id is selected.
+  return useSWR<ApiResponse<{ post: Feedback; replies: FeedbackReply[] }>>(
+    id ? `/api/feedback/${id}` : null,
+    fetcher,
+  )
 }
 
 // ===== API keys (admin) =====

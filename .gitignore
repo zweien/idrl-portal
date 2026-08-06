@@ -47,3 +47,5 @@ prisma/backups/
 
 # CI migration dry-run scratch DB
 prisma/ci-migrate-check.sqlite
+prisma/db.sqlite-wal
+prisma/db.sqlite-shm

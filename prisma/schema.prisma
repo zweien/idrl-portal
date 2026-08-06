@@ -213,3 +213,37 @@ model AuditLog {
   @@index([targetType, targetId])
   @@index([createdAt])
 }
+
+// User-submitted feedback (a lightweight discussion board / ticket thread).
+// Any logged-in user (member or admin) can post; replies form a single-layer
+// (non-nested) discussion under each post. Status is admin-controlled. This is
+// the first member-writable model in the codebase — see lib/auth-api.requireUser.
+model Feedback {
+  id          String   @id @default(cuid())
+  userId      String   // submitter's User.id (no FK — posts survive user deletion as orphan-by-author-name fallback)
+  content     String   // 5–2000 chars (validated at the API layer)
+  category    String   // "bug" | "suggestion" | "question" | "other"
+  contact     String?  // optional contact for follow-up (phone/email/office)
+  status      String   @default("open") // "open" | "resolved"
+  replyCount  Int      @default(0) // denormalized for list display
+  lastReplyAt DateTime @default(now()) // drives list ordering (newest interaction first)
+  createdAt   DateTime @default(now())
+
+  replies     FeedbackReply[]
+
+  @@index([status])
+  @@index([category])
+  @@index([lastReplyAt])
+}
+
+// Single-layer reply under a Feedback post (no nested replies / threading).
+model FeedbackReply {
+  id         String   @id @default(cuid())
+  feedbackId String
+  feedback   Feedback @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+  userId     String   // author's User.id (no FK, same rationale as Feedback.userId)
+  content    String
+  createdAt  DateTime @default(now())
+
+  @@index([feedbackId, createdAt])
+}

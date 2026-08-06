@@ -19,6 +19,7 @@ IDRL Portal 是一个为科研实验室设计的内部信息看板。它把人�
 - **考勤** — 个人考勤记录查询、今日最早打卡 / 本月工时排行榜、考勤 CSV 导出（明细 + 汇总）
 - **资源聚合** — 实验室常用工具 / 文档入口，按分类筛选，Markdown 富文本描述
 - **最新动态** — 论文发表、通知、活动、荣誉成就，支持置顶、分类筛选与搜索
+- **问题反馈** — 简化版讨论版，登录用户发帖（问题/建议/疑问/其他）+ 单层回复，按最新互动排序；管理员标记「已处理」、删除治理
 - **更新日志** — 侧边栏入口查看版本历史（`CHANGELOG.md` 驱动）
 
 ### 面向管理员
@@ -234,6 +235,9 @@ curl -X DELETE "$BASE/api/resources/<id>" -H "Authorization: Bearer $KEY"
 | GET | `/api/attendance/leaderboard` | 🔑 `admin` | 今日最早打卡 / 本月工时榜 |
 | POST | `/api/attendance/backfill?date=` | 🛡 | 补拉指定日考勤 |
 | GET | `/api/attendance/export/detail` · `/summary` | 🔑 `admin` | 考勤 CSV 导出（明细 / 汇总） |
+| GET · POST | `/api/feedback` | 👤 | 问题反馈列表（分页/筛选）/ 发帖（任何登录用户） |
+| GET · PATCH · DELETE | `/api/feedback/:id` | 👤 | 帖子详情+回复 / 改状态（🛡）/ 删帖（作者或🛡） |
+| POST · DELETE | `/api/feedback/:id/replies` · `/:replyId` | 👤 | 回复 / 删回复（作者或🛡） |
 | GET | `/api/sync-logs` | 🔑 `admin` | 后台同步/发布任务日志 |
 | GET | `/api/audit-logs` | 🔑 `admin` | 管理操作审计日志（分页/过滤） |
 | POST | `/api/dingtalk/sync-members` | 🔑 `sync:members` | 触发成员同步 |
@@ -516,6 +520,7 @@ Floor  1—* Zone  1—* Workstation *—1 Person     （一人一工位唯一�
 User *—1 Person                                   （登录账号 ↔ 人员档案）
 Category 1—* NewsItem / Resource                  （统一分类，kind 区分）
 Person 1—* AttendanceRecord                       （考勤，[personId, date] 唯一）
+Feedback 1—* FeedbackReply                        （问题反馈讨论版，登录用户可发帖/回复）
 ApiKey / Setting / SyncLog / AuditLog             （密钥 / 配置 / 调度审计 / 操作审计）
 ```
 
@@ -527,6 +532,7 @@ Prisma schema 见 `prisma/schema.prisma`；SQLite 文件 `prisma/db.sqlite`（gi
 ### 关键模式
 
 - **API**：`app/api/*` Route Handlers，SWR hooks 消费（`lib/api.ts`）。敏感写操作走 `requireAdmin`；机器调用走带 scope 的 API 密钥（`requireScope` / `requireUserOrScope`），见 [API 参考](#-api-参考)。
+- **用户可写端点**：问题反馈（`/api/feedback`）是项目首个 member 可写路径——所有登录用户（member + admin）均可发帖/回复/删自己的，用 `requireUser()`（非 `requireAdmin`）+ 同样的 CSRF 守卫。其余写端点仍为 admin/scope 专属。
 - **认证**：iron-session 签名 cookie + middleware 路由保护。`requireUser`/`requireAdmin` 每次重查 User 行，**即时**反映封禁与角色变更（不等 7 天 cookie 过期）。
 - **CSRF**：cookie 是 `sameSite:'lax'`（挡跨站表单 POST），所有写端点额外经 `lib/csrf.ts` 的 `assertSameOrigin()` 校验 `Sec-Fetch-Site` / `Origin` / `Referer` 同源。带 `Authorization: Bearer` 的 API key 请求豁免（浏览器不会自动附带 Bearer 头，API key 天然不受 CSRF）。
 - **安全响应头**：`next.config.mjs` 的 `headers()` 对所有路由下发 HSTS / X-Frame-Options:DENY / Referrer-Policy / nosniff / Permissions-Policy / CSP。CSP `script-src 'self' 'unsafe-inline'`，配合新闻正文的 `rehype-sanitize`（移除 `<script>`/`<iframe>`/事件处理器/`javascript:` URL）形成 XSS 纵深防御。

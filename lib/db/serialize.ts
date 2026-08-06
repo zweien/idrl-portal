@@ -1,11 +1,21 @@
 import type {
   Floor, Zone, NewWorkstation, Person, NewsItem, Resource, User, Category,
+  Feedback, FeedbackReply,
 } from '@/lib/types'
 import type {
   Floor as DBFloor, Zone as DBZone, Workstation as DBWorkstation,
   Person as DBPerson, NewsItem as DBNews, Resource as DBResource,
   User as DBUser, Category as DBCategory,
+  Feedback as DBFeedback, FeedbackReply as DBFeedbackReply,
 } from '@prisma/client'
+import type { PrismaClient } from '@prisma/client'
+
+/**
+ * Author name lookup: userId → display name. Built by the API layer from a
+ * batched User+Person query (Feedback/FeedbackReply have no FK to User, so we
+ * can't use Prisma include — we join manually to keep posts deletable-user-safe).
+ */
+export type AuthorNameMap = Map<string, string>
 
 // ===== DB → TS =====
 
@@ -64,6 +74,54 @@ export function toCategory(c: DBCategory): Category {
     name: c.name,
     kind: c.kind as Category['kind'],
     order: c.order,
+  }
+}
+
+/**
+ * Author display name: prefer the linked Person's name (portal convention),
+ * fall back to the userId itself when the user/person isn't in the map (e.g.
+ * the author's account was deleted — the post survives as an orphan).
+ */
+function authorName(userId: string, names: AuthorNameMap): string {
+  return names.get(userId) ?? `用户:${userId.slice(-6)}`
+}
+
+/** Resolve display names for a set of userIds by batching a User+Person query. */
+export async function buildAuthorNameMap(
+  userIds: string[],
+  prisma: PrismaClient,
+): Promise<AuthorNameMap> {
+  if (userIds.length === 0) return new Map()
+  const users = await prisma.user.findMany({
+    where: { id: { in: [...new Set(userIds)] } },
+    include: { person: { select: { name: true } } },
+  })
+  return new Map(users.map(u => [u.id, u.person?.name ?? u.externalId]))
+}
+
+export function toFeedback(f: DBFeedback, names: AuthorNameMap): Feedback {
+  return {
+    id: f.id,
+    userId: f.userId,
+    authorName: authorName(f.userId, names),
+    content: f.content,
+    category: f.category as Feedback['category'],
+    contact: f.contact,
+    status: f.status as Feedback['status'],
+    replyCount: f.replyCount,
+    createdAt: f.createdAt.toISOString(),
+    lastReplyAt: f.lastReplyAt.toISOString(),
+  }
+}
+
+export function toFeedbackReply(r: DBFeedbackReply, names: AuthorNameMap): FeedbackReply {
+  return {
+    id: r.id,
+    feedbackId: r.feedbackId,
+    userId: r.userId,
+    authorName: authorName(r.userId, names),
+    content: r.content,
+    createdAt: r.createdAt.toISOString(),
   }
 }
 
