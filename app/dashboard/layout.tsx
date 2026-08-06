@@ -3,6 +3,7 @@
 import { AuthProvider } from '@/lib/auth-context'
 import { SidebarProvider } from '@/lib/sidebar-context'
 import { DashboardNav } from '@/components/dashboard/nav'
+import { Toaster } from '@/components/ui/sonner'
 import { cn } from '@/lib/utils'
 
 function DashboardContent({ children }: { children: React.ReactNode }) {
@@ -23,6 +24,9 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
           {children}
         </div>
       </main>
+      {/* Toast notifications for save/delete/sync feedback across the
+          authenticated UI. Mounted once here so all dashboard pages share it. */}
+      <Toaster richColors position="top-center" />
     </div>
   )
 }

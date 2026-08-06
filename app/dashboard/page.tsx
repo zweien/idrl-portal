@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { MarkdownContent } from '@/components/dashboard/markdown-content'
 import { useAdminData, useCategories, useNews } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
@@ -19,7 +20,6 @@ import {
   Pin,
   Clock,
   User,
-  X,
 } from 'lucide-react'
 
 // Cycle through chart color tokens for each category (now dynamic).
@@ -97,11 +97,12 @@ function NewsCard({ news, catLabel, cfg, onExpand }: { news: NewsItem; catLabel:
 
 function NewsExpandModal({ news, catLabel, cfg, onClose }: { news: NewsItem; catLabel: string; cfg: { color: string; accent: string }; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto">
-      {/* Backdrop */}
-      <div className="fixed inset-0 bg-foreground/20 backdrop-blur-[2px]" onClick={onClose} />
-      {/* Panel */}
-      <div className="relative w-full max-w-2xl mx-4 my-8 rounded-xl border border-border bg-card shadow-lg">
+    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent className="sm:max-w-2xl gap-0 p-0">
+        {/* Radix requires a DialogTitle for screen readers; the visible title
+            is rendered in the body below, so this one is visually hidden. */}
+        <DialogTitle className="sr-only">{news.title}</DialogTitle>
+        <DialogDescription className="sr-only">{catLabel} · {news.date}</DialogDescription>
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div className="flex items-center gap-2">
@@ -119,11 +120,8 @@ function NewsExpandModal({ news, catLabel, cfg, onClose }: { news: NewsItem; cat
               )}
             </div>
           </div>
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={onClose}>
-            <X className="h-4 w-4" />
-          </Button>
         </div>
-        {/* Body */}
+        {/* Body. DialogContent already renders the close (X) button. */}
         <div className="p-5 space-y-4">
           <div>
             <h2 className="text-lg font-semibold leading-snug">{news.title}</h2>
@@ -153,8 +151,8 @@ function NewsExpandModal({ news, catLabel, cfg, onClose }: { news: NewsItem; cat
             </>
           )}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
