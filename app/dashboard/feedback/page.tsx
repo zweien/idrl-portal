@@ -64,12 +64,15 @@ export default function FeedbackPage() {
   const [categoryFilter, setCategoryFilter] = useState<FeedbackCategory | 'all'>('all')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [composing, setComposing] = useState(false)
+  const [pageSize, setPageSize] = useState(20) // grows via "load more"
 
-  const params: Record<string, string> = {}
+  const params: Record<string, string | number> = { pageSize }
   if (statusFilter !== 'all') params.status = statusFilter
   if (categoryFilter !== 'all') params.category = categoryFilter
   const { data: listResp, mutate: mutateList } = useFeedback(params)
   const list = listResp?.data?.items ?? []
+  const total = listResp?.data?.total ?? 0
+  const hasMore = list.length < total
 
   // Detail view is a separate SWR fetch keyed on selectedId.
   const detail = useFeedbackDetail(selectedId)
@@ -139,7 +142,7 @@ export default function FeedbackPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
-        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as FeedbackStatus | 'all')}>
+        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v as FeedbackStatus | 'all'); setPageSize(20) }}>
           <SelectTrigger className="w-[120px] h-9"><SelectValue placeholder="状态" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">全部状态</SelectItem>
@@ -147,7 +150,7 @@ export default function FeedbackPage() {
             <SelectItem value="resolved">已处理</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v as FeedbackCategory | 'all')}>
+        <Select value={categoryFilter} onValueChange={(v) => { setCategoryFilter(v as FeedbackCategory | 'all'); setPageSize(20) }}>
           <SelectTrigger className="w-[120px] h-9"><SelectValue placeholder="分类" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">全部分类</SelectItem>
@@ -202,6 +205,13 @@ export default function FeedbackPage() {
               </div>
             </button>
           ))}
+          {hasMore && (
+            <div className="pt-2 flex justify-center">
+              <Button variant="outline" size="sm" onClick={() => setPageSize((n) => n + 20)}>
+                加载更多（还有 {total - list.length} 条）
+              </Button>
+            </div>
+          )}
         </div>
       )}
 

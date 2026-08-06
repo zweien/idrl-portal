@@ -34,14 +34,28 @@ export async function DELETE(req: NextRequest, { params }: Ctx) {
   }
 
   try {
-    // Delete the reply + decrement the parent's count atomically.
-    await prisma.$transaction([
-      prisma.feedbackReply.delete({ where: { id: replyId } }),
-      prisma.feedback.update({
+    // Delete the reply, then recompute the parent's denormalized fields in one
+    // transaction: replyCount decrements, and lastReplyAt is set to the newest
+    // REMAINING reply's createdAt (or the post's own createdAt if none remain).
+    // Without recomputing lastReplyAt, deleting the latest reply would leave the
+    // post incorrectly pinned at the top of the list (ordered by lastReplyAt).
+    await prisma.$transaction(async (tx) => {
+      await tx.feedbackReply.delete({ where: { id: replyId } })
+      const newest = await tx.feedbackReply.findFirst({
+        where: { feedbackId: id },
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true },
+      })
+      // lastReplyAt falls back to the post's creation time when no replies left.
+      const parent = await tx.feedback.findUnique({ where: { id }, select: { createdAt: true } })
+      await tx.feedback.update({
         where: { id },
-        data: { replyCount: { decrement: 1 } },
-      }),
-    ])
+        data: {
+          replyCount: { decrement: 1 },
+          lastReplyAt: newest?.createdAt ?? parent?.createdAt ?? new Date(),
+        },
+      })
+    })
     return NextResponse.json({ ok: true })
   } catch (e) {
     console.error('feedback reply delete failed:', e)

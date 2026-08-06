@@ -176,7 +176,7 @@ export function useCategories(kind: 'news' | 'resource') {
 
 // ===== Feedback board =====
 
-export function useFeedback(params?: { status?: FeedbackStatus; category?: FeedbackCategory; page?: number }) {
+export function useFeedback(params?: { status?: FeedbackStatus; category?: FeedbackCategory; page?: number; pageSize?: number }) {
   return useSWR<ApiResponse<PaginatedResponse<Feedback>>>(
     `/api/feedback${qs(params as Record<string, string | number> | undefined)}`,
     fetcher,

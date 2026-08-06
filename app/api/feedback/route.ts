@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { toFeedback, buildAuthorNameMap } from '@/lib/db/serialize'
-import { parsePagination, paginate, totalPages as computeTotalPages } from '@/lib/pagination'
+import { parsePagination, totalPages as computeTotalPages } from '@/lib/pagination'
 import { requireUser } from '@/lib/auth-api'
 import { assertSameOrigin } from '@/lib/csrf'
 import { safeErrorResponse } from '@/lib/safe-error'
@@ -22,8 +22,8 @@ export async function GET(request: Request) {
   if (status === 'open' || status === 'resolved') where.status = status
   if (category) where.category = category
 
-  // Fetch the page first, then resolve author names only for the rows shown —
-  // avoids joining Person for the whole table on a filtered list.
+  // DB-level pagination: findMany already applies skip/take, so the returned
+  // rows ARE the current page — do not slice again (that would empty page > 1).
   const [total, rows] = await Promise.all([
     prisma.feedback.count({ where }),
     prisma.feedback.findMany({
@@ -34,7 +34,7 @@ export async function GET(request: Request) {
     }),
   ])
   const names = await buildAuthorNameMap(rows.map(r => r.userId), prisma)
-  const items = paginate(rows, { page, pageSize }).map(r => toFeedback(r, names))
+  const items = rows.map(r => toFeedback(r, names))
 
   const response: ApiResponse<PaginatedResponse<Feedback>> = {
     success: true,
