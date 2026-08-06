@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db'
 import { toPerson, fromPerson } from '@/lib/db/serialize'
 import { requireUserOrScopeAny, requireAdmin } from '@/lib/auth-api'
 import { logAction, actorFromAuth } from '@/lib/audit'
+import { parsePagination, paginate, totalPages as computeTotalPages } from '@/lib/pagination'
 import type { Person, ApiResponse, PaginatedResponse } from '@/lib/types'
 
 export async function GET(request: Request) {
@@ -10,8 +11,7 @@ export async function GET(request: Request) {
   if (auth instanceof NextResponse) return auth
 
   const { searchParams } = new URL(request.url)
-  const page = parseInt(searchParams.get('page') || '1')
-  const pageSize = parseInt(searchParams.get('pageSize') || '20')
+  const { page, pageSize } = parsePagination(searchParams)
   const status = searchParams.get('status')
   const search = searchParams.get('search')
 
@@ -42,13 +42,12 @@ export async function GET(request: Request) {
   }
 
   const total = filtered.length
-  const totalPages = Math.ceil(total / pageSize)
-  const start = (page - 1) * pageSize
-  const items = filtered.slice(start, start + pageSize)
+  const tp = computeTotalPages(total, pageSize)
+  const items = paginate(filtered, { page, pageSize })
 
   const response: ApiResponse<PaginatedResponse<Person>> = {
     success: true,
-    data: { items, total, page, pageSize, totalPages },
+    data: { items, total, page, pageSize, totalPages: tp },
   }
   return NextResponse.json(response)
 }

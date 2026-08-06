@@ -1,6 +1,7 @@
 import { join, normalize, sep } from 'node:path'
 import { stat } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
+import { randomBytes } from 'node:crypto'
 
 const MAX_BYTES = 5 * 1024 * 1024
 
@@ -39,9 +40,15 @@ export function uploadsDir(): string {
   return join(thisDir, '..', 'uploads')
 }
 
-/** Random 10-hex suffix to avoid filename collisions. */
+/**
+ * Cryptographically-random 10-hex-char suffix to avoid filename collisions
+ * AND make uploaded-file URLs unguessable. Uses node:crypto (CSPRNG) rather
+ * than Math.random() — Math.random is not cryptographically secure and its
+ * 10-hex output carries far less entropy, making uploaded draft/deleted
+ * images enumerable by an attacker who learns the upload timestamp.
+ */
 export function randomSuffix(): string {
-  return Math.random().toString(16).slice(2, 12).padEnd(10, '0')
+  return randomBytes(5).toString('hex')
 }
 
 /**
