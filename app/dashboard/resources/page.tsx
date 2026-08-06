@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { useResources, useCategories, updateResource } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import type { Resource } from '@/lib/types'
-import { MarkdownContent } from '@/components/dashboard/markdown-content'
+import { LazyMarkdownContent } from '@/components/dashboard/lazy-markdown-content'
 import { ResourceDialog } from '@/components/admin/resource-dialog'
 import { cn } from '@/lib/utils'
 import {
@@ -276,7 +276,7 @@ export default function ResourcesPage() {
                   </div>
 
                   <div className="text-sm text-muted-foreground leading-relaxed">
-                    <MarkdownContent content={selected.description} />
+                    <LazyMarkdownContent content={selected.description} />
                   </div>
 
                   {selected.specs && Object.keys(selected.specs).length > 0 && (

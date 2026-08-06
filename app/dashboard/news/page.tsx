@@ -9,7 +9,7 @@ import { useNews, useCategories, updateNews } from '@/lib/api'
 import { compareNews } from '@/lib/ordering'
 import { useAuth } from '@/lib/auth-context'
 import type { NewsItem } from '@/lib/types'
-import { MarkdownContent } from '@/components/dashboard/markdown-content'
+import { LazyMarkdownContent } from '@/components/dashboard/lazy-markdown-content'
 import { NewsDialog } from '@/components/admin/news-dialog'
 import {
   Search,
@@ -188,7 +188,7 @@ export default function NewsPage() {
                 className="w-full max-h-80 object-cover rounded-md mb-4"
               />
             )}
-            <MarkdownContent content={selected.content} />
+            <LazyMarkdownContent content={selected.content} />
             {selected.tags && selected.tags.length > 0 && (
               <div className="pt-4 mt-6 border-t border-border flex items-center gap-1.5 flex-wrap">
                 <Tag className="h-3.5 w-3.5 text-muted-foreground" />
