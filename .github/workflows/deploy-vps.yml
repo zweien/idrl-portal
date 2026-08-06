@@ -67,3 +67,20 @@ jobs:
             export VPS_APP_DIR="${{ secrets.VPS_APP_DIR }}"
             pm2 startOrReload ecosystem.config.js --env production --update-env
             pm2 save
+            # Post-deploy smoke: give the new process a moment to bind, then
+            # hit the health endpoint. A 503 (or no response) means the deploy
+            # left the app wedged even though SSH exited 0 — fail the workflow
+            # so a human is alerted rather than believing the deploy succeeded.
+            PORT="$(grep '^PORT=' .env.production | cut -d= -f2- | tr -d '\"')"
+            PORT="${PORT:-3050}"
+            echo "smoke-check: waiting for :${PORT}/api/health"
+            for i in $(seq 1 10); do
+              if curl -fsS "http://127.0.0.1:${PORT}/api/health" >/dev/null 2>&1; then
+                echo "smoke-check: OK (attempt $i)"
+                exit 0
+              fi
+              sleep 2
+            done
+            echo "smoke-check: FAILED — /api/health did not return 2xx after 10 attempts"
+            pm2 status idrl-portal
+            exit 1
