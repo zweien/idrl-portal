@@ -1,0 +1,13 @@
+-- Switch the SQLite journal from DELETE (default) to WAL.
+--
+-- Why: DELETE journaling takes an exclusive lock on every write, so readers
+-- block during writes and concurrent writers immediately hit SQLITE_BUSY. WAL
+-- lets readers and the single writer proceed concurrently and is the
+-- recommended mode for a web-facing SQLite database.
+--
+-- journal_mode is a persistent database-file property (not connection-scoped):
+-- once set here, every subsequent connection — including the app's Prisma
+-- client and any `better-sqlite3` connection opened for backups — sees WAL.
+-- The app additionally re-asserts WAL at boot (lib/db/index.ts) so a restore
+-- from a DELETE-mode backup is corrected on the next process start.
+PRAGMA journal_mode=WAL;

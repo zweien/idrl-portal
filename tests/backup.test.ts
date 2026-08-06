@@ -11,13 +11,6 @@ import { tmpdir } from 'node:os'
  * against a copy of the dev DB in a temp dir (so we don't touch the real one).
  */
 
-// Mock the prisma setting lookup (readKeepCount) so backup.ts doesn't hit the DB.
-vi.mock('@/lib/db', () => ({
-  prisma: {
-    setting: { findUnique: vi.fn().mockResolvedValue(null) },
-  },
-}))
-
 // We import AFTER setting up the env so dbPath() resolves to our temp copy.
 const tmpDir = mkdtempSync(join(tmpdir(), 'idrl-backup-'))
 const tmpDbPath = join(tmpDir, 'db.sqlite')
@@ -43,13 +36,23 @@ const tmpDbPath = join(tmpDir, 'db.sqlite')
 }
 process.env.DATABASE_URL = `file:${tmpDbPath}`
 
-// Now import with the env pointed at the temp DB. Override BACKUP_DIR via a
-// module-level trick: backup.ts hardcodes BACKUP_DIR to cwd/prisma/backups,
-// so we mock 'node:path' join? Simpler: chdir won't help. Instead we test the
-// pure helpers directly and the file ops by pointing the module at a temp dir
-// through a re-eval. Below we just call the functions and check the temp
-// backups dir under cwd/prisma/backups — but to keep it hermetic, we instead
-// test the pure logic + a manual prune on a temp dir.
+// Mock @/lib/db: stub prisma (so readKeepCount doesn't hit a real Prisma client)
+// while exposing a REAL ensureWalMode bound to the temp DB path, so the
+// restore-then-assert WAL path is genuinely exercised end-to-end.
+vi.mock('@/lib/db', () => ({
+  prisma: {
+    setting: { findUnique: vi.fn().mockResolvedValue(null) },
+  },
+  ensureWalMode: () => {
+    const Database = require('better-sqlite3')
+    const db = new Database(tmpDbPath)
+    try {
+      return String(db.pragma('journal_mode=WAL', { simple: true }))
+    } finally {
+      db.close()
+    }
+  },
+}))
 
 const { isValidBackupName, createBackup, listBackups, pruneBackups, deleteBackup, restoreBackup } =
   await import('@/lib/backup')

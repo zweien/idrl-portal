@@ -521,6 +521,9 @@ ApiKey / Setting / SyncLog / AuditLog             （密钥 / 配置 / 调度审
 
 Prisma schema 见 `prisma/schema.prisma`；SQLite 文件 `prisma/db.sqlite`（gitignore）；备份快照存 `prisma/backups/`（gitignore）。
 
+- **WAL 模式**：DB 以 `journal_mode=WAL` 运行（迁移 `20260806002721_enable_wal_mode` 一次性启用，文件级属性、持久）。WAL 下读连接与单一写连接并发，读不再被写阻塞，写竞争时 SQLite 等待而非立即 `SQLITE_BUSY`。从 DELETE 模式的旧备份恢复后，`lib/db` 的 `ensureWalMode()` 会重新切回 WAL。
+- **外键**：`PRAGMA foreign_keys` 在 better-sqlite3 + Prisma driver-adapter 下默认开启并真实强制（孤儿写入被 DB 拒绝，错误码 P2003 / P2010）。`schema.prisma` 的 `onDelete: Cascade/SetNull/Restrict` 因此在数据库层生效。
+
 ### 关键模式
 
 - **API**：`app/api/*` Route Handlers，SWR hooks 消费（`lib/api.ts`）。敏感写操作走 `requireAdmin`；机器调用走带 scope 的 API 密钥（`requireScope` / `requireUserOrScope`），见 [API 参考](#-api-参考)。

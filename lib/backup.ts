@@ -14,7 +14,7 @@ import Database from 'better-sqlite3'
 import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
-import { prisma } from '@/lib/db'
+import { prisma, ensureWalMode } from '@/lib/db'
 
 const BACKUP_DIR = join(process.cwd(), 'prisma', 'backups')
 
@@ -169,13 +169,16 @@ export async function restoreBackup(filename: string): Promise<{ preRestore: Bac
   // Apply any migrations the restored DB is missing (e.g. AuditLog on an old
   // backup). This keeps the schema consistent with the running code.
   migrateAfterRestore()
+  // A restored backup may have been taken in DELETE journal mode (pre-WAL);
+  // re-assert WAL so the next write doesn't block readers.
+  ensureWalMode()
   return { preRestore }
 }
 
 /**
- * Restore from an uploaded file path (already saved to disk). Validates it's
- * a real SQLite DB by opening it and reading the migrations table. Then runs
- * the same overwrite flow as restoreBackup.
+ * Restore from an uploaded file path (already saved to disk). Validates it's a
+ * real SQLite DB by opening it and reading the migrations table. Then runs the
+ * same overwrite flow as restoreBackup.
  */
 export async function restoreFromFile(uploadPath: string): Promise<{ preRestore: BackupInfo }> {
   // Validate it's a SQLite DB with our schema (has _prisma_migrations).
@@ -200,6 +203,8 @@ export async function restoreFromFile(uploadPath: string): Promise<{ preRestore:
   }
   // Apply any migrations the uploaded DB is missing.
   migrateAfterRestore()
+  // Re-assert WAL in case the uploaded backup predates WAL enablement.
+  ensureWalMode()
   return { preRestore }
 }
 
