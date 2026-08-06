@@ -5,6 +5,17 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v0.4.0] - 2026-08-06
+
+### 新增
+
+- feat(feedback): discussion board for collecting user issues
+
+### 修复
+
+- fix(feedback): codex review — double-pagination, load-more, lastReplyAt recompute
+- fix(csp): allow unsafe-eval in dev; gate HSTS to production
+
 ## [v0.3.0] - 2026-08-06
 
 ### 新增
