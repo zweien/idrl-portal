@@ -55,6 +55,14 @@ describe('randomSuffix', () => {
     expect(s).toHaveLength(10)
     expect(s).toMatch(/^[0-9a-f]+$/)
   })
+  it('produces high-entropy unique values (CSPRNG, not Math.random)', () => {
+    // 10 hex chars from a CSPRNG → 16^10 ≈ 10^12 space; 1000 samples must be
+    // all distinct. (Math.random's lower entropy could collide here, but a
+    // CSPRNG won't in any realistic sample size.)
+    const seen = new Set<string>()
+    for (let i = 0; i < 1000; i++) seen.add(randomSuffix())
+    expect(seen.size).toBe(1000)
+  })
 })
 
 describe('uploadsDir default', () => {
