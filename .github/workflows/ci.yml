@@ -33,6 +33,15 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Migration dry-run
+        # Apply every migration in order to a throwaway DB. Catches malformed
+        # SQL, bad migration ordering, and schema/declaration drift BEFORE
+        # release — previously migrations were only exercised at deploy time
+        # against the live DB. A fresh file means all migrations run from zero.
+        run: |
+          rm -f prisma/ci-migrate-check.sqlite
+          DATABASE_URL="file:prisma/ci-migrate-check.sqlite" pnpm exec prisma migrate deploy
+
       - name: Build
         run: pnpm exec next build
         env:

@@ -41,3 +41,6 @@ prisma/backups/
 # Anchored to the repo root so it doesn't also ignore app/api/uploads/.
 /uploads/
 .zcode/
+
+# CI migration dry-run scratch DB
+prisma/ci-migrate-check.sqlite
