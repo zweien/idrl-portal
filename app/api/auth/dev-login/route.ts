@@ -1,3 +1,4 @@
+import { assertSameOrigin } from '@/lib/csrf'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { saveSession } from '@/lib/session'
@@ -15,6 +16,8 @@ import { saveSession } from '@/lib/session'
  * - No password check: dev convenience only.
  */
 export async function POST(req: NextRequest) {
+  const __csrf = assertSameOrigin(req)
+  if (__csrf) return __csrf
   if (process.env.NODE_ENV === 'production') {
     return NextResponse.json({ error: 'not found' }, { status: 404 })
   }

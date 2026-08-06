@@ -1,3 +1,4 @@
+import { assertSameOrigin } from '@/lib/csrf'
 import { NextRequest, NextResponse } from 'next/server'
 import { writeFile } from 'node:fs/promises'
 import { mkdir } from 'node:fs'
@@ -16,6 +17,8 @@ import { uploadsDir, validateImage, randomSuffix, IMAGE_TYPES, UploadValidationE
  * Scope: news:publish (same as writing news — API key or admin session).
  */
 export async function POST(req: NextRequest) {
+  const __csrf = assertSameOrigin(req)
+  if (__csrf) return __csrf
   const auth = await requireScope(req, 'news:publish')
   if (auth instanceof NextResponse) return auth
 

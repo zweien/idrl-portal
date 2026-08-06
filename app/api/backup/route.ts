@@ -1,3 +1,4 @@
+import { assertSameOrigin } from '@/lib/csrf'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/auth-api'
 import { createBackup, listBackups, deleteBackup, pruneBackups, readKeepCount } from '@/lib/backup'
@@ -18,7 +19,9 @@ export async function GET() {
 }
 
 /** POST /api/backup — create a manual backup, then prune to retention. */
-export async function POST() {
+export async function POST(_csrfReq: NextRequest) {
+  const __csrf = assertSameOrigin(_csrfReq)
+  if (__csrf) return __csrf
   const auth = await requireAdmin()
   if (auth instanceof NextResponse) return auth
   try {
@@ -39,6 +42,8 @@ export async function POST() {
 
 /** DELETE /api/backup?filename=X — delete one backup. */
 export async function DELETE(req: NextRequest) {
+  const __csrf = assertSameOrigin(req)
+  if (__csrf) return __csrf
   const auth = await requireAdmin()
   if (auth instanceof NextResponse) return auth
   const filename = new URL(req.url).searchParams.get('filename')

@@ -9,7 +9,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['tests/**/*.test.ts'],
+    include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],
     // getSessionSecret() reads NODE_ENV at module load; tests assert behavior
     // for specific envs, so isolate each test file's module registry.
     isolate: true,

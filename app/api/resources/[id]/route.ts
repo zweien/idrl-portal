@@ -1,3 +1,4 @@
+import { assertSameOrigin } from '@/lib/csrf'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { toResource, fromResource } from '@/lib/db/serialize'
@@ -7,6 +8,8 @@ import type { Resource } from '@/lib/types'
 
 /** PATCH /api/resources/:id — update a single resource. */
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const __csrf = assertSameOrigin(req)
+  if (__csrf) return __csrf
   const auth = await requireScope(req, 'resource:publish')
   if (auth instanceof NextResponse) return auth
 
@@ -45,6 +48,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
 /** DELETE /api/resources/:id — delete a single resource. */
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const __csrf = assertSameOrigin(req)
+  if (__csrf) return __csrf
   const auth = await requireScope(req, 'resource:publish')
   if (auth instanceof NextResponse) return auth
 

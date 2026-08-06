@@ -1,3 +1,4 @@
+import { assertSameOrigin } from '@/lib/csrf'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { toResource, fromResource } from '@/lib/db/serialize'
@@ -49,6 +50,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(req: NextRequest) {
+  const __csrf = assertSameOrigin(req)
+  if (__csrf) return __csrf
   const auth = await requireScope(req, 'resource:publish')
   if (auth instanceof NextResponse) return auth
 
