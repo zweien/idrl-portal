@@ -1,3 +1,4 @@
+import { assertSameOrigin } from '@/lib/csrf'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { requireScope } from '@/lib/auth-api'
@@ -10,6 +11,8 @@ import { logAction, actorFromAuth } from '@/lib/audit'
  * rewritten to 0..n-1 by position.
  */
 export async function POST(req: NextRequest) {
+  const __csrf = assertSameOrigin(req)
+  if (__csrf) return __csrf
   const auth = await requireScope(req, 'resource:publish')
   if (auth instanceof NextResponse) return auth
 

@@ -1,3 +1,4 @@
+import { assertSameOrigin } from '@/lib/csrf'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { toPerson, fromPerson } from '@/lib/db/serialize'
@@ -7,6 +8,8 @@ import type { Person } from '@/lib/types'
 
 /** PATCH /api/personnel/:id — update a single person. */
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const __csrf = assertSameOrigin(req)
+  if (__csrf) return __csrf
   const auth = await requireAdmin()
   if (auth instanceof NextResponse) return auth
 
@@ -35,6 +38,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
 /** DELETE /api/personnel/:id — delete a single person. */
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const __csrf = assertSameOrigin(_req)
+  if (__csrf) return __csrf
   const auth = await requireAdmin()
   if (auth instanceof NextResponse) return auth
 

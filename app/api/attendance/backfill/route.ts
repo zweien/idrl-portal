@@ -1,3 +1,4 @@
+import { assertSameOrigin } from '@/lib/csrf'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth-api'
@@ -13,6 +14,8 @@ import { backfillDay } from '@/lib/dingtalk-sync'
  * or wrong (e.g. a sync failed and the window has moved on).
  */
 export async function POST(req: Request) {
+  const __csrf = assertSameOrigin(req)
+  if (__csrf) return __csrf
   const auth = await requireAdmin()
   if (auth instanceof NextResponse) return auth
 

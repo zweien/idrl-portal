@@ -1,3 +1,4 @@
+import { assertSameOrigin } from '@/lib/csrf'
 import { NextResponse } from 'next/server'
 import { destroySession } from '@/lib/session'
 
@@ -7,7 +8,9 @@ import { destroySession } from '@/lib/session'
  * bar's logout action (replaces the legacy client-only sessionStorage clear,
  * which never invalidated the server session).
  */
-export async function POST() {
+export async function POST(_csrfReq: Request) {
+  const __csrf = assertSameOrigin(_csrfReq)
+  if (__csrf) return __csrf
   await destroySession()
   return NextResponse.json({ ok: true })
 }

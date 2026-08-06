@@ -1,3 +1,4 @@
+import { assertSameOrigin } from '@/lib/csrf'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth-api'
@@ -43,6 +44,8 @@ export async function GET() {
  * Returns { key } with the plaintext ONCE; it is never retrievable again.
  */
 export async function POST(req: Request) {
+  const __csrf = assertSameOrigin(req)
+  if (__csrf) return __csrf
   const auth = await requireAdmin()
   if (auth instanceof NextResponse) return auth
 

@@ -1,3 +1,4 @@
+import { assertSameOrigin } from '@/lib/csrf'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { toPerson, toNewsItem, toResource, fromPerson, fromNewsItem, fromResource } from '@/lib/db/serialize'
@@ -35,6 +36,8 @@ export async function GET() {
 }
 
 export async function PUT(req: NextRequest) {
+  const __csrf = assertSameOrigin(req)
+  if (__csrf) return __csrf
   const auth = await requireAdmin()
   if (auth instanceof NextResponse) return auth
 

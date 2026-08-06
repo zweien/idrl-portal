@@ -1,3 +1,4 @@
+import { assertSameOrigin } from '@/lib/csrf'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { requireScope } from '@/lib/auth-api'
@@ -14,6 +15,8 @@ import type { SyncSource } from '@/lib/types'
  * of the call (api/manual) is recorded in the SyncLog.
  */
 export async function POST(req: Request) {
+  const __csrf = assertSameOrigin(req)
+  if (__csrf) return __csrf
   const auth = await requireScope(req, 'sync:members')
   if (auth instanceof NextResponse) return auth
 

@@ -1,3 +1,4 @@
+import { assertSameOrigin } from '@/lib/csrf'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { toCategory } from '@/lib/db/serialize'
@@ -7,6 +8,8 @@ import type { Category } from '@/lib/types'
 
 /** PATCH /api/categories/:id — rename / reorder a category. */
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const __csrf = assertSameOrigin(req)
+  if (__csrf) return __csrf
   const auth = await requireAdmin()
   if (auth instanceof NextResponse) return auth
 
@@ -44,6 +47,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 /** DELETE /api/categories/:id — delete a category. News/resources keep their
  * rows (categoryId set to null via onDelete:SetNull). */
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const __csrf = assertSameOrigin(_req)
+  if (__csrf) return __csrf
   const auth = await requireAdmin()
   if (auth instanceof NextResponse) return auth
 

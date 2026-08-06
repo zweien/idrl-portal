@@ -525,6 +525,9 @@ Prisma schema 见 `prisma/schema.prisma`；SQLite 文件 `prisma/db.sqlite`（gi
 
 - **API**：`app/api/*` Route Handlers，SWR hooks 消费（`lib/api.ts`）。敏感写操作走 `requireAdmin`；机器调用走带 scope 的 API 密钥（`requireScope` / `requireUserOrScope`），见 [API 参考](#-api-参考)。
 - **认证**：iron-session 签名 cookie + middleware 路由保护。`requireUser`/`requireAdmin` 每次重查 User 行，**即时**反映封禁与角色变更（不等 7 天 cookie 过期）。
+- **CSRF**：cookie 是 `sameSite:'lax'`（挡跨站表单 POST），所有写端点额外经 `lib/csrf.ts` 的 `assertSameOrigin()` 校验 `Sec-Fetch-Site` / `Origin` / `Referer` 同源。带 `Authorization: Bearer` 的 API key 请求豁免（浏览器不会自动附带 Bearer 头，API key 天然不受 CSRF）。
+- **安全响应头**：`next.config.mjs` 的 `headers()` 对所有路由下发 HSTS / X-Frame-Options:DENY / Referrer-Policy / nosniff / Permissions-Policy / CSP。CSP `script-src 'self' 'unsafe-inline'`，配合新闻正文的 `rehype-sanitize`（移除 `<script>`/`<iframe>`/事件处理器/`javascript:` URL）形成 XSS 纵深防御。
+- **Markdown 渲染**：新闻正文用 `react-markdown` + `remark-gfm` + `rehype-raw`（解析作者内联 HTML）+ `rehype-sanitize`（过滤危险标签/属性）。作者可用 HTML 排版，但无法注入脚本。
 - **反向代理**：所有面向外部的重定向经 `lib/request-origin.ts` 的 `getRequestOrigin()`（读 `X-Forwarded-Proto/Host`，nginx 显式覆盖防 host 头注入），不得直接用 `req.url` 拼跳转。
 - **限流**：API 密钥按 key 限额（DB 行级原子计数，多实例共享），超限返回 429 + `Retry-After`。
 - **调度**：`instrumentation.ts` 启动注册 node-cron；任务每分钟心跳，重读 `Setting` 表的 cron 表达式（北京时间解释），改动无需重启。

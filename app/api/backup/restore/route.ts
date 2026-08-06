@@ -1,3 +1,4 @@
+import { assertSameOrigin } from '@/lib/csrf'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/auth-api'
 import { restoreBackup } from '@/lib/backup'
@@ -9,6 +10,8 @@ import { logAction, actorFromAuth } from '@/lib/audit'
  * restore can be undone. Admin-only.
  */
 export async function POST(req: NextRequest) {
+  const __csrf = assertSameOrigin(req)
+  if (__csrf) return __csrf
   const auth = await requireAdmin()
   if (auth instanceof NextResponse) return auth
   let body: { filename?: string }
