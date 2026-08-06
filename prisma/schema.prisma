@@ -170,7 +170,7 @@ model Setting {
 model SyncLog {
   id        String   @id @default(cuid())
   job       String // "sync-members" | "sync-attendance" | "publish-news"
-  source    String // "cron" | "api" | "manual"
+  source    String // "cron" | "catchup" | "api" | "manual"
   status    String // "success" | "error"
   message   String?
   stats     String? // JSON

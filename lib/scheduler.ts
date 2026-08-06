@@ -40,6 +40,16 @@ interface JobDef {
   run: () => Promise<unknown>
   /** Optional transform of the result before persisting it as SyncLog.stats. */
   flattenStats?: (result: unknown) => Record<string, unknown>
+  /**
+   * Boot catch-up window in ms. On process start, if the last recorded run of
+   * this job (by SyncLog timestamp) is older than this, the job fires once
+   * immediately (source: 'catchup'). Undefined = no boot catch-up. Reserved
+   * for jobs whose missed fire has visible consequences AND that are idempotent
+   * (publish-news: a due draft stays draft; backup: a day has no snapshot).
+   * Sync jobs are skipped here — syncAttendance has its own lastFinalizedDate
+   * watermark that self-heals on the next regular fire.
+   */
+  catchupMs?: number
 }
 /**
  * Validate a 5-field cron expression. node-cron.validate() also accepts the
@@ -212,12 +222,18 @@ const JOB_DEFS: JobDef[] = [
     enableKey: 'cron.enabled.publish',
     defaultCron: CRON_DEFAULTS['publish-news'],
     run: publishDueNews,
+    // A due draft should flip to published within minutes; if we were down
+    // long enough to miss more than two default cycles, catch up on boot.
+    catchupMs: 10 * 60 * 1000,
   },
   {
     job: 'backup',
     settingKey: 'cron.backup',
     enableKey: 'cron.enabled.backup',
     defaultCron: CRON_DEFAULTS['backup'],
+    // Default is daily; if the last snapshot is older than ~a day, take one now
+    // rather than waiting for the next cron boundary (which could be 24h away).
+    catchupMs: 25 * 60 * 60 * 1000,
     run: async () => {
       // Take a snapshot, then prune to the configured retention so backups
       // don't accumulate unbounded.
@@ -232,6 +248,44 @@ const JOB_DEFS: JobDef[] = [
   },
 ]
 
+/**
+ * Jobs currently mid-execution. node-cron's minute heartbeat fires unconditionally,
+ * so without a guard a slow run (e.g. syncAttendance writing one row per person
+ * per day) would overlap with the next tick and two runs would race on SQLite's
+ * single writer. We skip a tick when the previous run for the same job hasn't
+ * returned yet — the next matching minute will pick it up.
+ */
+const running = new Set<CronJob>()
+
+/**
+ * Run a job's body and persist a SyncLog row (success or error). Source labels
+ * who triggered the run: 'cron' (heartbeat match), 'catchup' (boot recovery),
+ * 'api'/'manual' (HTTP). Factored out so both the cron heartbeat and the boot
+ * catch-up share identical logging/error handling.
+ */
+async function runAndLog(def: JobDef, source: 'cron' | 'catchup') {
+  try {
+    const result = await def.run()
+    await prisma.syncLog.create({
+      data: {
+        job: def.job,
+        source,
+        status: 'success',
+        stats: JSON.stringify(def.flattenStats ? def.flattenStats(result) : (result ?? {})),
+      },
+    })
+  } catch (e) {
+    await prisma.syncLog.create({
+      data: {
+        job: def.job,
+        source,
+        status: 'error',
+        message: e instanceof Error ? e.message : 'unknown error',
+      },
+    })
+  }
+}
+
 async function executeJob(def: JobDef) {
   // Re-read config on every tick so admin changes take effect without a restart.
   if (!(await isEnabled(def.enableKey))) return
@@ -242,25 +296,46 @@ async function executeJob(def: JobDef) {
   if (!isValidCron(expr)) return
   // Only run when the current minute matches the live expression.
   if (!cronMatchesMinute(expr, new Date())) return
+  // Skip if the previous run hasn't finished — see `running` doc.
+  if (running.has(def.job)) return
+  running.add(def.job)
   try {
-    const result = await def.run()
-    await prisma.syncLog.create({
-      data: {
-        job: def.job,
-        source: 'cron',
-        status: 'success',
-        stats: JSON.stringify(def.flattenStats ? def.flattenStats(result) : (result ?? {})),
-      },
+    await runAndLog(def, 'cron')
+  } finally {
+    running.delete(def.job)
+  }
+}
+
+/**
+ * On process start, fire any job whose last recorded run is stale enough that
+ * missing it has visible consequences (publish-news: due drafts; backup: no
+ * daily snapshot). Sync jobs are excluded — syncAttendance self-heals via its
+ * lastFinalizedDate watermark, and a redundant syncMembers is harmless but not
+ * worth the DingTalk API load on every boot.
+ *
+ * Reads the most recent SyncLog row per job (any status) to decide staleness,
+ * so a crashed run still counts as "we tried recently".
+ */
+async function runCatchupOnBoot() {
+  for (const def of JOB_DEFS) {
+    if (!def.catchupMs) continue
+    if (!(await isEnabled(def.enableKey))) continue
+    const last = await prisma.syncLog.findFirst({
+      where: { job: def.job },
+      orderBy: { createdAt: 'desc' },
+      take: 1,
+      select: { createdAt: true },
     })
-  } catch (e) {
-    await prisma.syncLog.create({
-      data: {
-        job: def.job,
-        source: 'cron',
-        status: 'error',
-        message: e instanceof Error ? e.message : 'unknown error',
-      },
-    })
+    const stale = !last || Date.now() - last.createdAt.getTime() > def.catchupMs
+    if (!stale) continue
+    // Respect the mutex (a catch-up could race a cron tick landing at boot).
+    if (running.has(def.job)) continue
+    running.add(def.job)
+    try {
+      await runAndLog(def, 'catchup')
+    } finally {
+      running.delete(def.job)
+    }
   }
 }
 
@@ -274,6 +349,8 @@ let registered = false
 export function registerScheduler() {
   if (registered) return
   registered = true
+  // Fire-and-forget boot catch-up: don't block process start on it.
+  void runCatchupOnBoot()
   for (const def of JOB_DEFS) {
     const task = cron.schedule('* * * * *', () => {
       void executeJob(def)
@@ -289,4 +366,4 @@ export function unregisterScheduler() {
   registered = false
 }
 
-export { executeJob as runJob, cronMatchesMinute } // exported for testing
+export { executeJob as runJob, runCatchupOnBoot, cronMatchesMinute } // exported for testing
