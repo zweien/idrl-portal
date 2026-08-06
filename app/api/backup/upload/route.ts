@@ -1,3 +1,4 @@
+import { safeErrorResponse } from '@/lib/safe-error'
 import { NextRequest, NextResponse } from 'next/server'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest) {
       data: { restored: filename, preRestoreSnapshot: preRestore.filename },
     })
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'unknown error'
-    return NextResponse.json({ error: msg }, { status: 400 })
+    console.error('upload failed:', e)
+    return safeErrorResponse(e, 400)
   }
 }

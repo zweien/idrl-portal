@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth-api'
 import { logAction, actorFromAuth } from '@/lib/audit'
+import { safeErrorResponse } from '@/lib/safe-error'
 
 /**
  * PATCH /api/users/:id — edit a login account. Admin-only. Body (all optional):
@@ -63,9 +64,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   try {
     await prisma.user.update({ where: { id }, data })
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'unknown error'
-    // FK violation (bad personId) or missing row.
-    return NextResponse.json({ error: msg }, { status: 400 })
+    // FK violation (bad personId) or missing row — map to a generic 400.
+    console.error('user update failed:', e)
+    return safeErrorResponse(e, 400)
   }
   // Determine what changed for the summary.
   const changes: string[] = []

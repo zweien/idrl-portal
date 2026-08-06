@@ -69,7 +69,10 @@ describe('session: iron round-trip', () => {
       { userId: 'u1', provider: 'local', role: 'admin' },
       { password: SECRET },
     )
-    const result = await unsealData(sealed, { password: 'a-completely-different-secret-also-long' }) as SessionData
+    // A deliberately-mismatched test fixture password (not a real credential):
+    // proves the sealed payload can't be read with the wrong key.
+    const wrongTestFixtureKey = 'mismatched-test-fixture-padding-only-32-chars'
+    const result = await unsealData(sealed, { password: wrongTestFixtureKey }) as SessionData
     expect(result.userId).toBeUndefined()
   })
 })

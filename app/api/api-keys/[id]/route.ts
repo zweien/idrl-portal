@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth-api'
 import { parseRateLimit } from '@/lib/api-key-validation'
 import { logAction, actorFromAuth } from '@/lib/audit'
+import { safeErrorResponse } from '@/lib/safe-error'
 import type { ApiScope } from '@/lib/types'
 
 const ALL_SCOPES: ApiScope[] = [
@@ -58,7 +59,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     try {
       data.rateLimitPerMin = parseRateLimit(body.rateLimitPerMin)
     } catch (e) {
-      return NextResponse.json({ error: e instanceof Error ? e.message : 'invalid rateLimitPerMin' }, { status: 400 })
+      return safeErrorResponse(e, 400)
     }
   }
   if (body.resetCounter) {

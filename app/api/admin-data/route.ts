@@ -1,9 +1,11 @@
+import { safeErrorResponse } from '@/lib/safe-error'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { toPerson, toNewsItem, toResource, fromPerson, fromNewsItem, fromResource } from '@/lib/db/serialize'
 import { compareNews, compareResources } from '@/lib/ordering'
 import { requireUser, requireAdmin } from '@/lib/auth-api'
 import { logAction, actorFromAuth } from '@/lib/audit'
+import { adminDataBodySchema } from '@/lib/validation'
 import type { Person, NewsItem, Resource } from '@/lib/types'
 
 interface AdminDataBody {
@@ -44,9 +46,17 @@ export async function PUT(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'invalid json' }, { status: 400 })
   }
-  if (!body?.personnel || !body?.news || !body?.resources) {
-    return NextResponse.json({ error: 'personnel, news, resources required' }, { status: 400 })
+  // Validate + strip unknown keys before the data reaches the serializers.
+  // Without this, a client could push extra fields through fromPerson/etc.
+  // into Prisma createMany, surfacing raw Prisma errors (and leaking schema).
+  const parsed = adminDataBodySchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: 'invalid body', details: parsed.error.flatten().fieldErrors },
+      { status: 400 },
+    )
   }
+  body = parsed.data as unknown as AdminDataBody
 
   try {
     // Atomic replace: delete + recreate all three tables in one transaction.
@@ -68,7 +78,7 @@ export async function PUT(req: NextRequest) {
 
     return NextResponse.json({ ok: true })
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'unknown error'
-    return NextResponse.json({ error: msg }, { status: 500 })
+    console.error('admin-data failed:', e)
+    return safeErrorResponse(e, 500)
   }
 }

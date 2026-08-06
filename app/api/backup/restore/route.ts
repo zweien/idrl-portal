@@ -1,3 +1,4 @@
+import { safeErrorResponse } from '@/lib/safe-error'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/auth-api'
 import { restoreBackup } from '@/lib/backup'
@@ -32,7 +33,7 @@ export async function POST(req: NextRequest) {
       data: { restored: body.filename, preRestoreSnapshot: preRestore.filename },
     })
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'unknown error'
-    return NextResponse.json({ error: msg }, { status: 500 })
+    console.error('restore failed:', e)
+    return safeErrorResponse(e, 500)
   }
 }

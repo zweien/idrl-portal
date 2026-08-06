@@ -1,3 +1,4 @@
+import { safeErrorResponse } from '@/lib/safe-error'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/auth-api'
 import { createBackup, listBackups, deleteBackup, pruneBackups, readKeepCount } from '@/lib/backup'
@@ -32,8 +33,8 @@ export async function POST() {
     })
     return NextResponse.json({ success: true, data: info })
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'unknown error'
-    return NextResponse.json({ error: msg }, { status: 500 })
+    console.error('backup failed:', e)
+    return safeErrorResponse(e, 500)
   }
 }
 
@@ -52,7 +53,7 @@ export async function DELETE(req: NextRequest) {
     })
     return NextResponse.json({ success: true })
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'unknown error'
-    return NextResponse.json({ error: msg }, { status: 400 })
+    console.error('backup failed:', e)
+    return safeErrorResponse(e, 400)
   }
 }

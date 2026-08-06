@@ -4,6 +4,7 @@ import { toNewsItem, fromNewsItem } from '@/lib/db/serialize'
 import { compareNews } from '@/lib/ordering'
 import { requireUserOrScopeAny, requireScope } from '@/lib/auth-api'
 import { logAction, actorFromAuth } from '@/lib/audit'
+import { createNewsBodySchema } from '@/lib/validation'
 import type { NewsItem, ApiResponse, PaginatedResponse } from '@/lib/types'
 
 export async function GET(request: Request) {
@@ -74,9 +75,15 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'invalid json' }, { status: 400 })
   }
-  if (!body?.title || !body?.content || !body?.date) {
-    return NextResponse.json({ error: 'title, content, date required' }, { status: 400 })
+  // Validate + strip unknown keys before the data reaches fromNewsItem/Prisma.
+  const parsed = createNewsBodySchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: 'invalid body', details: parsed.error.flatten().fieldErrors },
+      { status: 400 },
+    )
   }
+  body = parsed.data as unknown as Partial<NewsItem>
 
   const id = `n-${Date.now()}`
   // New pinned items land at the end of the pinned group; unpinned order is

@@ -5,6 +5,7 @@ import { generateApiKey, hashApiKey, keyPrefix } from '@/lib/crypto'
 import { RATE_LIMIT_DEFAULT } from '@/lib/rate-limit'
 import { parseRateLimit } from '@/lib/api-key-validation'
 import { logAction, actorFromAuth } from '@/lib/audit'
+import { safeErrorResponse } from '@/lib/safe-error'
 import type { ApiKey, ApiScope, ApiResponse } from '@/lib/types'
 
 const ALL_SCOPES: ApiScope[] = [
@@ -63,7 +64,8 @@ export async function POST(req: Request) {
   try {
     rateLimitPerMin = parseRateLimit(body.rateLimitPerMin)
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : 'invalid rateLimitPerMin' }, { status: 400 })
+    // parseRateLimit throws user-facing validation messages.
+    return safeErrorResponse(e, 400)
   }
 
   const plaintext = generateApiKey()

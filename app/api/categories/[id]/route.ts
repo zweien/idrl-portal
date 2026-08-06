@@ -1,3 +1,4 @@
+import { safeErrorResponse } from '@/lib/safe-error'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { toCategory } from '@/lib/db/serialize'
@@ -36,8 +37,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     })
     return NextResponse.json(toCategory(updated))
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'unknown error'
-    return NextResponse.json({ error: msg }, { status: 400 })
+    console.error('[id] failed:', e)
+    return safeErrorResponse(e, 400)
   }
 }
 
