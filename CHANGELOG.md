@@ -5,6 +5,13 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v0.4.2] - 2026-08-06
+
+### 修复
+
+- fix(attendance): parse 京外 trip dates with 上午/下午 half-day format
+- fix(attendance): fall back to own person for admin self-service records query
+
 ## [v0.4.1] - 2026-08-06
 
 ### 修复
