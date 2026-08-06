@@ -62,6 +62,12 @@ model Person {
   workstations      Workstation[]
   users             User[]
   attendanceRecords AttendanceRecord[]
+
+  // syncMembers does findFirst({ where: { dingUserId } }) once per member —
+  // without an index that's a full table scan per member (O(N²) on every
+  // sync). status filters the personnel board.
+  @@index([dingUserId])
+  @@index([status])
 }
 
 // Daily attendance punch history (sourced from DingTalk, then finalized).
@@ -112,6 +118,12 @@ model NewsItem {
   order      Int      @default(0) // manual order within the pinned group (unpinned sort by date desc)
   categoryId String?
   category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  // Hot read paths: public listings filter status='published'; category pages
+  // filter categoryId; the pinned badge is checked on every list/sort.
+  @@index([status])
+  @@index([categoryId])
+  @@index([pinned])
 }
 
 model Resource {
@@ -126,6 +138,12 @@ model Resource {
   order       Int     @default(0) // manual order within the resource's category (uncategorized = one group)
   categoryId  String?
   category    Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  // Category pages filter categoryId; access-level enforcement filters
+  // accessLevel; status filters active/inactive.
+  @@index([categoryId])
+  @@index([accessLevel])
+  @@index([status])
 }
 
 // Unified categories for News (kind="news") and Resources (kind="resource").

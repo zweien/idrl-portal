@@ -536,6 +536,7 @@ Prisma schema 见 `prisma/schema.prisma`；SQLite 文件 `prisma/db.sqlite`（gi
 - **调度**：`instrumentation.ts` 启动注册 node-cron；任务每分钟心跳，重读 `Setting` 表的 cron 表达式（北京时间解释），改动无需重启。每个 job 有进程内互斥锁——慢任务（如考勤同步逐人写入）跑超 60s 时，下一 tick 跳过而非并发触发，避免在 SQLite 单写库上竞争。进程重启后对幂等且后果可见的 job（`publish-news`、`backup`）按 SyncLog 最近一次运行时间补漏（source 标 `catchup`）；考勤同步自带 `lastFinalizedDate` 水位自愈，不参与补漏。
 - **钉钉同步**：核心逻辑在 `lib/dingtalk-sync.ts`（route 与 scheduler 共用），access_token 缓存；`Person.role` 直接存钉钉职位原文。
 - **审计**：`lib/audit.ts` 的 `logAction()` 记录全部管理写操作（fire-and-forget，不阻塞业务）；backup 任务顺带按 `auditlog.keepDays` 清理。
+- **性能**：热列建有二级索引（`NewsItem` status/categoryId/pinned、`Resource` categoryId/accessLevel/status、`Person` dingUserId/status），避免列表过滤与 `syncMembers` 的全表扫。Markdown 管道（react-markdown + rehype）在交互后才出现的详情弹窗用 `LazyMarkdownContent` 懒加载，移出首屏 bundle。
 
 ### 目录约定
 
