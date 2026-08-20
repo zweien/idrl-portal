@@ -29,7 +29,8 @@ interface PayloadWorkstation {
 }
 
 /**
- * Build a collision-aware id generator seeded from the CURRENT layout state.
+ * Build a collision-aware id generator seeded from the CURRENT layout state
+ * plus an optional tombstone set of ids seen earlier in the editor session.
  *
  * The old module-level counter (`nextId = 100`) reset on every page load, so
  * the first generated id of a session (e.g. `zone-100`) could collide with an
@@ -37,11 +38,21 @@ interface PayloadWorkstation {
  * findDuplicateIds. Scanning all existing ids (floors, zones, workstations)
  * up front and skipping them fixes that; ids returned by one generator are
  * also unique among themselves (updateZoneGrid generates several in a loop).
+ *
+ * The tombstone matters before a save: if a zone is deleted and a new one
+ * added in the same session, the current state no longer contains the deleted
+ * id, but the DB still does — reusing it would let resolvePersonId transfer
+ * the old workstations' assignments onto the new zone's rows. Ids stay
+ * reserved until a successful save reloads the page with a fresh baseline.
+ *
+ * Per prefix the generator keeps a forward-only cursor, so generating a large
+ * grid (50×50) is linear overall instead of rescanning from 100 every call.
  */
 export function makeIdGen(
   floors: Array<{ id: string; zones: Array<{ id: string; workstations: Array<{ id: string }> }> }>,
+  reserved?: Iterable<string>,
 ): (prefix: string) => string {
-  const used = new Set<string>()
+  const used = new Set<string>(reserved)
   for (const f of floors) {
     used.add(f.id)
     for (const z of f.zones) {
@@ -49,9 +60,11 @@ export function makeIdGen(
       for (const w of z.workstations) used.add(w.id)
     }
   }
+  const cursor = new Map<string, number>()
   return (prefix: string) => {
-    let n = 100
+    let n = cursor.get(prefix) ?? 100
     while (used.has(`${prefix}-${n}`)) n++
+    cursor.set(prefix, n + 1)
     const id = `${prefix}-${n}`
     used.add(id)
     return id

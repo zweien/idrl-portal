@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Floor, Zone, Person } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -33,6 +33,21 @@ export function FloorEditor({ floors, onChange, selectedFloorId, onSelectedFloor
   const [newZoneName, setNewZoneName] = useState('')
   const [selectedGridWsId, setSelectedGridWsId] = useState<string>('')
 
+  // 会话级 tombstone：累计本会话出现过的所有实体 id。删除区域/工位后 id
+  // 从当前状态消失，但保存前 DB 里还在——复用会让 resolvePersonId 把旧
+  // 分配静默转移到新实体上。保存成功后整页刷新，基线重置，复用才无害。
+  const seenIdsRef = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    const seen = seenIdsRef.current
+    for (const f of floors) {
+      seen.add(f.id)
+      for (const z of f.zones) {
+        seen.add(z.id)
+        for (const w of z.workstations) seen.add(w.id)
+      }
+    }
+  }, [floors])
+
   const selectedFloor = floors.find(f => f.id === selectedFloorId)
   const selectedZone = selectedFloor?.zones.find(z => z.id === selectedZoneId)
 
@@ -42,7 +57,7 @@ export function FloorEditor({ floors, onChange, selectedFloorId, onSelectedFloor
 
   const addFloor = () => {
     if (!newFloorName.trim()) return
-    const id = makeIdGen(floors)('floor')
+    const id = makeIdGen(floors, seenIdsRef.current)('floor')
     const newFloor: Floor = {
       id,
       name: newFloorName.trim(),
@@ -80,7 +95,7 @@ export function FloorEditor({ floors, onChange, selectedFloorId, onSelectedFloor
 
   const addZone = () => {
     if (!selectedFloor || !newZoneName.trim()) return
-    const id = makeIdGen(floors)('zone')
+    const id = makeIdGen(floors, seenIdsRef.current)('zone')
     const newZone = {
       id,
       name: newZoneName.trim(),
@@ -135,7 +150,7 @@ export function FloorEditor({ floors, onChange, selectedFloorId, onSelectedFloor
 
   const updateZoneGrid = (rows: number, cols: number) => {
     if (!selectedFloor || !selectedZone) return
-    const genId = makeIdGen(floors)
+    const genId = makeIdGen(floors, seenIdsRef.current)
     updateFloors(f =>
       f.map(fl => fl.id === selectedFloor.id
         ? {

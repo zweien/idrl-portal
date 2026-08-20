@@ -119,4 +119,25 @@ describe('makeIdGen (editor id generation)', () => {
     ]
     expect(findDuplicateIds(withNew as typeof floors)).toBeNull()
   })
+
+  it('keeps session-deleted ids reserved via the tombstone set (P1)', () => {
+    // 会话内删除了 zone-100（当前状态已不含它），但保存前 DB 里还在——
+    // 新生成的 zone id 不得复用 zone-100，否则 resolvePersonId 会把旧
+    // 工位的人员分配转移到新区域的同几何工位上。
+    const floors = [
+      { id: 'floor-10', zones: [{ id: 'zone-10a', workstations: [] }] },
+    ]
+    const genId = makeIdGen(floors, ['zone-100', 'ws-zone-100-100'])
+    expect(genId('zone')).toBe('zone-101')
+    expect(genId('ws-zone-100')).toBe('ws-zone-100-101')
+  })
+
+  it('advances a per-prefix cursor: a 50x50 grid gets a dense id sequence (P2)', () => {
+    const floors = [{ id: 'floor-9', zones: [{ id: 'zone-9a', workstations: [] }] }]
+    const genId = makeIdGen(floors)
+    const ids = Array.from({ length: 2500 }, () => genId('ws-zone-9a'))
+    expect(new Set(ids).size).toBe(2500)
+    expect(ids[0]).toBe('ws-zone-9a-100')
+    expect(ids[2499]).toBe('ws-zone-9a-2599')
+  })
 })
