@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { FloorPlan } from '@/components/dashboard/floor-plan'
 import { FloorTabs } from '@/components/dashboard/floor-tabs'
+import { SyncTimeBadge, useInvalidateSyncedAt } from '@/components/dashboard/sync-time'
 import { usePersonnel, useFloorLayout } from '@/lib/api'
 import type { Person, NewWorkstation } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -25,6 +26,7 @@ const statusConfig = {
 
 export default function PersonnelPage() {
   const { user } = useAuth()
+  const invalidateSyncedAt = useInvalidateSyncedAt()
   const { data: personnelResp, mutate: mutatePersonnel } = usePersonnel({ pageSize: 1000 })
   const { data: floorData } = useFloorLayout()
   const personnel = personnelResp?.data?.items ?? []
@@ -50,8 +52,10 @@ export default function PersonnelPage() {
       if (!r.ok) throw new Error(data.error || `考勤同步失败 (${r.status})`)
       const s = data.stats
       setAttResult(`考勤同步完成：在位 ${s.present}，出差 ${s.trip}，请假 ${s.leave}，未到 ${s.absent}（共 ${data.total} 人）`)
-      // Revalidate personnel SWR so cards/status update immediately.
+      // Revalidate personnel SWR so cards/status update immediately, and the
+      // sync-freshness badge so "x 分钟前" reflects this run.
       await mutatePersonnel()
+      invalidateSyncedAt()
     } catch (e) {
       setAttResult(e instanceof Error ? e.message : '考勤同步失败')
     } finally {
@@ -119,7 +123,10 @@ export default function PersonnelPage() {
     <div className="space-y-4 py-2">
       <div>
         <h1 className="text-xl font-semibold tracking-tight">人员与工位</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">查看实验室人员在位情况与工位分布</p>
+        <p className="text-sm text-muted-foreground mt-0.5">
+          查看实验室人员在位情况与工位分布
+          <SyncTimeBadge className="ml-2 align-middle" />
+        </p>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

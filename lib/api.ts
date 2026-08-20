@@ -262,6 +262,26 @@ export function useSyncLogs(job?: string, limit = 50) {
   return useSWR<ApiResponse<SyncLog[]>>(`/api/sync-logs${qs}`, fetcher)
 }
 
+// ===== Attendance sync freshness (member-readable) =====
+
+/** Response of GET /api/attendance/synced-at — when sync-attendance last ran. */
+export interface SyncedAt {
+  lastSyncAt: string | null
+  status: 'success' | 'error' | null
+}
+
+/**
+ * Polls the attendance-sync freshness signal. 60s refreshInterval both pulls
+ * newer sync runs and re-renders the relative time ("3 分钟前") as it ages.
+ */
+export function useSyncedAt() {
+  return useSWR<ApiResponse<SyncedAt>>(
+    '/api/attendance/synced-at',
+    fetcher,
+    { refreshInterval: 60_000 },
+  )
+}
+
 // ===== Users (admin) =====
 
 export function useUsers() {

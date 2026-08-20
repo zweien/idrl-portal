@@ -233,6 +233,7 @@ curl -X DELETE "$BASE/api/resources/<id>" -H "Authorization: Bearer $KEY"
 | POST | `/api/floor-layout/import-assignments` | 🛡 | xlsx 批量导入工位分配 |
 | GET | `/api/attendance/records` | 🔑 `admin` | 考勤记录（非 admin 仅本人） |
 | GET | `/api/attendance/leaderboard` | 🔑 `admin` | 今日最早打卡 / 本月工时榜 |
+| GET | `/api/attendance/synced-at` | 👤 | 最近一次考勤同步的时间与成败（数据新鲜度信号） |
 | POST | `/api/attendance/backfill?date=` | 🛡 | 补拉指定日考勤 |
 | GET | `/api/attendance/export/detail` · `/summary` | 🔑 `admin` | 考勤 CSV 导出（明细 / 汇总） |
 | GET · POST | `/api/feedback` | 👤 | 问题反馈列表（分页/筛选）/ 发帖（任何登录用户） |

@@ -5,6 +5,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { LeaderboardPanel } from '@/components/attendance/leaderboard-panel'
 import { MyAttendancePanel } from '@/components/attendance/my-attendance-panel'
 import { AllAttendancePanel } from '@/components/attendance/all-attendance-panel'
+import { SyncTimeBadge } from '@/components/dashboard/sync-time'
 import { useAuth } from '@/lib/auth-context'
 
 export default function AttendancePage() {
@@ -16,7 +17,10 @@ export default function AttendancePage() {
     <div className="space-y-4 py-2">
       <div>
         <h1 className="text-xl font-semibold tracking-tight">考勤统计</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">每日打卡最早榜 · 月度工时排行 · 打卡明细</p>
+        <p className="text-sm text-muted-foreground mt-0.5">
+          每日打卡最早榜 · 月度工时排行 · 打卡明细
+          <SyncTimeBadge className="ml-2 align-middle" />
+        </p>
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
