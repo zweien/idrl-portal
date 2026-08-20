@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import { Plus, Trash2, ChevronUp, ChevronDown, Lock } from 'lucide-react'
 import { ZoneFreeCanvas } from './zone-free-canvas'
 import { WorkstationAssigner } from './workstation-assigner'
+import { makeIdGen } from '@/lib/floor-layout'
 import {
   Select,
   SelectContent,
@@ -26,11 +27,6 @@ interface FloorEditorProps {
   personnel: Person[]
 }
 
-let nextId = 100
-function genId(prefix: string) {
-  return `${prefix}-${nextId++}`
-}
-
 export function FloorEditor({ floors, onChange, selectedFloorId, onSelectedFloorIdChange, personnel }: FloorEditorProps) {
   const [selectedZoneId, setSelectedZoneId] = useState<string>('')
   const [newFloorName, setNewFloorName] = useState('')
@@ -46,7 +42,7 @@ export function FloorEditor({ floors, onChange, selectedFloorId, onSelectedFloor
 
   const addFloor = () => {
     if (!newFloorName.trim()) return
-    const id = genId('floor')
+    const id = makeIdGen(floors)('floor')
     const newFloor: Floor = {
       id,
       name: newFloorName.trim(),
@@ -84,7 +80,7 @@ export function FloorEditor({ floors, onChange, selectedFloorId, onSelectedFloor
 
   const addZone = () => {
     if (!selectedFloor || !newZoneName.trim()) return
-    const id = genId('zone')
+    const id = makeIdGen(floors)('zone')
     const newZone = {
       id,
       name: newZoneName.trim(),
@@ -139,6 +135,7 @@ export function FloorEditor({ floors, onChange, selectedFloorId, onSelectedFloor
 
   const updateZoneGrid = (rows: number, cols: number) => {
     if (!selectedFloor || !selectedZone) return
+    const genId = makeIdGen(floors)
     updateFloors(f =>
       f.map(fl => fl.id === selectedFloor.id
         ? {

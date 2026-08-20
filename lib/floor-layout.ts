@@ -29,10 +29,41 @@ interface PayloadWorkstation {
 }
 
 /**
+ * Build a collision-aware id generator seeded from the CURRENT layout state.
+ *
+ * The old module-level counter (`nextId = 100`) reset on every page load, so
+ * the first generated id of a session (e.g. `zone-100`) could collide with an
+ * editor-created id saved by an EARLIER session, and the save was rejected by
+ * findDuplicateIds. Scanning all existing ids (floors, zones, workstations)
+ * up front and skipping them fixes that; ids returned by one generator are
+ * also unique among themselves (updateZoneGrid generates several in a loop).
+ */
+export function makeIdGen(
+  floors: Array<{ id: string; zones: Array<{ id: string; workstations: Array<{ id: string }> }> }>,
+): (prefix: string) => string {
+  const used = new Set<string>()
+  for (const f of floors) {
+    used.add(f.id)
+    for (const z of f.zones) {
+      used.add(z.id)
+      for (const w of z.workstations) used.add(w.id)
+    }
+  }
+  return (prefix: string) => {
+    let n = 100
+    while (used.has(`${prefix}-${n}`)) n++
+    const id = `${prefix}-${n}`
+    used.add(id)
+    return id
+  }
+}
+
+/**
  * Detect duplicate ids at each level of a floor-layout payload.
  * Returns an error message describing the first collision, or null if none.
- * (The editor's nextId resets per page load, so saved ids can collide with
- * newly added ones; the upsert loop would silently collapse them.)
+ * (Defense in depth: the editor's makeIdGen avoids collisions with saved
+ * ids, but a stale multi-tab editor could still send them — the upsert loop
+ * would silently collapse duplicates, so fail loud here instead.)
  */
 export function findDuplicateIds(
   floors: Array<{ id: string; zones: Array<{ id: string; workstations: Array<{ id: string }> }> }>,

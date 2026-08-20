@@ -61,10 +61,11 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'floors required' }, { status: 400 })
   }
 
-  // Reject duplicate ids at each level before diffing — the editor's nextId
-  // resets per page load, so a saved floor-100 + a newly added floor can
-  // collide. Upsert-in-a-loop would silently collapse duplicates (the old
-  // delete/create flow failed loudly on the PK); fail loud here instead.
+  // Reject duplicate ids at each level before diffing — defense in depth.
+  // The editor's makeIdGen skips ids already saved in the loaded state, but a
+  // stale multi-tab editor could still send colliding ids; the upsert loop
+  // would silently collapse duplicates (the old delete/create flow failed
+  // loudly on the PK); fail loud here instead.
   const dupErr = findDuplicateIds(body.floors)
   if (dupErr) {
     return NextResponse.json({ error: dupErr }, { status: 400 })
