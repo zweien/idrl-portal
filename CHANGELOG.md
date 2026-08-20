@@ -5,6 +5,16 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v0.5.0] - 2026-08-20
+
+### 新增
+
+- feat(attendance): show last sync time on personnel & attendance pages
+
+### 修复
+
+- fix(sync-time): codex review — local clock tick + separate backfill job name
+
 ## [v0.4.2] - 2026-08-06
 
 ### 修复
