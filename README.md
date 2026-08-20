@@ -198,6 +198,21 @@ curl -X DELETE "$BASE/api/resources/<id>" -H "Authorization: Bearer $KEY"
 
 > 管理面操作（人员 / 布局 / 备份 / 设置 / 用户）需要 **admin session cookie**。开发环境可用 `POST /api/auth/dev-login`（`{"username":"admin"}`）换取 cookie；生产环境目前只有 OAuth 交互登录。
 
+### Agent Skill：`idrl-portal-api`
+
+仓库自带一个 agent skill（[`.agents/skills/idrl-portal-api/`](.agents/skills/idrl-portal-api/SKILL.md)），把上文的 curl 调用封装成自然语言即可触发的工作流：钉钉成员/考勤同步、动态发布（含定时发布与草稿审核）、考勤与人员查询、资源管理、正文图片上传等。
+
+- **在本仓库内使用**：ZCode 及兼容 `.agents/skills/` 约定的 agent 会自动发现并加载该 skill，无需安装
+- **在其他项目/机器上使用**：复制到用户级技能目录即可全局可用：
+
+```bash
+cp -r .agents/skills/idrl-portal-api ~/.agents/skills/
+```
+
+调用前设置环境变量 `IDRL_API_KEY`（Admin UI「API 密钥」颁发，按需勾选 scope），可选 `IDRL_BASE_URL`（缺省 `https://portal.idrl.top`）。
+
+用法与工作流见 [SKILL.md](.agents/skills/idrl-portal-api/SKILL.md)，完整端点契约（参数/类型/响应结构/session-only 清单）见 [REFERENCE.md](.agents/skills/idrl-portal-api/REFERENCE.md)。
+
 ### 端点总览
 
 | 方法 | 路径 | 认证 | 说明 |
