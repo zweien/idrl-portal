@@ -5,6 +5,12 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v0.5.1] - 2026-08-20
+
+### 修复
+
+- fix(floor-layout): 工位编辑器 zone id 冲突——10 层添加区域报 duplicate zone id: zone-100 (#85)
+
 ## [v0.5.0] - 2026-08-20
 
 ### 新增
