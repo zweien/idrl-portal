@@ -40,7 +40,9 @@ export async function POST(req: Request) {
     console.error('attendance backfill failed:', e)
     const { message: msg } = toSafeError(e)
     await prisma.syncLog.create({
-      data: { job: 'sync-attendance', source: 'manual', status: 'error', message: `backfill ${date}: ${msg}` },
+      // Distinct job name so a failed HISTORICAL backfill doesn't pollute the
+      // sync-attendance freshness signal (a backfill isn't a board sync run).
+      data: { job: 'attendance-backfill', source: 'manual', status: 'error', message: `backfill ${date}: ${msg}` },
     })
     return NextResponse.json({ error: msg }, { status: 500 })
   }

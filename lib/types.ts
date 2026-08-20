@@ -203,8 +203,8 @@ export interface Setting {
   value: string
 }
 
-export type SyncJob = 'sync-members' | 'sync-attendance' | 'publish-news' | 'backup'
-export type SyncSource = 'cron' | 'api' | 'manual'
+export type SyncJob = 'sync-members' | 'sync-attendance' | 'attendance-backfill' | 'publish-news' | 'backup'
+export type SyncSource = 'cron' | 'catchup' | 'api' | 'manual'
 
 export interface SyncLog {
   id: string

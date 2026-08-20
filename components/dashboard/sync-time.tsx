@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { useSyncedAt } from '@/lib/api'
 import { useSWRConfig } from 'swr'
 
@@ -11,6 +12,16 @@ import { useSWRConfig } from 'swr'
  */
 export function SyncTimeBadge({ className }: { className?: string }) {
   const { data } = useSyncedAt()
+  // Local clock tick: the relative label must age ("刚刚" → "1 分钟前" → …)
+  // even when SWR's revalidation returns an unchanged payload — SWR's deep
+  // compare would skip re-rendering then. One tick per minute is the label's
+  // granularity.
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setTick(n => n + 1), 60_000)
+    return () => clearInterval(t)
+  }, [])
+
   const lastSyncAt = data?.data?.lastSyncAt
   const status = data?.data?.status
   if (!lastSyncAt) return null
