@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { resolvePersonId, findDuplicateIds } from '@/lib/floor-layout'
+import { resolvePersonId, findDuplicateIds, makeIdGen } from '@/lib/floor-layout'
 
 const db = {
   id: 'ws-1', personId: 'p-1', row: 0, col: 1, zoneId: 'zone-9a', floorId: 'floor-9',
@@ -65,5 +65,79 @@ describe('findDuplicateIds (floor-layout payload validation)', () => {
       ] },
     ]
     expect(findDuplicateIds(floors)).toMatch(/duplicate workstation id/)
+  })
+})
+
+describe('makeIdGen (editor id generation)', () => {
+  // 回归：远程库里已有早期会话保存的 zone-100，新会话首个生成的 zone id
+  // 不能再撞上它（旧模块级计数器每次页面加载从 100 重置导致此 bug）。
+  it('skips ids already present anywhere in the loaded state (the zone-100 bug)', () => {
+    const floors = [
+      { id: 'floor-9', zones: [
+        { id: 'zone-9a', workstations: [] },
+      ] },
+      { id: 'floor-10', zones: [
+        { id: 'zone-100', workstations: [] },
+      ] },
+    ]
+    const genId = makeIdGen(floors)
+    expect(genId('zone')).toBe('zone-101')
+    expect(genId('zone')).toBe('zone-102')
+  })
+
+  it('returns ids unique within one generator (updateZoneGrid loop)', () => {
+    const genId = makeIdGen([{ id: 'f1', zones: [{ id: 'z1', workstations: [{ id: 'ws-z1-100' }] }] }])
+    const ids = [genId('ws-z1'), genId('ws-z1'), genId('ws-z1')]
+    expect(new Set(ids).size).toBe(3)
+  })
+
+  it('treats prefixes independently and skips floor/workspace collisions too', () => {
+    const floors = [
+      { id: 'floor-100', zones: [
+        { id: 'zone-9a', workstations: [{ id: 'ws-zone-9a-100' }] },
+      ] },
+    ]
+    const genId = makeIdGen(floors)
+    expect(genId('floor')).toBe('floor-101')
+    expect(genId('ws-zone-9a')).toBe('ws-zone-9a-101')
+  })
+
+  it('round-trips with findDuplicateIds: generated ids keep the payload clean', () => {
+    const floors = [
+      { id: 'floor-9', zones: [
+        { id: 'zone-9a', workstations: [{ id: 'ws-1' }] },
+        { id: 'zone-100', workstations: [] },
+      ] },
+    ]
+    const genId = makeIdGen(floors)
+    const withNew = [
+      ...floors,
+      {
+        id: 'floor-10',
+        zones: [{ id: genId('zone'), workstations: [{ id: genId('ws-zone-101') }] }],
+      },
+    ]
+    expect(findDuplicateIds(withNew as typeof floors)).toBeNull()
+  })
+
+  it('keeps session-deleted ids reserved via the tombstone set (P1)', () => {
+    // 会话内删除了 zone-100（当前状态已不含它），但保存前 DB 里还在——
+    // 新生成的 zone id 不得复用 zone-100，否则 resolvePersonId 会把旧
+    // 工位的人员分配转移到新区域的同几何工位上。
+    const floors = [
+      { id: 'floor-10', zones: [{ id: 'zone-10a', workstations: [] }] },
+    ]
+    const genId = makeIdGen(floors, ['zone-100', 'ws-zone-100-100'])
+    expect(genId('zone')).toBe('zone-101')
+    expect(genId('ws-zone-100')).toBe('ws-zone-100-101')
+  })
+
+  it('advances a per-prefix cursor: a 50x50 grid gets a dense id sequence (P2)', () => {
+    const floors = [{ id: 'floor-9', zones: [{ id: 'zone-9a', workstations: [] }] }]
+    const genId = makeIdGen(floors)
+    const ids = Array.from({ length: 2500 }, () => genId('ws-zone-9a'))
+    expect(new Set(ids).size).toBe(2500)
+    expect(ids[0]).toBe('ws-zone-9a-100')
+    expect(ids[2499]).toBe('ws-zone-9a-2599')
   })
 })
