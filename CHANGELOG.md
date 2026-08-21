@@ -5,6 +5,16 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v0.6.0] - 2026-08-21
+
+### 新增
+
+- feat(attendance): parse 京内因公 approval forms for trip status (#86)
+
+### 其他
+
+- docs(agent): bundle idrl-portal-api skill into repo and document in README
+
 ## [v0.5.1] - 2026-08-20
 
 ### 修复
