@@ -505,6 +505,13 @@ function parseTripDateTime(v: string): number | null {
     const d = new Date(`${withHalf[1]}T${String(hour).padStart(2, '0')}:00+08:00`)
     return isNaN(d.getTime()) ? null : d.getTime()
   }
+  // Date-only pickers (京内因公 uses 开始日期/结束日期 fields) — anchor at
+  // 00:00 so day-boundary matching treats the whole day as covered.
+  const dateOnly = v.match(/^(\d{4}-\d{2}-\d{2})$/)
+  if (dateOnly) {
+    const d = new Date(`${dateOnly[1]}T00:00:00+08:00`)
+    return isNaN(d.getTime()) ? null : d.getTime()
+  }
   const d = new Date(v.replace(' ', 'T') + '+08:00')
   return isNaN(d.getTime()) ? null : d.getTime()
 }
@@ -565,10 +572,30 @@ export function parseTripWindow(formValues: unknown[]): { tripStart: number | nu
     } catch { /* not JSON */ }
   }
 
-  // 京内 外出事由 reason field
+  // Format 3: 京内因公 — separate 开始时间/结束时间 (or 开始日期/结束日期)
+  // fields, each holding a single datetime or date-only value. Fills only
+  // slots Format 1/2 left null so a combined-field form still wins.
+  let sepStart: number | null = null
+  let sepEnd: number | null = null
   for (const fv of formValues) {
     const f = fv as { name?: string; value?: string }
-    if (f.name === '外出事由' && f.value) {
+    if (!f.value || !f.name) continue
+    const val = String(f.value).trim()
+    if (/^开始(时间|日期)/.test(f.name)) {
+      const ts = parseTripDateTime(val)
+      if (ts !== null) sepStart = ts
+    } else if (/^结束(时间|日期)/.test(f.name)) {
+      const ts = parseTripDateTime(val)
+      if (ts !== null) sepEnd = ts
+    }
+  }
+  if (tripStart === null) tripStart = sepStart
+  if (tripEnd === null) tripEnd = sepEnd
+
+  // 京内 外出事由 / 京内因公 事由 reason field
+  for (const fv of formValues) {
+    const f = fv as { name?: string; value?: string }
+    if ((f.name === '外出事由' || f.name === '事由') && f.value) {
       reason = String(f.value)
     }
   }

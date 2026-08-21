@@ -35,6 +35,42 @@ describe('parseTripWindow (trip form → date range + reason)', () => {
     expect(w.reason).toBe('参加国际会议')
   })
 
+  it('parses 京内因公 format (separate 开始时间/结束时间 fields + 事由)', () => {
+    const form = [
+      { name: '开始时间', value: '2026-08-20 09:00' },
+      { name: '结束时间', value: '2026-08-20 18:00' },
+      { name: '事由', value: '前往中科院交流' },
+    ]
+    const w = parseTripWindow(form)
+    expect(w.tripStart).not.toBeNull()
+    expect(w.tripEnd).not.toBeNull()
+    expect(w.tripEnd! - w.tripStart!).toBe(9 * 60 * 60 * 1000)
+    expect(w.reason).toBe('前往中科院交流')
+  })
+
+  it('parses date-only 开始日期/结束日期 values (anchored at 00:00)', () => {
+    const form = [
+      { name: '开始日期', value: '2026-08-20' },
+      { name: '结束日期', value: '2026-08-21' },
+      { name: '外出事由', value: '市内调研' },
+    ]
+    const w = parseTripWindow(form)
+    expect(w.tripStart).not.toBeNull()
+    expect(w.tripEnd).not.toBeNull()
+    expect(w.tripEnd! - w.tripStart!).toBe(24 * 60 * 60 * 1000)
+    expect(w.reason).toBe('市内调研')
+  })
+
+  it('combined 开始时间,结束时间 field still wins over separate fields', () => {
+    const form = [
+      { name: '开始时间,结束时间', value: JSON.stringify(['2026-08-01 09:00', '2026-08-02 18:00']) },
+      { name: '开始时间', value: '2026-07-01 09:00' },
+    ]
+    const w = parseTripWindow(form)
+    expect(new Date(w.tripStart!).toISOString().slice(0, 10)).toBe('2026-08-01')
+    expect(new Date(w.tripEnd!).toISOString().slice(0, 10)).toBe('2026-08-02')
+  })
+
   it('returns null window when no parseable dates', () => {
     const form = [{ name: '备注', value: '一些无关文本' }]
     const w = parseTripWindow(form)
