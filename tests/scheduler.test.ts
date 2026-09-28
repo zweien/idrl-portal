@@ -70,7 +70,14 @@ describe('isValidCron', () => {
     for (const p of Object.values(CRON_PRESETS)) {
       expect(isValidCron(p.expr)).toBe(true)
     }
+    // Names containing the letters w/l (wed/jul) must NOT be caught by the
+    // v4-token rejection — they are valid DOW/MON names the matcher supports
+    // (codex P1 on the first fix revision).
     expect(isValidCron('0 6 * * monday')).toBe(true)
+    expect(isValidCron('0 6 * * wed')).toBe(true)
+    expect(isValidCron('0 6 * * wednesday')).toBe(true)
+    expect(isValidCron('0 0 1 jul *')).toBe(true)
+    expect(isValidCron('0 0 1 july *')).toBe(true)
     expect(isValidCron('0 0 1 jan-may *')).toBe(true)
     expect(isValidCron('*/5 * * * *')).toBe(true)
   })

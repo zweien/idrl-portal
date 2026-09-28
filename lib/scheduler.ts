@@ -68,10 +68,11 @@ export function isValidCron(expr: string): boolean {
   if (parts.length !== 5) return false
   for (const field of parts) {
     for (const tok of field.split(',')) {
-      // cronMatchesMinute has no semantics for these v4-only tokens.
-      if (/[LW#?]/i.test(tok)) return false
       // Mirror the matcher's own token shape (number | * | weekday/month
-      // name, optional range/step) so anything it can't parse dies here.
+      // name, optional range/step) so anything it can't parse dies here —
+      // this alone rejects the v4-only tokens (bare L/? are single letters,
+      // 15W/5L are digits+letter, 6#3 contains #) WITHOUT false-rejecting
+      // legitimate names that merely contain those letters (wed/jul).
       const m = /^(\*|\d+|[a-z]{3,9})(?:-(\*|\d+|[a-z]{3,9}))?(?:\/(\d+))?$/i.exec(tok)
       if (!m) return false
       // Inverted ranges expand to an empty set in the matcher (job death);
