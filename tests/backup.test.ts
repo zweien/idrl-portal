@@ -40,13 +40,17 @@ const tmpDbPath = join(tmpDir, 'db.sqlite')
       id TEXT NOT NULL PRIMARY KEY,
       role TEXT NOT NULL DEFAULT 'member',
       disabledAt TEXT,
-      personId TEXT REFERENCES Person(id)
+      personId TEXT REFERENCES Person(id),
+      provider TEXT,
+      externalId TEXT,
+      UNIQUE (provider, externalId)
     );
-    INSERT INTO ApiKey (id, keyHash, revokedAt) VALUES ('k1', 'h1', NULL);
-      INSERT INTO User (id, role, disabledAt, personId) VALUES
-        ('u1', 'admin', NULL, NULL),
-        ('u2', 'member', '2026-09-21T00:00:00.000Z', NULL);
     PRAGMA foreign_keys = ON;
+    INSERT INTO ApiKey (id, keyHash, revokedAt) VALUES ('k1', 'h1', NULL);
+      INSERT INTO User (id, role, disabledAt, personId, provider, externalId) VALUES
+        ('u1', 'admin', NULL, NULL, 'authentik', 's1'),
+        ('u2', 'member', '2026-09-21T00:00:00.000Z', NULL, 'dingtalk', 'd2'),
+        ('u0', 'admin', NULL, NULL, 'authentik', 'x9');
   `)
   seed.close()
 }
@@ -194,6 +198,12 @@ describe('backup file operations (against a temp DB copy)', () => {
       INSERT INTO Person (id, name, role, status) VALUES ('p9', 'Carol', '实习生', 'absent');
       INSERT INTO User (id, role, disabledAt, personId)
         VALUES ('u3', 'member', '2026-09-25T00:00:00.000Z', 'p9');
+      -- codex P1 #3: account x9 was deleted and recreated after the backup
+      -- under a different id, demoted and banned — the restored backup still
+      -- holds u0 (admin) for the same (provider, externalId).
+      DELETE FROM User WHERE id='u0';
+      INSERT INTO User (id, role, disabledAt, personId, provider, externalId)
+        VALUES ('u4', 'member', '2026-09-26T00:00:00.000Z', NULL, 'authentik', 'x9');
     `)
     live.close()
     // 3. Restore the old backup — this rolls the whole DB back (u3 vanishes).
@@ -204,6 +214,7 @@ describe('backup file operations (against a temp DB copy)', () => {
     const u1 = after.prepare('SELECT role FROM User WHERE id = ?').get('u1') as { role: string }
     const u2 = after.prepare('SELECT disabledAt FROM User WHERE id = ?').get('u2') as { disabledAt: string | null }
     const u3 = after.prepare('SELECT role, disabledAt, personId FROM User WHERE id = ?').get('u3') as { role: string; disabledAt: string | null; personId: string | null }
+    const u0 = after.prepare('SELECT role, disabledAt FROM User WHERE provider = ? AND externalId = ?').get('authentik', 'x9') as { role: string; disabledAt: string | null }
     after.close()
     expect(key.revokedAt).toBe('2026-09-20T00:00:00.000Z') // revoked key stays revoked
     expect(u1.role).toBe('member')                          // demotion stays applied
@@ -211,5 +222,8 @@ describe('backup file operations (against a temp DB copy)', () => {
     expect(u3).not.toBeNull()                               // post-backup user is re-inserted…
     expect(u3.disabledAt).toBe('2026-09-25T00:00:00.000Z')  // …with its ban intact…
     expect(u3.personId).toBeNull()                          // …and its dangling person link dropped
+    // …and the recreated login identity's demotion+ban land on the restored row
+    expect(u0.role).toBe('member')
+    expect(u0.disabledAt).toBe('2026-09-26T00:00:00.000Z')
   })
 })

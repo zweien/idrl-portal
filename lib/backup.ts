@@ -192,6 +192,13 @@ function reapplyAuthLifecycle(snapshotPath: string): void {
         // column sets match; insert the snapshot row verbatim.
         const cols = (live.pragma('table_info(User)') as Array<{ name: string }>).map(c => c.name)
         const personExists = live.prepare('SELECT 1 FROM Person WHERE id = ?')
+        // Login identity is what the auth callbacks actually upsert by — the
+        // restored DB may hold the same (provider, externalId) under a
+        // different id (deleted+recreated account, or a backup from another
+        // install), and a verbatim insert would violate the unique key while
+        // leaving the snapshot's newer ban/demotion unapplied. Resolve that
+        // row and update it instead.
+        const byLogin = live.prepare('SELECT id FROM User WHERE provider = ? AND externalId = ?')
         const insertUser = live.prepare(
           `INSERT INTO User (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`,
         )
@@ -202,6 +209,13 @@ function reapplyAuthLifecycle(snapshotPath: string): void {
           if (existsInLive.get(u.id)) {
             usersCarried += reapplyUser.run(u.disabledAt, u.role, u.id).changes
           } else {
+            const sameLogin = u.provider != null && u.externalId != null
+              ? byLogin.get(u.provider as string, u.externalId as string) as { id: string } | undefined
+              : undefined
+            if (sameLogin) {
+              usersCarried += reapplyUser.run(u.disabledAt, u.role, sameLogin.id).changes
+              continue
+            }
             // The snapshot row may reference a Person also created after the
             // backup (absent from the restored DB) — drop the dangling link so
             // the FK holds; the auth record and its ban must still land. Each
