@@ -82,10 +82,12 @@ describe('isValidCron', () => {
     expect(isValidCron('*/5 * * * *')).toBe(true)
     // Validity alone isn't enough — the matcher must actually fire on the
     // full-name months (codex P1: MON_NAMES lacked full names, so 'july'
-    // validated but expanded to NaN → silent job death).
-    expect(cronMatchesMinute('0 0 1 july *', new Date('2026-07-01T00:00:00Z'))).toBe(true)
-    expect(cronMatchesMinute('0 0 1 july *', new Date('2026-08-01T00:00:00Z'))).toBe(false)
-    expect(cronMatchesMinute('0 6 * * wednesday', new Date('2026-07-01T06:00:00Z'))).toBe(true)
+    // validated but expanded to NaN → silent job death). Timestamps are UTC;
+    // the matcher interprets in Asia/Shanghai (UTC+8), so July 1 00:00
+    // Beijing = June 30 16:00Z.
+    expect(cronMatchesMinute('0 0 1 july *', new Date('2026-06-30T16:00:00Z'))).toBe(true)
+    expect(cronMatchesMinute('0 0 1 july *', new Date('2026-07-31T16:00:00Z'))).toBe(false)
+    expect(cronMatchesMinute('0 6 * * wednesday', new Date('2026-06-30T22:00:00Z'))).toBe(true)
   })
 })
 
