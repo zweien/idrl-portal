@@ -151,8 +151,12 @@ function migrateAfterRestore(): void {
  * lib/auth-api.ts re-reads (a leaked key re-authenticates, a banned user's
  * unexpired cookie re-authorizes). The pre-restore snapshot holds the latest
  * live decisions, so replaying its lifecycle columns over the restored rows
- * re-applies them. Rows missing from the restored DB are no-ops; tables absent
- * from a very old snapshot (created by later migrations) carry nothing.
+ * re-applies them. Rows missing from the restored DB: ApiKey rows need no
+ * handling (a vanished keyHash fails the lookup, i.e. stays revoked), but
+ * User rows must be re-inserted — resolveSession keeps the stale cookie role
+ * for a missing row, which would resurrect a since-demoted/banned admin.
+ * Tables absent from a very old snapshot (created by later migrations) carry
+ * nothing.
  */
 function reapplyAuthLifecycle(snapshotPath: string): void {
   try {
@@ -173,20 +177,39 @@ function reapplyAuthLifecycle(snapshotPath: string): void {
         for (const k of keys) keysCarried += reapplyKey.run(k.revokedAt, k.id).changes
       }
       let usersCarried = 0
+      let usersReinserted = 0
       if (tableExists(snap, 'User') && tableExists(live, 'User')) {
         const reapplyUser = live.prepare(
           'UPDATE User SET disabledAt = ?, role = ? WHERE id = ?',
         )
+        const existsInLive = live.prepare('SELECT 1 FROM User WHERE id = ?')
+        // Snapshot users missing from the restored DB (account created after
+        // the backup) must be re-inserted, not skipped: a vanished row makes
+        // resolveSession fall back to the stale cookie role (lib/auth-api.ts),
+        // which would resurrect a since-demoted/banned admin, and a later SSO
+        // login would recreate the account without its ban. After
+        // migrateAfterRestore both schemas are the running code's, so the
+        // column sets match; insert the snapshot row verbatim.
+        const cols = (live.pragma('table_info(User)') as Array<{ name: string }>).map(c => c.name)
+        const insertUser = live.prepare(
+          `INSERT INTO User (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`,
+        )
         const users = snap.prepare(
-          'SELECT id, disabledAt, role FROM User',
-        ).all() as Array<{ id: string; disabledAt: string | null; role: string }>
+          `SELECT ${cols.join(', ')} FROM User`,
+        ).all() as Array<Record<string, unknown>>
         for (const u of users) {
-          usersCarried += reapplyUser.run(u.disabledAt, u.role, u.id).changes
+          if (existsInLive.get(u.id)) {
+            usersCarried += reapplyUser.run(u.disabledAt, u.role, u.id).changes
+          } else {
+            insertUser.run(...cols.map(c => u[c] ?? null))
+            usersReinserted++
+          }
         }
       }
-      if (keysCarried || usersCarried) {
+      if (keysCarried || usersCarried || usersReinserted) {
         console.warn(
-          `restore: re-applied post-backup auth lifecycle (${keysCarried} api-key revocations, ${usersCarried} user role/ban rows) from the pre-restore snapshot`,
+          `restore: re-applied post-backup auth lifecycle (${keysCarried} api-key revocations, ` +
+            `${usersCarried} user role/ban rows, ${usersReinserted} re-inserted users) from the pre-restore snapshot`,
         )
       }
     } finally {
