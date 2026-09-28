@@ -48,6 +48,32 @@ describe('isValidCron', () => {
     // fields — so isValidCron must reject it to stay consistent with matcher.
     expect(isValidCron('0 */5 * * * *')).toBe(false)
   })
+
+  it('rejects v4-only tokens node-cron accepts but the matcher cannot expand (job-death / wrong-day)', () => {
+    // node-cron@4.6.0 validate() returns true for all of these; the hand-rolled
+    // cronMatchesMinute expands L/? to an empty set (never fires) and
+    // parseInt-truncates 15W/5L/6#3 (fires on the wrong day).
+    expect(isValidCron('0 0 L * *')).toBe(false)
+    expect(isValidCron('0 0 ? * *')).toBe(false)
+    expect(isValidCron('0 0 15W * *')).toBe(false)
+    expect(isValidCron('0 0 * * 5L')).toBe(false)
+    expect(isValidCron('0 0 * * 6#3')).toBe(false)
+  })
+
+  it('rejects inverted ranges that expand to an empty set in the matcher', () => {
+    expect(isValidCron('0 0 5-3 * *')).toBe(false)
+    // Name ranges compare through the same maps the matcher uses.
+    expect(isValidCron('0 0 * * sat-fri')).toBe(false)
+  })
+
+  it('still accepts the presets and valid name usage', () => {
+    for (const p of Object.values(CRON_PRESETS)) {
+      expect(isValidCron(p.expr)).toBe(true)
+    }
+    expect(isValidCron('0 6 * * monday')).toBe(true)
+    expect(isValidCron('0 0 1 jan-may *')).toBe(true)
+    expect(isValidCron('*/5 * * * *')).toBe(true)
+  })
 })
 
 describe('cronMatchesMinute', () => {

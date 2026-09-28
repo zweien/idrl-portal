@@ -52,15 +52,37 @@ interface JobDef {
   catchupMs?: number
 }
 /**
- * Validate a 5-field cron expression. node-cron.validate() also accepts the
- * optional-seconds 6-field syntax, but cronMatchesMinute() only implements the
- * 5-field grammar — so we additionally require exactly 5 fields to keep the
- * validator and the matcher in agreement (otherwise a 6-field expr would pass
- * validation but silently never run).
+ * Validate a 5-field cron expression the scheduler can actually execute.
+ *
+ * node-cron's validate() accepts v4-documented tokens (L, ?, W, #) and
+ * inverted ranges that cronMatchesMinute() cannot interpret: bare L/? expand
+ * to parseInt→NaN→an empty set, an inverted range like 5-3 loops zero times
+ * (the job silently never fires — the non-match return precedes any logging),
+ * and prefixed tokens like 15W get parseInt-truncated and fire on the wrong
+ * day. Reject exactly those tokens up front so both the settings route and the
+ * per-tick gate fail visibly instead of saving a dead expression.
  */
 export function isValidCron(expr: string): boolean {
   if (typeof expr !== 'string' || expr.trim().length === 0) return false
-  if (expr.trim().split(/\s+/).length !== 5) return false
+  const parts = expr.trim().split(/\s+/)
+  if (parts.length !== 5) return false
+  for (const field of parts) {
+    for (const tok of field.split(',')) {
+      // cronMatchesMinute has no semantics for these v4-only tokens.
+      if (/[LW#?]/i.test(tok)) return false
+      // Mirror the matcher's own token shape (number | * | weekday/month
+      // name, optional range/step) so anything it can't parse dies here.
+      const m = /^(\*|\d+|[a-z]{3,9})(?:-(\*|\d+|[a-z]{3,9}))?(?:\/(\d+))?$/i.exec(tok)
+      if (!m) return false
+      // Inverted ranges expand to an empty set in the matcher (job death);
+      // names must be compared through the same maps the matcher uses.
+      if (m[1] && m[2] && m[1] !== '*' && m[2] !== '*') {
+        const a = DOW_NAMES[m[1].toLowerCase()] ?? MON_NAMES[m[1].toLowerCase()] ?? parseInt(m[1], 10)
+        const b = DOW_NAMES[m[2].toLowerCase()] ?? MON_NAMES[m[2].toLowerCase()] ?? parseInt(m[2], 10)
+        if (!Number.isNaN(a) && !Number.isNaN(b) && a > b) return false
+      }
+    }
+  }
   return cron.validate(expr)
 }
 

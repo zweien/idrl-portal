@@ -31,6 +31,20 @@ const tmpDbPath = join(tmpDir, 'db.sqlite')
     INSERT INTO Person (id, name, role, status) VALUES
       ('p1', 'Alice', '研究员', 'present'),
       ('p2', 'Bob', '工程师', 'absent');
+    CREATE TABLE ApiKey (
+      id TEXT NOT NULL PRIMARY KEY,
+      keyHash TEXT NOT NULL,
+      revokedAt TEXT
+    );
+    CREATE TABLE User (
+      id TEXT NOT NULL PRIMARY KEY,
+      role TEXT NOT NULL DEFAULT 'member',
+      disabledAt TEXT
+    );
+    INSERT INTO ApiKey (id, keyHash, revokedAt) VALUES ('k1', 'h1', NULL);
+    INSERT INTO User (id, role, disabledAt) VALUES
+      ('u1', 'admin', NULL),
+      ('u2', 'member', '2026-09-21T00:00:00.000Z');
   `)
   seed.close()
 }
@@ -155,5 +169,33 @@ describe('backup file operations (against a temp DB copy)', () => {
     const mutated = after.prepare("SELECT COUNT(*) c FROM Person WHERE name='__MUTATED__'").get() as { c: number }
     after.close()
     expect(mutated.c).toBe(0)
+  })
+
+  it('restoreBackup re-applies post-backup auth lifecycle (revocations/bans/roles) over the rollback', async () => {
+    // Regression (run-1 confirmed finding): restoring an older backup used to
+    // resurrect revoked API keys, bans, and demotions recorded after the
+    // backup. The pre-restore snapshot holds the latest decisions; they must
+    // be carried forward onto the restored rows.
+    // 1. Take the "old" backup while lifecycle state is pristine.
+    const old = await createBackup('manual')
+    // 2. Make the latest live decisions: revoke k1, demote u1, unban u2.
+    const live = new Database(tmpDbPath)
+    live.exec(`
+      UPDATE ApiKey SET revokedAt='2026-09-20T00:00:00.000Z' WHERE id='k1';
+      UPDATE User SET role='member' WHERE id='u1';
+      UPDATE User SET disabledAt=NULL WHERE id='u2';
+    `)
+    live.close()
+    // 3. Restore the old backup — this rolls the whole DB back.
+    await restoreBackup(old.filename)
+    // 4. The lifecycle decisions must survive the rollback.
+    const after = new Database(tmpDbPath, { readonly: true })
+    const key = after.prepare('SELECT revokedAt FROM ApiKey WHERE id = ?').get('k1') as { revokedAt: string | null }
+    const u1 = after.prepare('SELECT role FROM User WHERE id = ?').get('u1') as { role: string }
+    const u2 = after.prepare('SELECT disabledAt FROM User WHERE id = ?').get('u2') as { disabledAt: string | null }
+    after.close()
+    expect(key.revokedAt).toBe('2026-09-20T00:00:00.000Z') // revoked key stays revoked
+    expect(u1.role).toBe('member')                          // demotion stays applied
+    expect(u2.disabledAt).toBeNull()                        // unban stays applied
   })
 })
