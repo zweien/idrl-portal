@@ -80,6 +80,12 @@ describe('isValidCron', () => {
     expect(isValidCron('0 0 1 july *')).toBe(true)
     expect(isValidCron('0 0 1 jan-may *')).toBe(true)
     expect(isValidCron('*/5 * * * *')).toBe(true)
+    // Validity alone isn't enough — the matcher must actually fire on the
+    // full-name months (codex P1: MON_NAMES lacked full names, so 'july'
+    // validated but expanded to NaN → silent job death).
+    expect(cronMatchesMinute('0 0 1 july *', new Date('2026-07-01T00:00:00Z'))).toBe(true)
+    expect(cronMatchesMinute('0 0 1 july *', new Date('2026-08-01T00:00:00Z'))).toBe(false)
+    expect(cronMatchesMinute('0 6 * * wednesday', new Date('2026-07-01T06:00:00Z'))).toBe(true)
   })
 })
 

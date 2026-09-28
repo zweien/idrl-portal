@@ -101,10 +101,14 @@ const DOW_NAMES: Record<string, number> = {
   wed: 3, weds: 3, wednesday: 3, thu: 4, thur: 4, thurs: 4, thursday: 4,
   fri: 5, friday: 5, sat: 6, saturday: 6,
 }
-// Month names accepted by node-cron, mapped to 1..12.
+// Month names accepted by node-cron, mapped to 1..12. Full names included so
+// isValidCron and cronMatchesMinute agree (a name the validator accepts but
+// the matcher can't map expands to NaN — silent job death).
 const MON_NAMES: Record<string, number> = {
-  jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
-  jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
+  jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3,
+  apr: 4, april: 4, may: 5, jun: 6, june: 6,
+  jul: 7, july: 7, aug: 8, august: 8, sep: 9, sept: 9, september: 9,
+  oct: 10, october: 10, nov: 11, november: 11, dec: 12, december: 12,
 }
 
 /**
