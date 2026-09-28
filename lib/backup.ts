@@ -191,6 +191,7 @@ function reapplyAuthLifecycle(snapshotPath: string): void {
         // migrateAfterRestore both schemas are the running code's, so the
         // column sets match; insert the snapshot row verbatim.
         const cols = (live.pragma('table_info(User)') as Array<{ name: string }>).map(c => c.name)
+        const personExists = live.prepare('SELECT 1 FROM Person WHERE id = ?')
         const insertUser = live.prepare(
           `INSERT INTO User (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`,
         )
@@ -201,8 +202,17 @@ function reapplyAuthLifecycle(snapshotPath: string): void {
           if (existsInLive.get(u.id)) {
             usersCarried += reapplyUser.run(u.disabledAt, u.role, u.id).changes
           } else {
-            insertUser.run(...cols.map(c => u[c] ?? null))
-            usersReinserted++
+            // The snapshot row may reference a Person also created after the
+            // backup (absent from the restored DB) — drop the dangling link so
+            // the FK holds; the auth record and its ban must still land. Each
+            // insert is isolated so one bad row cannot abort the rest.
+            try {
+              const dangling = u.personId != null && !personExists.get(u.personId as string)
+              insertUser.run(...cols.map(c => (c === 'personId' && dangling) ? null : u[c] ?? null))
+              usersReinserted++
+            } catch (e) {
+              console.error(`restore: failed to re-insert user ${String(u.id)} from snapshot:`, e)
+            }
           }
         }
       }

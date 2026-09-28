@@ -39,12 +39,14 @@ const tmpDbPath = join(tmpDir, 'db.sqlite')
     CREATE TABLE User (
       id TEXT NOT NULL PRIMARY KEY,
       role TEXT NOT NULL DEFAULT 'member',
-      disabledAt TEXT
+      disabledAt TEXT,
+      personId TEXT REFERENCES Person(id)
     );
     INSERT INTO ApiKey (id, keyHash, revokedAt) VALUES ('k1', 'h1', NULL);
-    INSERT INTO User (id, role, disabledAt) VALUES
-      ('u1', 'admin', NULL),
-      ('u2', 'member', '2026-09-21T00:00:00.000Z');
+      INSERT INTO User (id, role, disabledAt, personId) VALUES
+        ('u1', 'admin', NULL, NULL),
+        ('u2', 'member', '2026-09-21T00:00:00.000Z', NULL);
+    PRAGMA foreign_keys = ON;
   `)
   seed.close()
 }
@@ -181,13 +183,17 @@ describe('backup file operations (against a temp DB copy)', () => {
     // 2. Make the latest live decisions: revoke k1, demote u1, unban u2;
     //    ALSO create u3 after the backup and ban it (codex P1: a user absent
     //    from the backup must not lose its ban — resolveSession keeps the
-    //    stale cookie role for a missing row).
+    //    stale cookie role for a missing row), linking it to a Person that is
+    //    likewise created after the backup (codex P1 #2: the dangling FK must
+    //    be nulled, not abort the re-insert).
     const live = new Database(tmpDbPath)
     live.exec(`
       UPDATE ApiKey SET revokedAt='2026-09-20T00:00:00.000Z' WHERE id='k1';
       UPDATE User SET role='member' WHERE id='u1';
       UPDATE User SET disabledAt=NULL WHERE id='u2';
-      INSERT INTO User (id, role, disabledAt) VALUES ('u3', 'member', '2026-09-25T00:00:00.000Z');
+      INSERT INTO Person (id, name, role, status) VALUES ('p9', 'Carol', '实习生', 'absent');
+      INSERT INTO User (id, role, disabledAt, personId)
+        VALUES ('u3', 'member', '2026-09-25T00:00:00.000Z', 'p9');
     `)
     live.close()
     // 3. Restore the old backup — this rolls the whole DB back (u3 vanishes).
@@ -197,12 +203,13 @@ describe('backup file operations (against a temp DB copy)', () => {
     const key = after.prepare('SELECT revokedAt FROM ApiKey WHERE id = ?').get('k1') as { revokedAt: string | null }
     const u1 = after.prepare('SELECT role FROM User WHERE id = ?').get('u1') as { role: string }
     const u2 = after.prepare('SELECT disabledAt FROM User WHERE id = ?').get('u2') as { disabledAt: string | null }
-    const u3 = after.prepare('SELECT role, disabledAt FROM User WHERE id = ?').get('u3') as { role: string; disabledAt: string | null }
+    const u3 = after.prepare('SELECT role, disabledAt, personId FROM User WHERE id = ?').get('u3') as { role: string; disabledAt: string | null; personId: string | null }
     after.close()
     expect(key.revokedAt).toBe('2026-09-20T00:00:00.000Z') // revoked key stays revoked
     expect(u1.role).toBe('member')                          // demotion stays applied
     expect(u2.disabledAt).toBeNull()                        // unban stays applied
     expect(u3).not.toBeNull()                               // post-backup user is re-inserted…
-    expect(u3.disabledAt).toBe('2026-09-25T00:00:00.000Z')  // …with its ban intact
+    expect(u3.disabledAt).toBe('2026-09-25T00:00:00.000Z')  // …with its ban intact…
+    expect(u3.personId).toBeNull()                          // …and its dangling person link dropped
   })
 })
