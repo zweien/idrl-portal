@@ -29,7 +29,18 @@ async function resolveSession(): Promise<SessionData | NextResponse> {
       where: { id: session.userId },
       select: { role: true, disabledAt: true },
     })
-    if (user?.disabledAt) {
+    if (!user) {
+      // The session's userId no longer exists — reachable when a backup
+      // restore removed the row (deleted/recreated account, or a snapshot
+      // from before the account existed). Reject instead of falling back to
+      // the cookie role: that fallback would let a restore resurrect a
+      // since-demoted/banned principal's stale cookie privileges. The next
+      // login re-creates the account through the SSO callbacks, which
+      // resolve the reconciled (provider, externalId) row and its
+      // lifecycle state.
+      return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+    }
+    if (user.disabledAt) {
       // Banned mid-session — reject. We re-check disabledAt on every call, so
       // leaving the cookie in place is harmless (subsequent calls re-fetch and
       // reject again). Destroying it would need a real session object; skip to
@@ -38,16 +49,11 @@ async function resolveSession(): Promise<SessionData | NextResponse> {
     }
     // Authorize by the live role. If the DB role differs from the cookie
     // (another admin demoted/promoted this user), use the DB value so
-    // requireAdmin/isAdmin see the current privilege, not a stale cookie. Only
-    // refresh when the DB actually returned a known role; an undefined/missing
-    // role (e.g. a future schema change) keeps the cookie role as a fallback.
-    if (
-      user &&
-      (user.role === 'admin' || user.role === 'member') &&
-      user.role !== session.role
-    ) {
-      return { ...session, role: user.role }
+    // requireAdmin/isAdmin see the current privilege, not a stale cookie.
+    if (user.role === 'admin' || user.role === 'member') {
+      if (user.role !== session.role) return { ...session, role: user.role }
     }
+    // An unrecognized role value (future schema drift) keeps the cookie role.
   }
   return session
 }

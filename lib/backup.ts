@@ -142,6 +142,113 @@ function migrateAfterRestore(): void {
 }
 
 /**
+ * Carry auth lifecycle decisions (ApiKey.revokedAt, User.disabledAt, User.role)
+ * from the pre-restore snapshot into the freshly restored DB.
+ *
+ * A restore rolls the whole database back to snapshot-of-the-backup time, which
+ * silently resurrects revoked API keys, banned users, and demoted roles that
+ * were recorded AFTER the backup was taken — exactly the per-request state
+ * lib/auth-api.ts re-reads (a leaked key re-authenticates, a banned user's
+ * unexpired cookie re-authorizes). The pre-restore snapshot holds the latest
+ * live decisions, so replaying its lifecycle columns over the restored rows
+ * re-applies them. Rows missing from the restored DB: ApiKey rows need no
+ * handling (a vanished keyHash fails the lookup, i.e. stays revoked), but
+ * User rows must be re-inserted — resolveSession keeps the stale cookie role
+ * for a missing row, which would resurrect a since-demoted/banned admin.
+ * Tables absent from a very old snapshot (created by later migrations) carry
+ * nothing.
+ */
+function reapplyAuthLifecycle(snapshotPath: string): void {
+  try {
+    const snap = new Database(snapshotPath, { readonly: true })
+    const live = new Database(dbPath())
+    try {
+      const tableExists = (db: Database.Database, name: string) =>
+        db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?").get(name)
+
+      let keysCarried = 0
+      if (tableExists(snap, 'ApiKey') && tableExists(live, 'ApiKey')) {
+        const reapplyKey = live.prepare(
+          'UPDATE ApiKey SET revokedAt = ? WHERE id = ? AND revokedAt IS NULL',
+        )
+        const keys = snap.prepare(
+          'SELECT id, revokedAt FROM ApiKey WHERE revokedAt IS NOT NULL',
+        ).all() as Array<{ id: string; revokedAt: string }>
+        for (const k of keys) keysCarried += reapplyKey.run(k.revokedAt, k.id).changes
+      }
+      let usersCarried = 0
+      let usersReinserted = 0
+      if (tableExists(snap, 'User') && tableExists(live, 'User')) {
+        const reapplyUser = live.prepare(
+          'UPDATE User SET disabledAt = ?, role = ? WHERE id = ?',
+        )
+        const existsInLive = live.prepare('SELECT 1 FROM User WHERE id = ?')
+        // Snapshot users missing from the restored DB (account created after
+        // the backup) must be re-inserted, not skipped: a vanished row makes
+        // resolveSession fall back to the stale cookie role (lib/auth-api.ts),
+        // which would resurrect a since-demoted/banned admin, and a later SSO
+        // login would recreate the account without its ban. After
+        // migrateAfterRestore both schemas are the running code's, so the
+        // column sets match; insert the snapshot row verbatim.
+        const cols = (live.pragma('table_info(User)') as Array<{ name: string }>).map(c => c.name)
+        const personExists = live.prepare('SELECT 1 FROM Person WHERE id = ?')
+        // Login identity is what the auth callbacks actually upsert by — the
+        // restored DB may hold the same (provider, externalId) under a
+        // different id (deleted+recreated account, or a backup from another
+        // install), and a verbatim insert would violate the unique key while
+        // leaving the snapshot's newer ban/demotion unapplied. Resolve that
+        // row and update it instead.
+        const byLogin = live.prepare('SELECT id FROM User WHERE provider = ? AND externalId = ?')
+        const insertUser = live.prepare(
+          `INSERT INTO User (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`,
+        )
+        const users = snap.prepare(
+          `SELECT ${cols.join(', ')} FROM User`,
+        ).all() as Array<Record<string, unknown>>
+        for (const u of users) {
+          if (existsInLive.get(u.id)) {
+            usersCarried += reapplyUser.run(u.disabledAt, u.role, u.id).changes
+          } else {
+            const sameLogin = u.provider != null && u.externalId != null
+              ? byLogin.get(u.provider as string, u.externalId as string) as { id: string } | undefined
+              : undefined
+            if (sameLogin) {
+              usersCarried += reapplyUser.run(u.disabledAt, u.role, sameLogin.id).changes
+              continue
+            }
+            // The snapshot row may reference a Person also created after the
+            // backup (absent from the restored DB) — drop the dangling link so
+            // the FK holds; the auth record and its ban must still land. Each
+            // insert is isolated so one bad row cannot abort the rest.
+            try {
+              const dangling = u.personId != null && !personExists.get(u.personId as string)
+              insertUser.run(...cols.map(c => (c === 'personId' && dangling) ? null : u[c] ?? null))
+              usersReinserted++
+            } catch (e) {
+              console.error(`restore: failed to re-insert user ${String(u.id)} from snapshot:`, e)
+            }
+          }
+        }
+      }
+      if (keysCarried || usersCarried || usersReinserted) {
+        console.warn(
+          `restore: re-applied post-backup auth lifecycle (${keysCarried} api-key revocations, ` +
+            `${usersCarried} user role/ban rows, ${usersReinserted} re-inserted users) from the pre-restore snapshot`,
+        )
+      }
+    } finally {
+      snap.close()
+      live.close()
+    }
+  } catch (e) {
+    // The restore itself already succeeded; failing the request here would
+    // leave the admin without a rollback path. Loud log instead — the admin
+    // should re-check revoked keys / banned users named in the snapshot.
+    console.error('post-restore auth lifecycle carry-forward failed:', e)
+  }
+}
+
+/**
  * Restore a backup over the live DB. First takes a 'pre-restore' snapshot so
  * a bad restore can itself be undone. Overwrites the DB file via better-sqlite3
  * online backup (source = backup file, destination = live DB). Then runs
@@ -169,6 +276,9 @@ export async function restoreBackup(filename: string): Promise<{ preRestore: Bac
   // Apply any migrations the restored DB is missing (e.g. AuditLog on an old
   // backup). This keeps the schema consistent with the running code.
   migrateAfterRestore()
+  // Re-apply revocations/bans/demotions taken after the backup was made (the
+  // snapshot tables exist only after migrations, so this must follow migrate).
+  reapplyAuthLifecycle(join(BACKUP_DIR, preRestore.filename))
   // A restored backup may have been taken in DELETE journal mode (pre-WAL);
   // re-assert WAL so the next write doesn't block readers.
   ensureWalMode()
@@ -203,6 +313,9 @@ export async function restoreFromFile(uploadPath: string): Promise<{ preRestore:
   }
   // Apply any migrations the uploaded DB is missing.
   migrateAfterRestore()
+  // Re-apply revocations/bans/demotions taken after the uploaded backup was
+  // made (post-migrate, same reasoning as restoreBackup).
+  reapplyAuthLifecycle(join(BACKUP_DIR, preRestore.filename))
   // Re-assert WAL in case the uploaded backup predates WAL enablement.
   ensureWalMode()
   return { preRestore }

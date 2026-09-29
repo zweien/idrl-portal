@@ -91,6 +91,17 @@ describe('ban enforcement (resolveSession re-fetch)', () => {
     expect((res as Response).status).toBe(401)
   })
 
+  it('requireUser rejects a session whose user row vanished (backup restore), not the cookie role', async () => {
+    // codex P1 #4: a restore can remove the User row while the cookie lives
+    // on. The old fallback kept the cookie role — resurrecting a since-
+    // demoted/banned admin. The row's absence must fail closed.
+    mockGetSession.mockResolvedValue({ userId: 'u4', provider: 'authentik', role: 'admin' })
+    mockUserFindUnique.mockResolvedValue(null)
+    const res = await requireAdmin()
+    expect(res).toBeInstanceOf(Response)
+    expect((res as Response).status).toBe(401)
+  })
+
   it('requireUser admits a session whose user is not disabled', async () => {
     const session = { userId: 'u1', provider: 'local', role: 'member' }
     mockGetSession.mockResolvedValue(session)
