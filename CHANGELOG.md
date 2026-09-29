@@ -5,6 +5,12 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v0.6.1] - 2026-09-29
+
+### 修复
+
+- fix(security): 修复 run-1 审计确认的两项发现（备份恢复复活凭据 / cron 语法分歧静默杀任务） (#87)
+
 ## [v0.6.0] - 2026-08-21
 
 ### 新增
