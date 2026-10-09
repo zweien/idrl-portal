@@ -449,13 +449,6 @@ const tripDetailCache = new Map<string, TripCacheEntry>()
 // caching, since the cached window doesn't carry the userid).
 const tripOriginator = new Map<string, string>()
 
-/** Drop cache entries whose trip window has fully passed (can't be active). */
-function pruneTripCache(now: number) {
-  for (const [id, e] of tripDetailCache) {
-    if (e.parsed && e.tripEnd < now - 24 * 60 * 60 * 1000) tripDetailCache.delete(id)
-  }
-}
-
 /**
  * Fetch + parse a trip instance detail, using the cache when available.
  * Returns the parsed trip window (or null for non-COMPLETED/agree/unparseable
@@ -682,13 +675,16 @@ export async function fetchTripStatus(
   if (processCodes.length === 0) return result
 
   const useridSet = new Set(userids)
-  const now = Date.now()
-  pruneTripCache(now)
   // Hydrate the in-memory cache from SQLite once per process, so a restart
-  // doesn't re-fetch every cached instance detail.
+  // doesn't re-fetch every cached instance detail. NOTE: no pruning — the
+  // 30-day listids window still returns pruned ids, and the once-per-process
+  // hydration would never re-load them from SQLite, so every sync would
+  // re-fetch and re-persist them. Cache size is bounded by the listing
+  // window anyway (a few hundred instances).
+
   await loadTripCache(tripDetailCache as unknown as Map<string, CachedTrip>)
 
-  const endTime = now
+  const endTime = Date.now()
   const startTime = endTime - 30 * 24 * 60 * 60 * 1000
 
   // Pre-compute day bounds for each queried day.
