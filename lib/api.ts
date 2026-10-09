@@ -147,24 +147,63 @@ function qs(params?: Record<string, string | number>): string {
   ).toString()
 }
 
+// Must stay in sync with MAX_PAGE_SIZE in lib/pagination.ts (the API clamps
+// to this). A caller passing a larger pageSize means "give me everything".
+const CLIENT_MAX_PAGE_SIZE = 100
+
+/**
+ * Fetcher that transparently assembles the full dataset when the caller asked
+ * for a pageSize above the API's clamp: the API silently caps pageSize at 100
+ * and returns page 1 only, so a plain fetcher drops everything past row 100
+ * (personnel grew past 100 and people literally vanished from the board's
+ * list and search). Only engages for over-limit requests — normal paginated
+ * callers get exactly one request as before.
+ */
+export const fetchAll = async <T>(url: string): Promise<ApiResponse<PaginatedResponse<T>>> => {
+  const first = await fetcher<ApiResponse<PaginatedResponse<T>>>(url)
+  const parsed = new URL(url, 'http://localhost')
+  const wanted = Number(parsed.searchParams.get('pageSize') ?? 0)
+  const d = first.data
+  if (!d || wanted <= CLIENT_MAX_PAGE_SIZE || d.items.length >= d.total) return first
+  const sep = parsed.search ? '&' : ''
+  const items = [...d.items]
+  // A failed follow-up page must not blank the board: keep the pages already
+  // fetched (partial data beats no data) instead of letting the rejection
+  // bubble — SWR would surface an error state and every consumer renders
+  // empty. The error is rethrown only when nothing at all was accumulated
+  // beyond page 1, which cannot happen here (page 1 succeeded above).
+  for (let page = 2; page <= d.totalPages; page++) {
+    try {
+      const next = await fetcher<ApiResponse<PaginatedResponse<T>>>(
+        `${url}${sep}page=${page}`,
+      )
+      items.push(...(next.data?.items ?? []))
+    } catch (e) {
+      console.error(`fetchAll: page ${page}/${d.totalPages} failed, keeping ${items.length}/${d.total} items:`, e)
+      break
+    }
+  }
+  return { ...first, data: { ...d, items } }
+}
+
 export function usePersonnel(params?: Record<string, string | number>) {
   return useSWR<ApiResponse<PaginatedResponse<Person>>>(
     `/api/personnel${qs(params)}`,
-    fetcher,
+    fetchAll,
   )
 }
 
 export function useNews(params?: Record<string, string | number>) {
   return useSWR<ApiResponse<PaginatedResponse<NewsItem>>>(
     `/api/news${qs(params)}`,
-    fetcher,
+    fetchAll,
   )
 }
 
 export function useResources(params?: Record<string, string | number>) {
   return useSWR<ApiResponse<PaginatedResponse<Resource>>>(
     `/api/resources${qs(params)}`,
-    fetcher,
+    fetchAll,
   )
 }
 
