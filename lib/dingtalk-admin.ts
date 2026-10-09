@@ -739,9 +739,15 @@ export async function fetchTripStatus(
     if (!detail) continue
     // Attribute the trip to its originator (on the cache entry after a fresh
     // fetch; tripOriginator for entries predating the originator field); only
-    // keep synced users.
+    // keep synced users. An instance from OUTSIDE the synced set (the
+    // approval template's visibility can be broader than DINGTALK_DEPT_ID)
+    // gets one detail fetch to learn its originator, then is dropped from
+    // memory AND never persisted — unrelated org data must not accumulate.
     const owner = tripDetailCache.get(instanceId)?.originator ?? tripOriginator.get(instanceId)
-    if (!owner || !useridSet.has(owner)) continue
+    if (!owner || !useridSet.has(owner)) {
+      tripDetailCache.delete(instanceId)
+      continue
+    }
     // For each queried day, mark it if it falls inside [tripStart, tripEnd].
     let entry = result.get(owner)
     if (!entry) {
