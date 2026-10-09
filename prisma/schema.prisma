@@ -255,8 +255,8 @@ model FeedbackReply {
 model TripInstanceCache {
   instanceId       String   @id
   originatorUserid String?
-  tripStart        Int? // ms epoch
-  tripEnd          Int? // ms epoch
+  tripStart        BigInt? // ms epoch — BigInt: Int is 32-bit, epoch ms overflows
+  tripEnd          BigInt? // ms epoch
   reason           String?
   parsed           Boolean
   fetchedAt        DateTime @default(now())

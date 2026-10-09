@@ -66,7 +66,11 @@ export function SyncTaskButton({
   const [interrupted, setInterrupted] = useState(false)
   const doneFiredRef = useRef<string | null>(null)
 
-  const myTask = task && task.id === myTaskId ? task : null
+  // "My" task = one this component started, OR a task already running when
+  // the component mounted / when our POST got the 409 (myTaskId adopted from
+  // the conflict payload) — those callers must see the stages/summary too.
+  const myTask =
+    task && (task.id === myTaskId || (task.state === 'running' && !myTaskId)) ? task : null
   const anyRunning = starting || task?.state === 'running'
 
   const start = useCallback(async () => {
@@ -78,9 +82,14 @@ export function SyncTaskButton({
     try {
       const r = await fetch(url ?? ENDPOINTS[kind], { method: 'POST' })
       const data = await r.json().catch(() => ({}) as { error?: string })
+      if (r.status === 409 && data.task?.id) {
+        // Lost the start race: adopt the running task so this component shows
+        // its stages and fires onDone when it lands.
+        setMyTaskId(data.task.id as string)
+        void mutateStatus()
+        return
+      }
       if (!r.ok) {
-        // 409: someone else's sync is running — surface the message; the poll
-        // (refreshInterval kicks in via the running task) shows its progress.
         throw new Error(data.error || `同步启动失败 (${r.status})`)
       }
       if (data.taskId) {

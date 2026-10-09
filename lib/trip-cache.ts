@@ -34,8 +34,9 @@ export async function loadTripCache(mem: Map<string, CachedTrip>): Promise<void>
       // are at least as fresh as the persisted row.
       if (mem.has(r.instanceId)) continue
       mem.set(r.instanceId, {
-        tripStart: r.tripStart ?? 0,
-        tripEnd: r.tripEnd ?? 0,
+        // BigInt column -> JS epoch-ms numbers at the cache boundary.
+        tripStart: r.tripStart === null ? 0 : Number(r.tripStart),
+        tripEnd: r.tripEnd === null ? 0 : Number(r.tripEnd),
         reason: r.reason ?? undefined,
         parsed: r.parsed,
         originator: r.originatorUserid ?? undefined,
@@ -50,24 +51,21 @@ export async function loadTripCache(mem: Map<string, CachedTrip>): Promise<void>
 
 /** Fire-and-forget upsert of one terminal instance's parsed result. */
 export function persistTripInstance(instanceId: string, entry: CachedTrip): void {
+  // Number -> BigInt at the boundary (epoch ms exceed Prisma's 32-bit Int).
+  const start = entry.tripStart ? BigInt(entry.tripStart) : null
+  const end = entry.tripEnd ? BigInt(entry.tripEnd) : null
+  const data = {
+    originatorUserid: entry.originator ?? null,
+    tripStart: start,
+    tripEnd: end,
+    reason: entry.reason ?? null,
+    parsed: entry.parsed,
+  }
   void prisma.tripInstanceCache
     .upsert({
       where: { instanceId },
-      update: {
-        originatorUserid: entry.originator ?? null,
-        tripStart: entry.tripStart || null,
-        tripEnd: entry.tripEnd || null,
-        reason: entry.reason ?? null,
-        parsed: entry.parsed,
-      },
-      create: {
-        instanceId,
-        originatorUserid: entry.originator ?? null,
-        tripStart: entry.tripStart || null,
-        tripEnd: entry.tripEnd || null,
-        reason: entry.reason ?? null,
-        parsed: entry.parsed,
-      },
+      update: data,
+      create: { instanceId, ...data },
     })
     .catch(e => console.error(`trip cache persist failed for ${instanceId}:`, e))
 }

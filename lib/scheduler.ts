@@ -233,21 +233,35 @@ export async function publishDueNews(): Promise<{ published: number }> {
  * Run a scheduled sync under the GLOBAL sync mutex (lib/sync-task), not just
  * the per-job `running` set: without it a manual sync could start mid-run,
  * and the default members/attendance crons fire at the same 06:00 minute,
- * concurrently fanning DingTalk calls and racing SQLite writes. Busy → skip
- * this tick (the cron repeats; the finalize watermark self-heals).
+ * concurrently fanning DingTalk calls and racing SQLite writes.
+ *
+ * Busy → WAIT (bounded) instead of dropping the tick: the cron already
+ * matched this minute, and dropping it on a sparse schedule (the daily-06:00
+ * preset) would lose that job's only run of the day — sync jobs have no boot
+ * catch-up. Polling the mutex keeps the matched run queued behind a manual
+ * sync; give up (logged) only if the mutex stays held for the full budget.
  */
 async function runSchedulerSync<T>(
   kind: SyncKind,
   fn: (progress?: SyncProgress) => Promise<T>,
 ): Promise<T | { skipped: true }> {
-  if (isSyncBusy()) return { skipped: true }
+  const WAIT_MS = 30_000
+  const MAX_WAIT_MS = 10 * 60 * 1000
+  let waited = 0
+  while (isSyncBusy()) {
+    if (waited >= MAX_WAIT_MS) return { skipped: true }
+    await new Promise(r => setTimeout(r, WAIT_MS))
+    waited += WAIT_MS
+  }
   let full: T | null = null
   const res = await runSyncTask(kind, async () => {
     full = await fn()
     return { summary: 'scheduler sync' }
   }, { background: false })
-  // A manual task won the race in the tiny window between our two checks.
-  if (!res.ok || full === null) return { skipped: true }
+  // A manual task won the race in the tiny window between our two checks —
+  // defer once more rather than drop (same reasoning as the wait loop).
+  if (!res.ok) return runSchedulerSync(kind, fn)
+  if (full === null) return { skipped: true }
   return full
 }
 
@@ -380,9 +394,6 @@ async function executeJob(def: JobDef) {
   if (!cronMatchesMinute(expr, new Date())) return
   // Skip if the previous run hasn't finished — see `running` doc.
   if (running.has(def.job)) return
-  // Join the global sync mutex: a manual sync in progress defers this tick
-  // silently (the heartbeat repeats next minute; the watermark self-heals).
-  if (def.busyKey && isSyncBusy()) return
   running.add(def.job)
   try {
     await runAndLog(def, 'cron')
