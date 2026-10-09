@@ -30,9 +30,13 @@ import { pruneAuditLogs, readKeepDays } from '@/lib/audit'
 export { CRON_PRESETS, CRON_DEFAULTS } from '@/lib/cron-presets'
 import { CRON_DEFAULTS } from '@/lib/cron-presets'
 import type { CronJob } from '@/lib/cron-presets'
+import { isSyncBusy, type SyncKind } from '@/lib/sync-task'
 export type { CronJob }
 
 interface JobDef {
+  /** When set, the tick is skipped silently while a sync task (manual or
+   * scheduler) is running — joins the global sync mutex in lib/sync-task. */
+  busyKey?: import('@/lib/sync-task').SyncKind
   job: CronJob
   settingKey: string      // cron expression setting
   enableKey: string       // enable toggle setting
@@ -231,6 +235,7 @@ const JOB_DEFS: JobDef[] = [
     settingKey: 'cron.members',
     enableKey: 'cron.enabled.members',
     defaultCron: CRON_DEFAULTS['sync-members'],
+    busyKey: 'members' as SyncKind,
     run: syncMembers,
   },
   {
@@ -238,6 +243,7 @@ const JOB_DEFS: JobDef[] = [
     settingKey: 'cron.attendance',
     enableKey: 'cron.enabled.attendance',
     defaultCron: CRON_DEFAULTS['sync-attendance'],
+    busyKey: 'attendance' as SyncKind,
     run: syncAttendance,
     // Persist flattened stats ({total, present, leave, trip, absent, finalizedDays})
     // instead of leaking the nested {stats:{...}} shape into the log row.
@@ -352,6 +358,9 @@ async function executeJob(def: JobDef) {
   if (!cronMatchesMinute(expr, new Date())) return
   // Skip if the previous run hasn't finished — see `running` doc.
   if (running.has(def.job)) return
+  // Join the global sync mutex: a manual sync in progress defers this tick
+  // silently (the heartbeat repeats next minute; the watermark self-heals).
+  if (def.busyKey && isSyncBusy()) return
   running.add(def.job)
   try {
     await runAndLog(def, 'cron')
