@@ -5,6 +5,13 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v0.6.2] - 2026-10-09
+
+### 修复
+
+- fix(personnel): 人员超过 100 人后，列表与搜索丢失第 101 位之后的人员（搜索不到「许超」） (#89)
+- fix(floor-layout): 工位冲突报错显示具体人名与工位位置 (#88)
+
 ## [v0.6.1] - 2026-09-29
 
 ### 修复
