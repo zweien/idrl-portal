@@ -54,7 +54,8 @@ export async function POST(req: Request) {
       },
     })
     return {
-      summary: `成员同步完成：共 ${result.total} 人，新建 ${result.created}，更新 ${result.updated}，关联登录 ${result.linked}`,
+      summary: `成员同步完成：共 ${result.total} 人，新建 ${result.created}，更新 ${result.updated}，关联登录 ${result.linked}` +
+        (result.renamed > 0 ? `，钉钉重加账号修复 ${result.renamed} 人` : ''),
       stats: result as unknown as Record<string, unknown>,
     }
   }, { background })

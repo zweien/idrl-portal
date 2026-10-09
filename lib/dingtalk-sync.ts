@@ -35,6 +35,8 @@ export async function syncMembers(progress?: SyncProgress): Promise<{
   created: number
   updated: number
   linked: number
+  /** Person rows whose embedded userid was refreshed (DingTalk delete+re-add). */
+  renamed: number
 }> {
   resetDingtalkCallCount()
   progress?.stage('fetch')
@@ -42,6 +44,7 @@ export async function syncMembers(progress?: SyncProgress): Promise<{
   let created = 0
   let updated = 0
   let linked = 0
+  let renamed = 0
 
   // All member writes + the subsequent user-link pass run inside one
   // transaction so a mid-sync failure (network blip, SQLITE_BUSY) rolls back
@@ -61,6 +64,29 @@ export async function syncMembers(progress?: SyncProgress): Promise<{
       const existing = await tx.person.findFirst({ where: { dingUserId: m.unionid } })
 
       if (existing) {
+        // A delete+re-add in DingTalk keeps the unionid but mints a NEW userid.
+        // Person.id embeds the userid (`dt-<userid>`) and the attendance API
+        // queries by it — a stale id makes every sync see the person as absent
+        // forever. Prisma cannot update an @id, so cascade-rename via raw SQL:
+        // reference tables first, then the Person row itself (FK checks are
+        // deferred inside the tx).
+        const newId = `dt-${m.userid}`
+        if (existing.id !== newId) {
+          const clash = await tx.person.findUnique({ where: { id: newId } })
+          if (clash) {
+            // A row with the target id exists (shouldn't happen when the
+            // unionid is the match key) — keep both rather than merge silently.
+            console.error(`sync-members: cannot rename ${existing.id} -> ${newId}, target id already taken by ${clash.name}`)
+          } else {
+            await tx.$executeRaw`PRAGMA defer_foreign_keys = ON`
+            await tx.$executeRaw`UPDATE AttendanceRecord SET personId = ${newId} WHERE personId = ${existing.id}`
+            await tx.$executeRaw`UPDATE Workstation SET personId = ${newId} WHERE personId = ${existing.id}`
+            await tx.$executeRaw`UPDATE User SET personId = ${newId} WHERE personId = ${existing.id}`
+            await tx.$executeRaw`UPDATE Person SET id = ${newId} WHERE id = ${existing.id}`
+            renamed++
+            existing.id = newId
+          }
+        }
         await tx.person.update({
           where: { id: existing.id },
           data: {
@@ -113,7 +139,7 @@ export async function syncMembers(progress?: SyncProgress): Promise<{
     }
   })
 
-  return { total: members.length, created, updated, linked }
+  return { total: members.length, created, updated, linked, renamed }
 }
 
 /**
