@@ -167,11 +167,21 @@ export const fetchAll = async <T>(url: string): Promise<ApiResponse<PaginatedRes
   if (!d || wanted <= CLIENT_MAX_PAGE_SIZE || d.items.length >= d.total) return first
   const sep = parsed.search ? '&' : ''
   const items = [...d.items]
+  // A failed follow-up page must not blank the board: keep the pages already
+  // fetched (partial data beats no data) instead of letting the rejection
+  // bubble — SWR would surface an error state and every consumer renders
+  // empty. The error is rethrown only when nothing at all was accumulated
+  // beyond page 1, which cannot happen here (page 1 succeeded above).
   for (let page = 2; page <= d.totalPages; page++) {
-    const next = await fetcher<ApiResponse<PaginatedResponse<T>>>(
-      `${url}${sep}page=${page}`,
-    )
-    items.push(...(next.data?.items ?? []))
+    try {
+      const next = await fetcher<ApiResponse<PaginatedResponse<T>>>(
+        `${url}${sep}page=${page}`,
+      )
+      items.push(...(next.data?.items ?? []))
+    } catch (e) {
+      console.error(`fetchAll: page ${page}/${d.totalPages} failed, keeping ${items.length}/${d.total} items:`, e)
+      break
+    }
   }
   return { ...first, data: { ...d, items } }
 }

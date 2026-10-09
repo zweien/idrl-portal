@@ -53,15 +53,21 @@ describe('fetchAll (transparent pagination past the API clamp)', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  it('tolerates a failed or empty follow-up page', async () => {
+  it('keeps accumulated pages when a later page fails', async () => {
+    // total=250 → totalPages=3, so the page-3 failure is actually consumed
+    // (the previous 105-row fixture had totalPages=2 and never hit the
+    // failure path — a false-green test, caught by codex).
     fetchMock
       .mockResolvedValueOnce(Response.json(page(
-        Array.from({ length: 100 }, (_, i) => ({ id: `p${i}` })), 105, 1,
+        Array.from({ length: 100 }, (_, i) => ({ id: `p${i}` })), 250, 1,
       )))
-      .mockResolvedValueOnce(Response.json(page([{ id: 'p100' }], 105, 2)))
+      .mockResolvedValueOnce(Response.json(page(
+        Array.from({ length: 100 }, (_, i) => ({ id: `q${i}` })), 250, 2,
+      )))
       .mockRejectedValueOnce(new Error('boom'))
     const res = await fetchAll<P>('/api/personnel?pageSize=1000')
-    // Page 3 failed: keep what we have rather than dropping the whole board.
-    expect(res.data?.items).toHaveLength(101)
+    // Page 3 failed: keep pages 1-2 rather than dropping the whole board.
+    expect(res.data?.items).toHaveLength(200)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 })
