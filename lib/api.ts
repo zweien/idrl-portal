@@ -147,24 +147,53 @@ function qs(params?: Record<string, string | number>): string {
   ).toString()
 }
 
+// Must stay in sync with MAX_PAGE_SIZE in lib/pagination.ts (the API clamps
+// to this). A caller passing a larger pageSize means "give me everything".
+const CLIENT_MAX_PAGE_SIZE = 100
+
+/**
+ * Fetcher that transparently assembles the full dataset when the caller asked
+ * for a pageSize above the API's clamp: the API silently caps pageSize at 100
+ * and returns page 1 only, so a plain fetcher drops everything past row 100
+ * (personnel grew past 100 and people literally vanished from the board's
+ * list and search). Only engages for over-limit requests — normal paginated
+ * callers get exactly one request as before.
+ */
+export const fetchAll = async <T>(url: string): Promise<ApiResponse<PaginatedResponse<T>>> => {
+  const first = await fetcher<ApiResponse<PaginatedResponse<T>>>(url)
+  const parsed = new URL(url, 'http://localhost')
+  const wanted = Number(parsed.searchParams.get('pageSize') ?? 0)
+  const d = first.data
+  if (!d || wanted <= CLIENT_MAX_PAGE_SIZE || d.items.length >= d.total) return first
+  const sep = parsed.search ? '&' : ''
+  const items = [...d.items]
+  for (let page = 2; page <= d.totalPages; page++) {
+    const next = await fetcher<ApiResponse<PaginatedResponse<T>>>(
+      `${url}${sep}page=${page}`,
+    )
+    items.push(...(next.data?.items ?? []))
+  }
+  return { ...first, data: { ...d, items } }
+}
+
 export function usePersonnel(params?: Record<string, string | number>) {
   return useSWR<ApiResponse<PaginatedResponse<Person>>>(
     `/api/personnel${qs(params)}`,
-    fetcher,
+    fetchAll,
   )
 }
 
 export function useNews(params?: Record<string, string | number>) {
   return useSWR<ApiResponse<PaginatedResponse<NewsItem>>>(
     `/api/news${qs(params)}`,
-    fetcher,
+    fetchAll,
   )
 }
 
 export function useResources(params?: Record<string, string | number>) {
   return useSWR<ApiResponse<PaginatedResponse<Resource>>>(
     `/api/resources${qs(params)}`,
-    fetcher,
+    fetchAll,
   )
 }
 
