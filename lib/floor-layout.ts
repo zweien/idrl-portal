@@ -154,7 +154,9 @@ export function formatConflictMessage(
     floors.flatMap(f => f.zones.flatMap(z => z.workstations.map(w => [w.id, { w, z, f }] as const))),
   )
   const parts = conflicts.map(({ personId, workstationIds }) => {
-    const name = personNames.get(personId) ?? personId
+    // A whitespace-only name (personnel writes don't trim) would render a
+    // blank label — trim and fall back to the raw id when empty.
+    const name = personNames.get(personId)?.trim() || personId
     const locs = workstationIds.map(id => {
       const hit = wsById.get(id)
       if (!hit) return id

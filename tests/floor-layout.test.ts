@@ -197,3 +197,20 @@ describe('formatConflictMessage (one-person-one-workstation error naming WHO)', 
     expect(msg).toContain('；')
   })
 })
+
+describe('formatConflictMessage blank-name fallback', () => {
+  const floors = [{
+    id: 'f', name: '9层', zones: [{ id: 'z', name: 'A区', workstations: [{ id: 'w1', name: 'A-01' }] }],
+  }]
+  it('falls back to the raw personId when the resolved name is whitespace-only', () => {
+    const names = new Map([['p1', '   '], ['p2', '']])
+    const msg = formatConflictMessage(
+      [{ personId: 'p1', workstationIds: ['w1'] }, { personId: 'p2', workstationIds: ['w1'] }],
+      floors,
+      names,
+    )
+    expect(msg).toContain('p1（')
+    expect(msg).toContain('p2（')
+    expect(msg).not.toContain('   （')
+  })
+})
