@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { resolvePersonId, findDuplicateIds, makeIdGen } from '@/lib/floor-layout'
+import { resolvePersonId, findDuplicateIds, makeIdGen, formatConflictMessage } from '@/lib/floor-layout'
 
 const db = {
   id: 'ws-1', personId: 'p-1', row: 0, col: 1, zoneId: 'zone-9a', floorId: 'floor-9',
@@ -139,5 +139,61 @@ describe('makeIdGen (editor id generation)', () => {
     expect(new Set(ids).size).toBe(2500)
     expect(ids[0]).toBe('ws-zone-9a-100')
     expect(ids[2499]).toBe('ws-zone-9a-2599')
+  })
+})
+
+describe('formatConflictMessage (one-person-one-workstation error naming WHO)', () => {
+  const floors = [
+    {
+      id: 'floor-9', name: '9层', zones: [
+        { id: 'zone-9a', name: 'A区', workstations: [
+          { id: 'ws-a1', name: 'A-01' },
+          { id: 'ws-a2', name: 'A-02' },
+        ] },
+      ],
+    },
+    {
+      id: 'floor-10', name: '10层', zones: [
+        { id: 'zone-10a', name: 'B区', workstations: [
+          { id: 'ws-b1', name: 'B-01' },
+        ] },
+      ],
+    },
+  ]
+  const names = new Map([['p1', '张三']])
+
+  it('names the person and locates every conflicting workstation', () => {
+    const msg = formatConflictMessage(
+      [{ personId: 'p1', workstationIds: ['ws-a1', 'ws-b1'] }],
+      floors,
+      names,
+    )
+    expect(msg).toContain('张三')
+    expect(msg).toContain('9层 · A区 · A-01')
+    expect(msg).toContain('10层 · B区 · B-01')
+    expect(msg).toMatch(/^一人一工位冲突：/)
+  })
+
+  it('falls back to the raw personId and workstation id when lookups miss', () => {
+    const msg = formatConflictMessage(
+      [{ personId: 'p-ghost', workstationIds: ['ws-ghost'] }],
+      floors,
+      names,
+    )
+    expect(msg).toContain('p-ghost（ws-ghost）')
+  })
+
+  it('joins multiple conflicts and blank names defensively', () => {
+    const msg = formatConflictMessage(
+      [
+        { personId: 'p1', workstationIds: ['ws-a1', 'ws-a2'] },
+        { personId: 'p2', workstationIds: ['ws-b1', 'ws-ghost'] },
+      ],
+      floors,
+      names,
+    )
+    expect(msg).toContain('张三（9层 · A区 · A-01、9层 · A区 · A-02）')
+    expect(msg).toContain('p2（10层 · B区 · B-01、ws-ghost）')
+    expect(msg).toContain('；')
   })
 })
