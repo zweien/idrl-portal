@@ -36,6 +36,7 @@ export async function syncMembers(progress?: SyncProgress): Promise<{
   updated: number
   linked: number
 }> {
+  resetDingtalkCallCount()
   progress?.stage('fetch')
   const members = await listDeptMembers()
   let created = 0
@@ -149,6 +150,7 @@ export async function syncAttendance(progress?: SyncProgress): Promise<{
   /** Per-stage wall time (ms) + DingTalk call count, for SyncLog stats. */
   timings?: { attendanceMs: number; leaveMs: number; tripMs: number; writeMs: number; dingtalkCalls: number }
 }> {
+  resetDingtalkCallCount()
   const token = await getEnterpriseAccessToken()
 
   // Find all persons synced from DingTalk (id starts with 'dt-')
@@ -326,9 +328,15 @@ export async function syncAttendance(progress?: SyncProgress): Promise<{
  * key used to leak into the log row, producing a confusing `stats.stats`.
  */
 export function flattenAttendanceStats(
-  result: { total: number; stats: { present: number; leave: number; trip: number; absent: number }; finalizedDays: number },
+  result: { total: number; stats: { present: number; leave: number; trip: number; absent: number }; finalizedDays: number; timings?: Record<string, unknown> },
 ): Record<string, unknown> {
-  return { total: result.total, finalizedDays: result.finalizedDays, ...result.stats }
+  return {
+    total: result.total,
+    finalizedDays: result.finalizedDays,
+    ...result.stats,
+    // Per-stage durations (ms) + dingtalkCalls — the sync-cost record.
+    ...(result.timings ?? {}),
+  }
 }
 
 /**
@@ -337,6 +345,7 @@ export function flattenAttendanceStats(
  * mark. Does NOT advance lastFinalizedDate (the regular flow owns that).
  */
 export async function backfillDay(day: string, progress?: SyncProgress): Promise<{ upserted: number }> {
+  resetDingtalkCallCount()
   const token = await getEnterpriseAccessToken()
   const dtPersons = await prisma.person.findMany({
     where: { id: { startsWith: 'dt-' } },

@@ -30,7 +30,7 @@ import { pruneAuditLogs, readKeepDays } from '@/lib/audit'
 export { CRON_PRESETS, CRON_DEFAULTS } from '@/lib/cron-presets'
 import { CRON_DEFAULTS } from '@/lib/cron-presets'
 import type { CronJob } from '@/lib/cron-presets'
-import { isSyncBusy, type SyncKind } from '@/lib/sync-task'
+import { isSyncBusy, runSyncTask, type SyncKind, type SyncProgress } from '@/lib/sync-task'
 export type { CronJob }
 
 interface JobDef {
@@ -229,6 +229,28 @@ export async function publishDueNews(): Promise<{ published: number }> {
   return { published }
 }
 
+/**
+ * Run a scheduled sync under the GLOBAL sync mutex (lib/sync-task), not just
+ * the per-job `running` set: without it a manual sync could start mid-run,
+ * and the default members/attendance crons fire at the same 06:00 minute,
+ * concurrently fanning DingTalk calls and racing SQLite writes. Busy → skip
+ * this tick (the cron repeats; the finalize watermark self-heals).
+ */
+async function runSchedulerSync<T>(
+  kind: SyncKind,
+  fn: (progress?: SyncProgress) => Promise<T>,
+): Promise<T | { skipped: true }> {
+  if (isSyncBusy()) return { skipped: true }
+  let full: T | null = null
+  const res = await runSyncTask(kind, async () => {
+    full = await fn()
+    return { summary: 'scheduler sync' }
+  }, { background: false })
+  // A manual task won the race in the tiny window between our two checks.
+  if (!res.ok || full === null) return { skipped: true }
+  return full
+}
+
 const JOB_DEFS: JobDef[] = [
   {
     job: 'sync-members',
@@ -236,7 +258,7 @@ const JOB_DEFS: JobDef[] = [
     enableKey: 'cron.enabled.members',
     defaultCron: CRON_DEFAULTS['sync-members'],
     busyKey: 'members' as SyncKind,
-    run: syncMembers,
+    run: () => runSchedulerSync('members', syncMembers),
   },
   {
     job: 'sync-attendance',
@@ -244,7 +266,7 @@ const JOB_DEFS: JobDef[] = [
     enableKey: 'cron.enabled.attendance',
     defaultCron: CRON_DEFAULTS['sync-attendance'],
     busyKey: 'attendance' as SyncKind,
-    run: syncAttendance,
+    run: () => runSchedulerSync('attendance', syncAttendance),
     // Persist flattened stats ({total, present, leave, trip, absent, finalizedDays})
     // instead of leaking the nested {stats:{...}} shape into the log row.
     flattenStats: (result) => flattenAttendanceStats(result as Awaited<ReturnType<typeof syncAttendance>>),
