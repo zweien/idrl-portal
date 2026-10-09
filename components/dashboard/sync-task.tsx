@@ -58,19 +58,25 @@ export function SyncTaskButton({
   url?: string
   disabled?: boolean
 }) {
-  const { data: statusResp, mutate: mutateStatus } = useSyncStatus()
-  const task = statusResp?.task ?? null
   const [starting, setStarting] = useState(false)
   const [myTaskId, setMyTaskId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [interrupted, setInterrupted] = useState(false)
   const doneFiredRef = useRef<string | null>(null)
+  // Poll OUR task id once started (survives newer tasks from other admins);
+  // before that, poll the latest so a same-kind running task is visible.
+  const { data: statusResp, mutate: mutateStatus } = useSyncStatus(myTaskId)
+  const task = statusResp?.task ?? null
 
   // "My" task = one this component started, OR a task already running when
   // the component mounted / when our POST got the 409 (myTaskId adopted from
   // the conflict payload) — those callers must see the stages/summary too.
-  const myTask =
-    task && (task.id === myTaskId || (task.state === 'running' && !myTaskId)) ? task : null
+  // The adopt-on-mount form is restricted to the SAME sync kind: on the admin
+  // page the member and attendance buttons share one status subscription, and
+  // an unrestricted predicate made the attendance button render the member
+  // sync's stages (then vanish at completion, terminal tasks not auto-adopted).
+  const adoptedRunning = task && task.state === 'running' && !myTaskId && task.kind === kind
+  const myTask = task && (task.id === myTaskId || adoptedRunning) ? task : null
   const anyRunning = starting || task?.state === 'running'
 
   const start = useCallback(async () => {

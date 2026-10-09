@@ -64,16 +64,23 @@ export const SYNC_STAGES: Record<SyncKind, Array<{ key: string; label: string }>
 }
 
 // The mutex: true from the moment a run starts until it finishes. Deliberately
-// separate from `current` — inline (machine) runs hold the mutex but never
-// register a task for polling (their callers block on the response).
+// separate from the task registry — inline (machine) runs hold the mutex but
+// never register a task for polling (their callers block on the response).
 let mutexHeld = false
-// The latest BACKGROUND task, kept after completion so the polling endpoint
-// can return the final state until the next task or process restart.
-let current: SyncTaskState | null = null
+// Background tasks by id, newest last. Keeping finished tasks (bounded) lets
+// a polling client keep reading ITS task even after another admin starts a
+// newer one — the alternative (latest-only) permanently orphans the previous
+// starter's completion summary and onDone revalidation.
+const tasks = new Map<string, SyncTaskState>()
+const MAX_RETAINED = 10
 let seq = 0
 
-export function getSyncTask(): SyncTaskState | null {
-  return current
+/** Latest task (registry order), or a specific one by id. */
+export function getSyncTask(id?: string): SyncTaskState | null {
+  if (id) return tasks.get(id) ?? null
+  let latest: SyncTaskState | null = null
+  for (const t of tasks.values()) latest = t
+  return latest
 }
 
 /** True while any sync task (manual or scheduler-joined) is mid-run. */
@@ -99,7 +106,12 @@ export async function runSyncTask(
   opts: { background: boolean },
 ): Promise<SyncTaskResult> {
   if (mutexHeld) {
-    return { ok: false, reason: 'already-running', task: (current ?? { kind } as SyncTaskState) }
+    const latest = getSyncTask()
+    return {
+      ok: false,
+      reason: 'already-running',
+      task: latest ?? { id: 'unknown', kind, state: 'running', stages: [], counter: null, error: null, startedAt: new Date().toISOString(), endedAt: null, result: null },
+    }
   }
   const task: SyncTaskState = {
     id: `sync-${Date.now()}-${++seq}`,
@@ -113,7 +125,14 @@ export async function runSyncTask(
     result: null,
   }
   mutexHeld = true
-  if (opts.background) current = task
+  if (opts.background) {
+    tasks.set(task.id, task)
+    while (tasks.size > MAX_RETAINED) {
+      const oldest = tasks.keys().next().value
+      if (oldest === undefined) break
+      tasks.delete(oldest)
+    }
+  }
 
   // Per-stage wall time via explicit stage-start stamps (recorded in SyncLog
   // stats by the task fn for cost analysis).

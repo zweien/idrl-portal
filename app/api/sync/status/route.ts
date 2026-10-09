@@ -11,8 +11,12 @@ import { getSyncTask } from '@/lib/sync-task'
  * process start; a client that started a task and then sees null knows the
  * process restarted mid-sync ("interrupted, please retry").
  */
-export async function GET() {
+export async function GET(req: Request) {
   const auth = await requireUser()
   if (auth instanceof NextResponse) return auth
-  return NextResponse.json({ task: getSyncTask() })
+  // ?id= reads a SPECIFIC task: a polling client keeps reading its own task
+  // even after another admin started a newer one (the default no-id form
+  // returns the latest).
+  const id = new URL(req.url).searchParams.get('id') ?? undefined
+  return NextResponse.json({ task: getSyncTask(id) })
 }

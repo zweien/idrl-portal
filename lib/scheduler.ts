@@ -258,9 +258,13 @@ async function runSchedulerSync<T>(
     full = await fn()
     return { summary: 'scheduler sync' }
   }, { background: false })
-  // A manual task won the race in the tiny window between our two checks —
-  // defer once more rather than drop (same reasoning as the wait loop).
-  if (!res.ok) return runSchedulerSync(kind, fn)
+  if (!res.ok) {
+    // only 'already-running' is a race worth deferring; 'failed' is a real
+    // sync error (DingTalk/DB down) — propagate it so runAndLog records the
+    // failure instead of looping retries for the rest of the outage.
+    if (res.reason === 'failed') throw new Error(res.task.error ?? 'sync failed')
+    return runSchedulerSync(kind, fn)
+  }
   if (full === null) return { skipped: true }
   return full
 }

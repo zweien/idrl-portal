@@ -187,10 +187,11 @@ export const fetchAll = async <T>(url: string): Promise<ApiResponse<PaginatedRes
   return { ...first, data: { ...d, items } }
 }
 
-/** Progress of the latest sync task; polls every 2s only while running. */
-export function useSyncStatus() {
+/** Progress of the latest sync task (or one specific task by id); polls every 2s while running. */
+export function useSyncStatus(taskId?: string | null) {
+  const key = taskId ? `/api/sync/status?id=${encodeURIComponent(taskId)}` : '/api/sync/status'
   return useSWR<{ task: SyncTaskState | null }>(
-    '/api/sync/status',
+    key,
     fetcher,
     {
       refreshInterval: (latest: { task: SyncTaskState | null } | undefined) =>
