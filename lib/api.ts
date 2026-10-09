@@ -6,6 +6,7 @@ import type {
   Feedback, FeedbackReply, FeedbackCategory, FeedbackStatus,
   ApiResponse, PaginatedResponse,
 } from '@/lib/types'
+import type { SyncTaskState, SyncKind } from '@/lib/sync-task'
 
 const fetcher = <T>(url: string): Promise<T> =>
   fetch(url).then(r => {
@@ -184,6 +185,20 @@ export const fetchAll = async <T>(url: string): Promise<ApiResponse<PaginatedRes
     }
   }
   return { ...first, data: { ...d, items } }
+}
+
+/** Progress of the latest sync task (or one specific task by id); polls every 2s while running. */
+export function useSyncStatus(taskId?: string | null) {
+  const key = taskId ? `/api/sync/status?id=${encodeURIComponent(taskId)}` : '/api/sync/status'
+  return useSWR<{ task: SyncTaskState | null }>(
+    key,
+    fetcher,
+    {
+      refreshInterval: (latest: { task: SyncTaskState | null } | undefined) =>
+        latest?.task?.state === 'running' ? 2000 : 0,
+      revalidateOnFocus: false,
+    },
+  )
 }
 
 export function usePersonnel(params?: Record<string, string | number>) {

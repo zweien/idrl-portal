@@ -15,6 +15,13 @@ import {
   SHANGHAI_TZ,
 } from '@/lib/attendance'
 export { dayBounds } from '@/lib/attendance'
+import { loadTripCache, persistTripInstance, type CachedTrip } from '@/lib/trip-cache'
+
+// Count of DingTalk API calls made this process since the last snapshot.
+// Sync callers snapshot before/after to record per-run cost in SyncLog stats.
+let dingtalkCalls = 0
+export function resetDingtalkCallCount(): void { dingtalkCalls = 0 }
+export function getDingtalkCallCount(): number { return dingtalkCalls }
 
 const TOKEN_URL = 'https://api.dingtalk.com/v1.0/oauth2/accessToken'
 const DEPT_LIST_URL = 'https://oapi.dingtalk.com/topapi/v2/department/listsub'
@@ -65,6 +72,7 @@ export async function getEnterpriseAccessToken(): Promise<string> {
     return cachedToken.token
   }
 
+  dingtalkCalls++
   const res = await fetch(TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -89,6 +97,7 @@ export async function getEnterpriseAccessToken(): Promise<string> {
  * List the direct sub-departments of a department (one level).
  */
 export async function listSubDepartments(accessToken: string, deptId: number): Promise<DingTalkDept[]> {
+  dingtalkCalls++
   const res = await fetch(`${DEPT_LIST_URL}?access_token=${accessToken}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -138,6 +147,7 @@ export async function listDepartmentUsers(accessToken: string, deptId: number): 
   const size = 100
   // eslint-disable-next-line no-constant-condition
   while (true) {
+    dingtalkCalls++
     const res = await fetch(`${USER_LIST_URL}?access_token=${accessToken}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -189,10 +199,26 @@ export async function listDepartmentUsers(accessToken: string, deptId: number): 
  * Recursively fetch all members under `rootDeptId` (the dept + all sub-depts).
  * Members appearing in multiple departments are de-duplicated by userid.
  */
+// Department-tree cache: the walk costs one listsub call per department
+// (~50 for the org) on every member sync, but the tree changes rarely.
+// 10-minute TTL keeps new-department visibility within one sync cycle.
+let deptIdsCache: { root: number; ids: number[]; at: number } | null = null
+const DEPT_TREE_TTL_MS = 10 * 60 * 1000
+
 export async function listDeptMembers(rootDeptId?: number): Promise<DingTalkMember[]> {
   const token = await getEnterpriseAccessToken()
   const targetRoot = rootDeptId ?? Number(process.env.DINGTALK_DEPT_ID ?? '340351089')
-  const allDeptIds = await collectAllDeptIds(token, targetRoot)
+  let allDeptIds: number[]
+  if (
+    deptIdsCache &&
+    deptIdsCache.root === targetRoot &&
+    Date.now() - deptIdsCache.at < DEPT_TREE_TTL_MS
+  ) {
+    allDeptIds = deptIdsCache.ids
+  } else {
+    allDeptIds = await collectAllDeptIds(token, targetRoot)
+    deptIdsCache = { root: targetRoot, ids: allDeptIds, at: Date.now() }
+  }
 
   const byUserid = new Map<string, DingTalkMember>()
   for (const deptId of allDeptIds) {
@@ -263,6 +289,7 @@ export async function fetchAttendance(
     let offset = 0
     // eslint-disable-next-line no-constant-condition
     while (true) {
+      dingtalkCalls++
       const res = await fetch(`${ATTENDANCE_LIST_URL}?access_token=${accessToken}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -341,6 +368,7 @@ export async function fetchLeaveStatus(
     let offset = 0
     // eslint-disable-next-line no-constant-condition
     while (true) {
+      dingtalkCalls++
       const res = await fetch(`${LEAVE_STATUS_URL}?access_token=${accessToken}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -408,6 +436,9 @@ interface TripCacheEntry {
   tripStart: number
   tripEnd: number
   reason?: string
+  // Originator userid, recorded on first fetch so a cached trip can be
+  // attributed to a person without re-fetching the detail.
+  originator?: string
   // Whether this instance was COMPLETED+agree with a parseable date range.
   // false ⇒ the instance exists but isn't a usable trip record (don't refetch
   // to re-parse; it won't change).
@@ -417,13 +448,6 @@ const tripDetailCache = new Map<string, TripCacheEntry>()
 // instanceId → originator userid (needed to attribute a trip to a person after
 // caching, since the cached window doesn't carry the userid).
 const tripOriginator = new Map<string, string>()
-
-/** Drop cache entries whose trip window has fully passed (can't be active). */
-function pruneTripCache(now: number) {
-  for (const [id, e] of tripDetailCache) {
-    if (e.parsed && e.tripEnd < now - 24 * 60 * 60 * 1000) tripDetailCache.delete(id)
-  }
-}
 
 /**
  * Fetch + parse a trip instance detail, using the cache when available.
@@ -440,6 +464,7 @@ async function getTripDetail(
     if (!cached.parsed) return null
     return { tripStart: cached.tripStart, tripEnd: cached.tripEnd, reason: cached.reason }
   }
+  dingtalkCalls++
   const detailRes = await fetch(`${PROCESS_DETAIL_URL}?access_token=${accessToken}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -470,15 +495,22 @@ async function getTripDetail(
   const parsed = parseTripWindow(inst.form_component_values ?? [])
   if (parsed.tripStart === null || parsed.tripEnd === null) {
     // Terminal (COMPLETED+agree) but unparseable dates → safe to cache as not-a-trip.
-    tripDetailCache.set(instanceId, { tripStart: 0, tripEnd: 0, parsed: false })
+    const entry: TripCacheEntry = { tripStart: 0, tripEnd: 0, parsed: false, originator: inst.originator_userid }
+    tripDetailCache.set(instanceId, entry)
+    persistTripInstance(instanceId, entry)
     return null
   }
-  tripDetailCache.set(instanceId, {
+  const entry: TripCacheEntry = {
     tripStart: parsed.tripStart,
     tripEnd: parsed.tripEnd,
     reason: parsed.reason,
     parsed: true,
-  })
+    originator: inst.originator_userid,
+  }
+  tripDetailCache.set(instanceId, entry)
+  // Content of a COMPLETED+agree instance never changes — persist so restarts
+  // skip the re-fetch (fire-and-forget; a failed write only costs one get).
+  persistTripInstance(instanceId, entry)
   return { tripStart: parsed.tripStart, tripEnd: parsed.tripEnd, reason: parsed.reason }
 }
 
@@ -609,13 +641,14 @@ export function parseTripWindow(formValues: unknown[]): { tripStart: number | nu
  * trip (a trip spanning Mon–Wed marks all three days). The reason is the most
  * recently-seen active trip's reason, used for today's Person.avatar display.
  *
- * Cost optimization vs. the previous per-userid loop:
- *  - `listids` is called ONCE per processCode (without userid) instead of
- *    once per user (90 users → 1 call). DingTalk's listids returns all
- *    in-scope instances for a process code; we filter by originator_userid
- *    against the synced set afterward.
- *  - Each instance's detail is fetched once and CACHED (a COMPLETED trip's
- *    date range doesn't change), so steady-state syncs skip the `get` calls.
+ * API-cost shape:
+ *  - Phase 1 lists instances ONCE per process code (no userid_list filter);
+ *    the originator recorded on each cache entry filters against the synced
+ *    set locally, replacing the old 10-user-batch listing (~30 calls → ~6).
+ *  - Phase 2 fetches details only for instances missing from the cache; the
+ *    cache is memory-backed AND persisted in SQLite (lib/trip-cache.ts), so
+ *    steady-state syncs fetch ~0 details. `onDetailProgress` reports
+ *    (done, total) over the uncached set for sync-task progress display.
  *
  * The listids query window is fixed at [now-30d, now] (trips don't matter
  * past 30 days for our finalize-3-day window), but the per-day attribution
@@ -631,6 +664,7 @@ export async function fetchTripStatus(
   accessToken: string,
   userids: string[],
   queryDays: string[],
+  onDetailProgress?: (done: number, total: number) => void,
 ): Promise<Map<string, TripStatus>> {
   const result = new Map<string, TripStatus>()
   if (userids.length === 0 || queryDays.length === 0) return result
@@ -641,85 +675,99 @@ export async function fetchTripStatus(
   if (processCodes.length === 0) return result
 
   const useridSet = new Set(userids)
-  const now = Date.now()
-  pruneTripCache(now)
+  // Hydrate the in-memory cache from SQLite once per process, so a restart
+  // doesn't re-fetch every cached instance detail. NOTE: no pruning — the
+  // 30-day listids window still returns pruned ids, and the once-per-process
+  // hydration would never re-load them from SQLite, so every sync would
+  // re-fetch and re-persist them. Cache size is bounded by the listing
+  // window anyway (a few hundred instances).
 
-  const endTime = now
+  await loadTripCache(tripDetailCache as unknown as Map<string, CachedTrip>)
+
+  const endTime = Date.now()
   const startTime = endTime - 30 * 24 * 60 * 60 * 1000
 
   // Pre-compute day bounds for each queried day.
   const dayBoundsList = queryDays.map(d => ({ day: d, ...dayBounds(d) }))
 
-  // listids accepts userid_list (comma-separated, batch) and paginates with
-  // cursor + size (size max 20). userid_list has a small cap (40032 above ~10),
-  // so batch conservatively. Cuts listids calls from N-users to N/batch
-  // (was 90 calls for 90 users → 9 batches of 10).
-  const USER_BATCH = 10
+  // ---- Phase 1: list instances per process code, NO userid_list ----
+  // The originator is recorded per instance (cache entry / tripOriginator on
+  // first fetch) and filtered against the synced set locally.
+  const allIds: string[] = []
   for (const processCode of processCodes) {
-    for (let i = 0; i < userids.length; i += USER_BATCH) {
-      const batch = userids.slice(i, i + USER_BATCH).join(',')
-      let cursor = 0
-      let hasMore = true
-      // eslint-disable-next-line no-constant-condition
-      while (hasMore) {
-        const listRes = await fetch(`${PROCESS_INSTANCE_URL}?access_token=${accessToken}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            process_code: processCode,
-            start_time: startTime,
-            end_time: endTime,
-            userid_list: batch,
-            cursor,
-            size: 20,
-          }),
-          cache: 'no-store',
-        })
-        if (!listRes.ok) throw new Error(`processinstance/listids HTTP ${listRes.status} for ${processCode}`)
-        const listData = (await listRes.json()) as {
-          errcode?: number
-          errmsg?: string
-          result?: { list?: string[]; next_cursor?: number }
-        }
-        if (listData.errcode) throw new Error(`processinstance/listids error ${listData.errcode}: ${listData.errmsg}`)
-        const instanceIds = listData.result?.list ?? []
+    let cursor = 0
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      dingtalkCalls++
+      const listRes = await fetch(`${PROCESS_INSTANCE_URL}?access_token=${accessToken}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          process_code: processCode,
+          start_time: startTime,
+          end_time: endTime,
+          cursor,
+          size: 20,
+        }),
+        cache: 'no-store',
+      })
+      if (!listRes.ok) throw new Error(`processinstance/listids HTTP ${listRes.status} for ${processCode}`)
+      const listData = (await listRes.json()) as {
+        errcode?: number
+        errmsg?: string
+        result?: { list?: string[]; next_cursor?: number }
+      }
+      if (listData.errcode) throw new Error(`processinstance/listids error ${listData.errcode}: ${listData.errmsg}`)
+      allIds.push(...(listData.result?.list ?? []))
+      const next = listData.result?.next_cursor
+      if (next === undefined || next === null || next === 0) break
+      cursor = next
+    }
+  }
 
-        for (const instanceId of instanceIds) {
-          const detail = await getTripDetail(accessToken, instanceId)
-          if (!detail) continue
-          // Attribute the trip to its originator (recorded in the cache on
-          // first fetch); only keep synced users.
-          const owner = tripOriginator.get(instanceId)
-          if (!owner || !useridSet.has(owner)) continue
-          // For each queried day, mark it if it falls inside [tripStart, tripEnd].
-          let entry = result.get(owner)
-          if (!entry) {
-            entry = { days: new Set() }
-            result.set(owner, entry)
-          }
-          let markedAny = false
-          for (const db of dayBoundsList) {
-            if (db.startMs <= detail.tripEnd && db.endMs >= detail.tripStart) {
-              entry.days.add(db.day)
-              markedAny = true
-            }
-          }
-          // Keep the reason of the most recently active trip (later iterations
-          // overwrite; fine since a person rarely has 2 concurrent trips).
-          if (markedAny) entry.reason = detail.reason
-        }
-
-        const next = listData.result?.next_cursor
-        if (next === undefined || next === null || next === 0) {
-          hasMore = false
-        } else {
-          cursor = next
-        }
+  // ---- Phase 2: fetch details only for uncached instances, with progress ----
+  const uncachedCount = allIds.filter(id => !tripDetailCache.has(id)).length
+  let fetched = 0
+  if (uncachedCount > 0 && onDetailProgress) onDetailProgress(0, uncachedCount)
+  for (const instanceId of allIds) {
+    const wasCached = tripDetailCache.has(instanceId)
+    const detail = await getTripDetail(accessToken, instanceId)
+    if (!wasCached) {
+      fetched++
+      if (onDetailProgress) onDetailProgress(fetched, uncachedCount)
+    }
+    if (!detail) continue
+    // Attribute the trip to its originator (on the cache entry after a fresh
+    // fetch; tripOriginator for entries predating the originator field); only
+    // keep synced users. An instance from OUTSIDE the synced set (the
+    // approval template's visibility can be broader than DINGTALK_DEPT_ID)
+    // gets one detail fetch to learn its originator, then is dropped from
+    // memory AND never persisted — unrelated org data must not accumulate.
+    const owner = tripDetailCache.get(instanceId)?.originator ?? tripOriginator.get(instanceId)
+    if (!owner || !useridSet.has(owner)) {
+      tripDetailCache.delete(instanceId)
+      continue
+    }
+    // For each queried day, mark it if it falls inside [tripStart, tripEnd].
+    let entry = result.get(owner)
+    if (!entry) {
+      entry = { days: new Set() }
+      result.set(owner, entry)
+    }
+    let markedAny = false
+    for (const db of dayBoundsList) {
+      if (db.startMs <= detail.tripEnd && db.endMs >= detail.tripStart) {
+        entry.days.add(db.day)
+        markedAny = true
       }
     }
+    // Keep the reason of the most recently active trip (later iterations
+    // overwrite; fine since a person rarely has 2 concurrent trips).
+    if (markedAny) entry.reason = detail.reason
   }
   return result
 }
+
 
 /**
  * Map attendance data for a single day to Person.status using the priority:

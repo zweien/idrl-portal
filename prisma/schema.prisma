@@ -247,3 +247,17 @@ model FeedbackReply {
 
   @@index([feedbackId, createdAt])
 }
+
+// Persistent cache of parsed DingTalk approval instances (COMPLETED+agree
+// only — their content never changes, so rows are immutable upserts with no
+// TTL). `parsed=false` rows are the "terminal but not a trip" sentinel: they
+// skip the detail fetch forever, same as the in-memory cache they mirror.
+model TripInstanceCache {
+  instanceId       String   @id
+  originatorUserid String?
+  tripStart        BigInt? // ms epoch — BigInt: Int is 32-bit, epoch ms overflows
+  tripEnd          BigInt? // ms epoch
+  reason           String?
+  parsed           Boolean
+  fetchedAt        DateTime @default(now())
+}

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { FloorPlan } from '@/components/dashboard/floor-plan'
+import { SyncTaskButton } from '@/components/dashboard/sync-task'
 import { FloorTabs } from '@/components/dashboard/floor-tabs'
 import { SyncTimeBadge, useInvalidateSyncedAt } from '@/components/dashboard/sync-time'
 import { usePersonnel, useFloorLayout } from '@/lib/api'
@@ -13,7 +14,7 @@ import type { Person, NewWorkstation } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
-import { Search, MapPin, Mail, User, Settings, Clock, Plane, RefreshCw } from 'lucide-react'
+import { Search, MapPin, Mail, User, Settings, Clock, Plane } from 'lucide-react'
 import { statusBg } from '@/lib/floor-constants'
 
 const statusFilters = ['present', 'trip', 'leave', 'absent'] as const
@@ -37,32 +38,6 @@ export default function PersonnelPage() {
   const [selectedPerson, setSelectedPerson]     = useState<Person | null>(null)
   const [selectedWs, setSelectedWs]             = useState<NewWorkstation | null>(null)
   const [activeFloorId, setActiveFloorId]       = useState('')
-  const [syncingAtt, setSyncingAtt]             = useState(false)
-  const [attResult, setAttResult]               = useState<string | null>(null)
-
-  // Admin: trigger a DingTalk attendance sync, then revalidate personnel so
-  // statuses (present/leave/trip/absent) refresh on screen.
-  async function handleSyncAttendance() {
-    if (syncingAtt) return
-    setSyncingAtt(true)
-    setAttResult(null)
-    try {
-      const r = await fetch('/api/dingtalk/sync-attendance', { method: 'POST' })
-      const data = await r.json()
-      if (!r.ok) throw new Error(data.error || `考勤同步失败 (${r.status})`)
-      const s = data.stats
-      setAttResult(`考勤同步完成：在位 ${s.present}，出差 ${s.trip}，请假 ${s.leave}，未到 ${s.absent}（共 ${data.total} 人）`)
-      // Revalidate personnel SWR so cards/status update immediately, and the
-      // sync-freshness badge so "x 分钟前" reflects this run.
-      await mutatePersonnel()
-      invalidateSyncedAt()
-    } catch (e) {
-      setAttResult(e instanceof Error ? e.message : '考勤同步失败')
-    } finally {
-      setSyncingAtt(false)
-    }
-  }
-
   useEffect(() => {
     if (!activeFloorId && floors.length > 0) setActiveFloorId(floors[0].id)
   }, [floors, activeFloorId])
@@ -161,16 +136,18 @@ export default function PersonnelPage() {
         ))}
         {user?.role === 'admin' && (
           <>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 text-xs gap-1.5 ml-auto"
-              onClick={handleSyncAttendance}
-              disabled={syncingAtt}
-            >
-              <RefreshCw className={cn('h-3.5 w-3.5', syncingAtt && 'animate-spin')} />
-              {syncingAtt ? '考勤同步中…' : '同步考勤'}
-            </Button>
+            <SyncTaskButton
+              kind="attendance"
+              label="同步考勤"
+              runningLabel="考勤同步中…"
+              className="ml-auto"
+              onDone={() => {
+                // Revalidate personnel SWR so cards/status update immediately,
+                // and the sync-freshness badge so "x 分钟前" reflects this run.
+                void mutatePersonnel()
+                invalidateSyncedAt()
+              }}
+            />
             <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" asChild>
               <Link href="/dashboard/admin/floor-layout">
                 <Settings className="h-3.5 w-3.5" />
@@ -180,17 +157,6 @@ export default function PersonnelPage() {
           </>
         )}
       </div>
-      {attResult && (
-        <div className={cn(
-          'rounded-md border px-3 py-2 text-xs',
-          attResult.startsWith('考勤同步完成')
-            ? 'border-[var(--status-present)]/30 bg-[var(--status-present)]/5 text-[var(--status-present)]'
-            : 'border-destructive/30 bg-destructive/5 text-destructive',
-        )}>
-          {attResult}
-        </div>
-      )}
-
       <div className="grid lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 rounded-lg border border-border bg-card">
           <div className="flex items-center gap-3 px-4 py-3 border-b border-border">

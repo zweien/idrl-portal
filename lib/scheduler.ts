@@ -30,9 +30,13 @@ import { pruneAuditLogs, readKeepDays } from '@/lib/audit'
 export { CRON_PRESETS, CRON_DEFAULTS } from '@/lib/cron-presets'
 import { CRON_DEFAULTS } from '@/lib/cron-presets'
 import type { CronJob } from '@/lib/cron-presets'
+import { isSyncBusy, runSyncTask, type SyncKind, type SyncProgress } from '@/lib/sync-task'
 export type { CronJob }
 
 interface JobDef {
+  /** When set, the tick is skipped silently while a sync task (manual or
+   * scheduler) is running — joins the global sync mutex in lib/sync-task. */
+  busyKey?: import('@/lib/sync-task').SyncKind
   job: CronJob
   settingKey: string      // cron expression setting
   enableKey: string       // enable toggle setting
@@ -225,20 +229,62 @@ export async function publishDueNews(): Promise<{ published: number }> {
   return { published }
 }
 
+/**
+ * Run a scheduled sync under the GLOBAL sync mutex (lib/sync-task), not just
+ * the per-job `running` set: without it a manual sync could start mid-run,
+ * and the default members/attendance crons fire at the same 06:00 minute,
+ * concurrently fanning DingTalk calls and racing SQLite writes.
+ *
+ * Busy → WAIT (bounded) instead of dropping the tick: the cron already
+ * matched this minute, and dropping it on a sparse schedule (the daily-06:00
+ * preset) would lose that job's only run of the day — sync jobs have no boot
+ * catch-up. Polling the mutex keeps the matched run queued behind a manual
+ * sync; give up (logged) only if the mutex stays held for the full budget.
+ */
+async function runSchedulerSync<T>(
+  kind: SyncKind,
+  fn: (progress?: SyncProgress) => Promise<T>,
+): Promise<T | { skipped: true }> {
+  const WAIT_MS = 30_000
+  const MAX_WAIT_MS = 10 * 60 * 1000
+  let waited = 0
+  while (isSyncBusy()) {
+    if (waited >= MAX_WAIT_MS) return { skipped: true }
+    await new Promise(r => setTimeout(r, WAIT_MS))
+    waited += WAIT_MS
+  }
+  let full: T | null = null
+  const res = await runSyncTask(kind, async () => {
+    full = await fn()
+    return { summary: 'scheduler sync' }
+  }, { background: false })
+  if (!res.ok) {
+    // only 'already-running' is a race worth deferring; 'failed' is a real
+    // sync error (DingTalk/DB down) — propagate it so runAndLog records the
+    // failure instead of looping retries for the rest of the outage.
+    if (res.reason === 'failed') throw new Error(res.task.error ?? 'sync failed')
+    return runSchedulerSync(kind, fn)
+  }
+  if (full === null) return { skipped: true }
+  return full
+}
+
 const JOB_DEFS: JobDef[] = [
   {
     job: 'sync-members',
     settingKey: 'cron.members',
     enableKey: 'cron.enabled.members',
     defaultCron: CRON_DEFAULTS['sync-members'],
-    run: syncMembers,
+    busyKey: 'members' as SyncKind,
+    run: () => runSchedulerSync('members', syncMembers),
   },
   {
     job: 'sync-attendance',
     settingKey: 'cron.attendance',
     enableKey: 'cron.enabled.attendance',
     defaultCron: CRON_DEFAULTS['sync-attendance'],
-    run: syncAttendance,
+    busyKey: 'attendance' as SyncKind,
+    run: () => runSchedulerSync('attendance', syncAttendance),
     // Persist flattened stats ({total, present, leave, trip, absent, finalizedDays})
     // instead of leaking the nested {stats:{...}} shape into the log row.
     flattenStats: (result) => flattenAttendanceStats(result as Awaited<ReturnType<typeof syncAttendance>>),

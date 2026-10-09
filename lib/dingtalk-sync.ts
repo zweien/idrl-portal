@@ -8,6 +8,8 @@ import {
   mapStatusForDay,
 } from '@/lib/dingtalk-admin'
 import { todayDateStr, shiftDate, dateRangeDays } from '@/lib/attendance'
+import { resetDingtalkCallCount, getDingtalkCallCount } from '@/lib/dingtalk-admin'
+import type { SyncProgress } from '@/lib/sync-task'
 
 /** Setting key for the last finalized day ("yyyy-MM-dd"). Days up to and
  * including this value are considered stable and won't be re-finalized. */
@@ -28,12 +30,14 @@ async function readLastFinalized(): Promise<string> {
  * both the HTTP route and the background scheduler can call it. Returns
  * aggregate stats; callers decide where to persist a SyncLog entry.
  */
-export async function syncMembers(): Promise<{
+export async function syncMembers(progress?: SyncProgress): Promise<{
   total: number
   created: number
   updated: number
   linked: number
 }> {
+  resetDingtalkCallCount()
+  progress?.stage('fetch')
   const members = await listDeptMembers()
   let created = 0
   let updated = 0
@@ -44,6 +48,7 @@ export async function syncMembers(): Promise<{
   // the partial member set instead of leaving half-linked rows. The network
   // call (listDeptMembers) is already done above, so the tx body is DB-only.
   // Counters are declared outside and mutated inside the tx callback.
+  progress?.stage('write')
   await prisma.$transaction(async (tx) => {
     for (const m of members) {
       if (!m.unionid) continue
@@ -137,12 +142,15 @@ export async function syncMembers(): Promise<{
  * scheduler can call it. Returns aggregate stats (today's live state) for the
  * caller's SyncLog entry.
  */
-export async function syncAttendance(): Promise<{
+export async function syncAttendance(progress?: SyncProgress): Promise<{
   total: number
   stats: { present: number; leave: number; trip: number; absent: number }
   finalizedDays: number
   message?: string
+  /** Per-stage wall time (ms) + DingTalk call count, for SyncLog stats. */
+  timings?: { attendanceMs: number; leaveMs: number; tripMs: number; writeMs: number; dingtalkCalls: number }
 }> {
+  resetDingtalkCallCount()
   const token = await getEnterpriseAccessToken()
 
   // Find all persons synced from DingTalk (id starts with 'dt-')
@@ -193,11 +201,25 @@ export async function syncAttendance(): Promise<{
   // anything older than windowStart wasn't pulled this run and must wait.
   const daysToFinalize = allMissedDays.filter(d => d >= windowStart)
 
-  const [attByDay, leaveByDay, tripByDay] = await Promise.all([
-    fetchAttendance(token, userids, windowStart, today),
-    fetchLeaveStatus(token, userids, windowStart, today),
-    fetchTripStatus(token, userids, queryDays),
-  ])
+  // Fetches run sequentially (not Promise.all) so the sync-task progress can
+  // report each stage honestly; the serialization costs ~1-2s against an
+  // 80s-plus run dominated by the trip-detail stage.
+  progress?.stage('attendance')
+  const tAtt = Date.now()
+  const attByDay = await fetchAttendance(token, userids, windowStart, today)
+  const attMs = Date.now() - tAtt
+
+  progress?.stage('leave')
+  const tLeave = Date.now()
+  const leaveByDay = await fetchLeaveStatus(token, userids, windowStart, today)
+  const leaveMs = Date.now() - tLeave
+
+  progress?.stage('trip')
+  const tTrip = Date.now()
+  const tripByDay = await fetchTripStatus(token, userids, queryDays, (done, total) =>
+    progress?.counter('拉取出差审批详情', done, total),
+  )
+  const tripMs = Date.now() - tTrip
 
   // All DB writes (history finalize + today's live state + watermark advance)
   // run inside one transaction. This keeps the watermark advance atomic with
@@ -205,6 +227,8 @@ export async function syncAttendance(): Promise<{
   // isn't advanced, so the next sync retries the whole window. Network calls
   // are done above; the tx body is DB-only.
   const stats = { present: 0, leave: 0, trip: 0, absent: 0 }
+  progress?.stage('write')
+  const tWrite = Date.now()
   await prisma.$transaction(async (tx) => {
     // 1. Finalize history: upsert one AttendanceRecord per (person, day).
     for (const day of daysToFinalize) {
@@ -283,7 +307,18 @@ export async function syncAttendance(): Promise<{
     })
   })
 
-  return { total: userids.length, stats, finalizedDays: daysToFinalize.length }
+  return {
+    total: userids.length,
+    stats,
+    finalizedDays: daysToFinalize.length,
+    timings: {
+      attendanceMs: attMs,
+      leaveMs: leaveMs,
+      tripMs: tripMs,
+      writeMs: Date.now() - tWrite,
+      dingtalkCalls: getDingtalkCallCount(),
+    },
+  }
 }
 
 /**
@@ -293,9 +328,15 @@ export async function syncAttendance(): Promise<{
  * key used to leak into the log row, producing a confusing `stats.stats`.
  */
 export function flattenAttendanceStats(
-  result: { total: number; stats: { present: number; leave: number; trip: number; absent: number }; finalizedDays: number },
+  result: { total: number; stats: { present: number; leave: number; trip: number; absent: number }; finalizedDays: number; timings?: Record<string, unknown> },
 ): Record<string, unknown> {
-  return { total: result.total, finalizedDays: result.finalizedDays, ...result.stats }
+  return {
+    total: result.total,
+    finalizedDays: result.finalizedDays,
+    ...result.stats,
+    // Per-stage durations (ms) + dingtalkCalls — the sync-cost record.
+    ...(result.timings ?? {}),
+  }
 }
 
 /**
@@ -303,7 +344,8 @@ export function flattenAttendanceStats(
  * DingTalk and upserts its AttendanceRecord regardless of the finalize water
  * mark. Does NOT advance lastFinalizedDate (the regular flow owns that).
  */
-export async function backfillDay(day: string): Promise<{ upserted: number }> {
+export async function backfillDay(day: string, progress?: SyncProgress): Promise<{ upserted: number }> {
+  resetDingtalkCallCount()
   const token = await getEnterpriseAccessToken()
   const dtPersons = await prisma.person.findMany({
     where: { id: { startsWith: 'dt-' } },
@@ -317,13 +359,15 @@ export async function backfillDay(day: string): Promise<{ upserted: number }> {
   const userids = [...useridToPersonId.keys()]
   if (userids.length === 0) return { upserted: 0 }
 
-  const [attByDay, leaveByDay, tripByDay] = await Promise.all([
-    fetchAttendance(token, userids, day, day),
-    fetchLeaveStatus(token, userids, day, day),
-    fetchTripStatus(token, userids, [day]),
-  ])
+  progress?.stage('fetch')
+  const attByDay = await fetchAttendance(token, userids, day, day)
+  const leaveByDay = await fetchLeaveStatus(token, userids, day, day)
+  const tripByDay = await fetchTripStatus(token, userids, [day], (done, total) =>
+    progress?.counter('拉取出差审批详情', done, total),
+  )
 
   let upserted = 0
+  progress?.stage('write')
   // One transaction for the whole day's upserts: a mid-loop failure rolls
   // back the partial day so a retry re-pulls cleanly. Network calls are done.
   await prisma.$transaction(async (tx) => {

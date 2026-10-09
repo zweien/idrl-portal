@@ -77,6 +77,8 @@ vi.mock('@/lib/dingtalk-admin', () => ({
   fetchLeaveStatus: vi.fn(async () => new Map()),
   fetchTripStatus: vi.fn(async () => new Map()),
   mapStatusForDay: vi.fn(() => ({ status: 'absent' as const, onDuty: null, offDuty: null })),
+  getDingtalkCallCount: vi.fn(() => 0),
+  resetDingtalkCallCount: vi.fn(),
 }))
 
 const { syncMembers, syncAttendance, backfillDay } = await import('@/lib/dingtalk-sync')

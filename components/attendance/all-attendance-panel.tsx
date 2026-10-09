@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { PersonPicker } from '@/components/admin/person-picker'
+import { SyncTaskButton } from '@/components/dashboard/sync-task'
 import { ExportButtons } from '@/components/attendance/export-buttons'
 import { TripHoursSetting } from '@/components/attendance/trip-hours-setting'
 import { formatWorkHours } from '@/lib/attendance'
@@ -25,8 +26,6 @@ export function AllAttendancePanel() {
   const personnel = personnelResp?.data?.items ?? []
   const [selectedId, setSelectedId] = useState<string>('')
   const [backfillDate, setBackfillDate] = useState('')
-  const [backfilling, setBackfilling] = useState(false)
-  const [backfillResult, setBackfillResult] = useState<string | null>(null)
 
   const sortedPersonnel = useMemo(
     () => [...personnel].sort((a, b) => a.name.localeCompare(b.name, 'zh-CN')),
@@ -34,26 +33,10 @@ export function AllAttendancePanel() {
   )
 
   const effectiveId = selectedId || sortedPersonnel[0]?.id || ''
-  const { data, isLoading } = useAttendanceRecords(
+  const { data, isLoading, mutate } = useAttendanceRecords(
     effectiveId ? { personId: effectiveId, pageSize: 60 } : null,
   )
   const page = data?.data
-
-  async function handleBackfill() {
-    if (!backfillDate || backfilling) return
-    setBackfilling(true)
-    setBackfillResult(null)
-    try {
-      const r = await fetch(`/api/attendance/backfill?date=${backfillDate}`, { method: 'POST' })
-      const data = await r.json()
-      if (!r.ok) throw new Error(data.error || `补拉失败 (${r.status})`)
-      setBackfillResult(`已补拉 ${backfillDate}：${data.data?.upserted ?? 0} 人`)
-    } catch (e) {
-      setBackfillResult(e instanceof Error ? e.message : '补拉失败')
-    } finally {
-      setBackfilling(false)
-    }
-  }
 
   return (
     <div className="space-y-4">
@@ -89,18 +72,16 @@ export function AllAttendancePanel() {
               className="h-8 w-40 text-sm"
             />
           </div>
-          <Button size="sm" className="h-8 gap-1.5" onClick={handleBackfill} disabled={!backfillDate || backfilling}>
-            <RefreshCw className={cn('h-3.5 w-3.5', backfilling && 'animate-spin')} />
-            {backfilling ? '补拉中…' : '补拉'}
-          </Button>
-          {backfillResult && (
-            <span className={cn(
-              'text-xs',
-              backfillResult.startsWith('已补拉') ? 'text-[var(--status-present)]' : 'text-destructive',
-            )}>
-              {backfillResult}
-            </span>
-          )}
+          <SyncTaskButton
+            kind="backfill"
+            label="补拉"
+            url={backfillDate ? `/api/attendance/backfill?date=${backfillDate}` : undefined}
+            disabled={!backfillDate}
+            onDone={() => {
+              // A backfill rewrites AttendanceRecord rows for that day.
+              void mutate()
+            }}
+          />
         </CardContent>
       </Card>
 
