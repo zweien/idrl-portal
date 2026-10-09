@@ -77,8 +77,7 @@ export function makeIdGen(
  * (Defense in depth: the editor's makeIdGen avoids collisions with saved
  * ids, but a stale multi-tab editor could still send them — the upsert loop
  * would silently collapse duplicates, so fail loud here instead.)
- */
-export function findDuplicateIds(
+ */export function findDuplicateIds(
   floors: Array<{ id: string; zones: Array<{ id: string; workstations: Array<{ id: string }> }> }>,
 ): string | null {
   const seenFloors = new Set<string>()
@@ -135,4 +134,37 @@ export function resolvePersonId(
     return db.personId
   }
   return null
+}
+
+/**
+ * Human-readable message for one-person-one-workstation conflicts. The API
+ * returns a bare "以下人员同时分配到多个工位" without names otherwise — the
+ * admin can't tell WHO to fix. Labels each conflicting person with their name
+ * (resolved by the caller from the DB; falls back to the raw id) and the
+ * floor/zone/workstation names of every offending workstation, taken from the
+ * payload being saved.
+ */
+export function formatConflictMessage(
+  conflicts: Array<{ personId: string; workstationIds: string[] }>,
+  floors: Array<{ id: string; name: string; zones: Array<{ id: string; name: string; workstations: Array<{ id: string; name: string }> }> }>,
+  personNames: Map<string, string>,
+): string {
+  const floorNameById = new Map(floors.map(f => [f.id, f.name] as const))
+  const wsById = new Map(
+    floors.flatMap(f => f.zones.flatMap(z => z.workstations.map(w => [w.id, { w, z, f }] as const))),
+  )
+  const parts = conflicts.map(({ personId, workstationIds }) => {
+    // A whitespace-only name (personnel writes don't trim) would render a
+    // blank label — trim and fall back to the raw id when empty.
+    const name = personNames.get(personId)?.trim() || personId
+    const locs = workstationIds.map(id => {
+      const hit = wsById.get(id)
+      if (!hit) return id
+      const { w, z, f } = hit
+      // 9层 / A区 / A-03 — skip empty segments defensively
+      return [floorNameById.get(f.id) ?? f.name, z.name, w.name].filter(s => s && s.trim()).join(' · ')
+    })
+    return `${name}（${locs.join('、')}）`
+  })
+  return `一人一工位冲突：${parts.join('；')}`
 }

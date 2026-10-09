@@ -3,7 +3,7 @@ import { safeErrorResponse } from '@/lib/safe-error'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { toFloor, fromZone, fromWorkstation } from '@/lib/db/serialize'
-import { resolvePersonId, findDuplicateIds } from '@/lib/floor-layout'
+import { resolvePersonId, findDuplicateIds, formatConflictMessage } from '@/lib/floor-layout'
 import { requireUser, requireAdmin } from '@/lib/auth-api'
 import { logAction, actorFromAuth } from '@/lib/audit'
 import type { Zone, NewWorkstation } from '@/lib/types'
@@ -103,9 +103,22 @@ export async function PUT(req: NextRequest) {
     }
     const conflicts = [...personToWs.entries()].filter(([, wsIds]) => wsIds.length > 1)
     if (conflicts.length > 0) {
+      // Resolve the conflicting persons' names so the error names WHO to fix
+      // (the bare "以下人员…" message left the admin guessing).
+      const personNames = new Map<string, string>()
+      const persons = await prisma.person.findMany({
+        where: { id: { in: conflicts.map(([pid]) => pid) } },
+        select: { id: true, name: true },
+      })
+      for (const p of persons) personNames.set(p.id, p.name)
+      const message = formatConflictMessage(
+        conflicts.map(([pid, wsIds]) => ({ personId: pid, workstationIds: wsIds })),
+        body.floors,
+        personNames,
+      )
       return NextResponse.json(
         {
-          error: '一人一工位：以下人员同时分配到多个工位',
+          error: message,
           conflicts: conflicts.map(([pid, wsIds]) => ({ personId: pid, workstationIds: wsIds })),
         },
         { status: 400 },
