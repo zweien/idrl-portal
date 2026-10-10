@@ -5,6 +5,12 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v0.9.0] - 2026-10-10
+
+### 新增
+
+- feat(admin): 信息管理页人员列表同步停用状态（徽章 + 恢复登录） (#93)
+
 ## [v0.8.0] - 2026-10-10
 
 ### 新增
