@@ -218,6 +218,8 @@ export async function syncAttendance(progress?: SyncProgress): Promise<{
   message?: string
   /** Per-stage wall time (ms) + DingTalk call count, for SyncLog stats. */
   timings?: { attendanceMs: number; leaveMs: number; tripMs: number; writeMs: number; dingtalkCalls: number }
+  /** People offboarded while the fetches were in flight — skipped at write time. */
+  lateOffboarded?: number
 }> {
   resetDingtalkCallCount()
   const token = await getEnterpriseAccessToken()
@@ -298,6 +300,9 @@ export async function syncAttendance(progress?: SyncProgress): Promise<{
   // isn't advanced, so the next sync retries the whole window. Network calls
   // are done above; the tx body is DB-only.
   const stats = { present: 0, leave: 0, trip: 0, absent: 0 }
+  // People offboarded while the fetches above were in flight — skipped at
+  // write time and excluded from the reported total.
+  let lateOffboarded = 0
   progress?.stage('write')
   const tWrite = Date.now()
   await prisma.$transaction(async (tx) => {
@@ -340,7 +345,7 @@ export async function syncAttendance(progress?: SyncProgress): Promise<{
     // overwrite the same row; tomorrow's finalize of "yesterday" re-pulls this
     // day in the 3-day window and upserts again, correcting any late punches.
     for (const [userid, personId] of useridToPersonId) {
-      if (!activeIds.has(personId)) continue
+      if (!activeIds.has(personId)) { lateOffboarded++; continue }
       const { status, onDuty, offDuty } = mapStatusForDay(userid, today, tripByDay, leaveByDay, attByDay)
       stats[status]++
       const tripReason = tripByDay.get(userid)?.reason
@@ -390,7 +395,9 @@ export async function syncAttendance(progress?: SyncProgress): Promise<{
   })
 
   return {
-    total: userids.length,
+    // Exclude people offboarded mid-flight: stats counters skipped them, so
+    // total must equal the four status counts for the summary to add up.
+    total: userids.length - lateOffboarded,
     stats,
     finalizedDays: daysToFinalize.length,
     timings: {
@@ -400,6 +407,7 @@ export async function syncAttendance(progress?: SyncProgress): Promise<{
       writeMs: Date.now() - tWrite,
       dingtalkCalls: getDingtalkCallCount(),
     },
+    lateOffboarded,
   }
 }
 
