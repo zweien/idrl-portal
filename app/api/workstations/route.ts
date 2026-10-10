@@ -13,6 +13,8 @@ import { requireUserOrScopeAny } from '@/lib/auth-api'
  *   ?personId=dt-…  → that person's workstation (0 or 1 rows)
  *   ?floorId=floor-…→ only workstations on that floor
  *   ?free=1         → only unoccupied workstations
+ *   ?occupied=1     → only occupied workstones (e.g. roster for attendance
+ *                     follow-ups)
  */
 export async function GET(req: NextRequest) {
   const auth = await requireUserOrScopeAny(req, ['admin'])
@@ -22,12 +24,26 @@ export async function GET(req: NextRequest) {
   const personId = searchParams.get('personId')
   const floorId = searchParams.get('floorId')
   const freeOnly = searchParams.get('free') === '1'
+  const occupiedOnly = searchParams.get('occupied') === '1'
+  // personId pins the query to one row; free/occupied assert its emptiness —
+  // combining personId with either is contradictory, so reject instead of
+  // silently broadening the result set.
+  if (personId && (freeOnly || occupiedOnly)) {
+    return NextResponse.json(
+      { error: 'personId cannot be combined with free/occupied' },
+      { status: 400 },
+    )
+  }
+  if (freeOnly && occupiedOnly) {
+    return NextResponse.json({ error: 'free and occupied are mutually exclusive' }, { status: 400 })
+  }
 
   const workstations = await prisma.workstation.findMany({
     where: {
       ...(personId ? { personId } : {}),
       ...(floorId ? { floorId } : {}),
       ...(freeOnly ? { personId: null } : {}),
+      ...(occupiedOnly ? { personId: { not: null } } : {}),
     },
     include: {
       zone: { select: { name: true } },

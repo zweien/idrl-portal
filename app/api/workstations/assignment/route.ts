@@ -43,6 +43,11 @@ export async function PUT(req: NextRequest) {
   if (personId !== null && typeof personId !== 'string') {
     return NextResponse.json({ error: 'personId must be a string or null' }, { status: 400 })
   }
+  // force triggers a destructive displacement — a truthy "false" string must
+  // not silently enable it (documented 409 semantics).
+  if (force !== undefined && typeof force !== 'boolean') {
+    return NextResponse.json({ error: 'force must be a boolean' }, { status: 400 })
+  }
 
   try {
     const outcome = await prisma.$transaction(async (tx) => {

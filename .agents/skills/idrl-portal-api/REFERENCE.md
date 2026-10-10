@@ -152,7 +152,8 @@ Body `{ "ids": string[] }`：同一分类的完整有序 id 列表（未分类�
 
 ### GET /api/workstations — `admin`
 
-`?personId=dt-…`（查某人的工位，0/1 行）｜`?floorId=`（按层）｜`?free=1`（仅空位）→
+`?personId=dt-…`（查某人的工位，0/1 行）｜`?floorId=`（按层）｜`?free=1`（仅空位）｜`?occupied=1`（仅已占用——如拉「有工位的人」名单做考勤跟进）→
+`personId` 与 `free/occupied` 互斥（同给 400）。
 `{workstations: [{id, name, floorId, floorName, zoneId, zoneName, row, col, status, personId, personName}]}`。
 
 ### PUT /api/workstations/assignment — `admin`
@@ -192,7 +193,6 @@ Body `{workstationId, personId, force?}`：
 - 用户：`GET /api/users`、`PATCH /api/users/:id`
 - 分类写：`POST/PATCH/DELETE /api/categories(/:id)`（分类**读取**已支持 `admin` key）
 - 工位布局：`GET/PUT /api/floor-layout`、`POST /api/floor-layout/import-assignments`
-- 工位管理（admin）：查某人工位 `GET /api/workstations?personId=…`；改派 `PUT /api/workstations/assignment`（body `{workstationId, personId|null, force?}`——换工位自动释放原座，占用冲突 409 可 `force` 顶替）
 - 配置：`GET/PATCH /api/settings`
 - 备份：`GET/POST/DELETE /api/backup`、`POST /api/backup/restore`、`GET /api/backup/download`、`POST /api/backup/upload`
 - 导出：`GET /api/export`（业务 7 表 JSON）
