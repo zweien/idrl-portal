@@ -5,6 +5,16 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v0.9.2] - 2026-10-10
+
+### 修复
+
+- fix(admin): 编辑人员取消后无法再编辑的对话框死锁 (#96)
+
+### 其他
+
+- docs(skill): personnel 按职位筛选配方 + search 匹配范围与分页上限勘误 (#95)
+
 ## [v0.9.1] - 2026-10-10
 
 ### 修复
