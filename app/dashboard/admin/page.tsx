@@ -509,10 +509,30 @@ export default function AdminPage() {
                   { key: 'name',   label: '姓名' },
                   { key: 'role',   label: '职位',  render: v => v ? String(v) : <span className="text-muted-foreground">—</span> },
                   { key: 'email',  label: '邮箱' },
-                  { key: 'status', label: '状态',  render: v => (
-                    <Badge variant={v === 'present' ? 'default' : 'secondary'} className="text-[10px] font-normal">
-                      {statusLabels[v as keyof typeof statusLabels]}
-                    </Badge>
+                  { key: 'status', label: '状态',  render: (v, item) => (
+                    <span className="flex items-center gap-1.5">
+                      <Badge variant={v === 'present' ? 'default' : 'secondary'} className="text-[10px] font-normal">
+                        {statusLabels[v as keyof typeof statusLabels]}
+                      </Badge>
+                      {item.offboarded && (
+                        <span className="text-[9px] px-1 rounded bg-muted text-muted-foreground">已停用</span>
+                      )}
+                      {item.offboarded && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-5 text-[10px] px-1.5"
+                          onClick={async () => {
+                            await fetch(`/api/personnel/${item.id}/reinstate`, { method: 'POST' })
+                            void mutate().then(fresh => {
+                              if (fresh?.personnel) setPersonnelData(fresh.personnel)
+                            })
+                          }}
+                        >
+                          恢复登录
+                        </Button>
+                      )}
+                    </span>
                   )},
                 ]}
                 onEdit={item => setEditingPerson(item)}

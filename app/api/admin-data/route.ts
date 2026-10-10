@@ -20,8 +20,14 @@ export async function GET() {
   if (session instanceof NextResponse) return session
 
   const isAdmin = session.role === 'admin'
-  const [persons, news, resources] = await Promise.all([
+  const [persons, disabledUsers, news, resources] = await Promise.all([
     prisma.person.findMany(),
+    // Offboard/login-disabled state for the admin list badge (mirrors
+    // /api/personnel GET).
+    prisma.user.findMany({
+      where: { personId: { not: null }, disabledAt: { not: null } },
+      select: { personId: true },
+    }),
     // Non-admins only see published news; admins see drafts too.
     prisma.newsItem.findMany({
       where: isAdmin ? undefined : { status: 'published' },
@@ -30,8 +36,13 @@ export async function GET() {
     // accessLevel enforcement mirrors /api/resources: non-admins can't see admin-only.
     prisma.resource.findMany({ where: isAdmin ? undefined : { accessLevel: { not: 'admin' } } }),
   ])
+  const disabledSet = new Set(disabledUsers.map(u => u.personId))
   return NextResponse.json({
-    personnel: persons.map(toPerson),
+    personnel: persons.map(p => ({
+      ...toPerson(p),
+      loginDisabled: disabledSet.has(p.id),
+      offboarded: p.offboardedAt !== null,
+    })),
     news: news.map(toNewsItem).sort(compareNews),
     resources: resources.map(toResource).sort(compareResources),
   })
