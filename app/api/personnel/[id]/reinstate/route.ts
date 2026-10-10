@@ -24,7 +24,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const person = await prisma.person.findUnique({ where: { id } })
     if (!person) return NextResponse.json({ error: '人员不存在' }, { status: 404 })
 
-    const reenabled = await prisma.user.updateMany({ where: { personId: id, disabledAt: { not: null } }, data: { disabledAt: null } })
+    // Re-enable ONLY the accounts this offboard disabled: a login banned
+    // earlier through user management (unrelated security/administrative
+    // reason) must stay banned. Offboard stamps disabledAt >= its own
+    // offboardedAt, so the timestamp comparison separates the two.
+    const reenabled = person.offboardedAt
+      ? await prisma.user.updateMany({
+          where: { personId: id, disabledAt: { not: null, gte: person.offboardedAt } },
+          data: { disabledAt: null },
+        })
+      : { count: 0 }
     // Clear the offboard marker so the person re-enters departure detection
     // (they will be re-reported only if still absent from the org) and the
     // attendance pipeline.

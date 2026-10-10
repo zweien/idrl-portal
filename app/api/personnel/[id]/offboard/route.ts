@@ -31,7 +31,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const result = await prisma.$transaction(async (tx) => {
       await tx.person.update({ where: { id }, data: { status: 'absent', lastSeen: null, avatar: null, offboardedAt: new Date() } })
       const ws = await tx.workstation.updateMany({ where: { personId: id }, data: { personId: null } })
-      const users = await tx.user.updateMany({ where: { personId: id, disabledAt: null }, data: { disabledAt: new Date() } })
+      // Never disable the caller's own account: banning yourself through a
+      // person-offboard would lock a (possibly sole) admin out mid-session.
+      const users = await tx.user.updateMany({
+        where: { personId: id, disabledAt: null, id: { not: auth.userId } },
+        data: { disabledAt: new Date() },
+      })
       return { workstationsCleared: ws.count, usersDisabled: users.count }
     })
 
