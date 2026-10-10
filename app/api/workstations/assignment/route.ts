@@ -28,12 +28,18 @@ export async function PUT(req: NextRequest) {
   const auth = await requireScope(req, 'admin')
   if (auth instanceof NextResponse) return auth
 
-  let body: { workstationId?: string; personId?: string | null; force?: boolean }
+  let parsed: unknown
   try {
-    body = await req.json()
+    parsed = await req.json()
   } catch {
     return NextResponse.json({ error: 'invalid json' }, { status: 400 })
   }
+  // Valid JSON that is not an object (null, "x", arrays) would throw on the
+  // destructuring / `in` check below — outside any try — landing as a 500.
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    return NextResponse.json({ error: 'body must be a JSON object' }, { status: 400 })
+  }
+  const body = parsed as { workstationId?: string; personId?: string | null; force?: boolean }
   const { workstationId, force } = body
   // personId may be null (clear) — but must be present as a key.
   if (!workstationId || typeof workstationId !== 'string' || !('personId' in body)) {
