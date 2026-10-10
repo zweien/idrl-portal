@@ -1,7 +1,7 @@
 # IDRL Portal · 智能数据研究实验室门户
 
 [![CI](https://github.com/zweien/idrl-portal/actions/workflows/ci.yml/badge.svg)](https://github.com/zweien/idrl-portal/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-160%20passed-brightgreen)](https://github.com/zweien/idrl-portal/blob/master/tests)
+[![Tests](https://img.shields.io/badge/tests-363%20passed-brightgreen)](https://github.com/zweien/idrl-portal/blob/master/tests)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue)](https://www.typescriptlang.org/)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black)](https://nextjs.org/)
 [![Prisma](https://img.shields.io/badge/Prisma-7-2D3748)](https://www.prisma.io/)
@@ -23,7 +23,7 @@ IDRL Portal 是一个为科研实验室设计的内部信息看板。它把人�
 - **更新日志** — 侧边栏入口查看版本历史（`CHANGELOG.md` 驱动）
 
 ### 面向管理员
-- **信息管理** — 新闻 / 资源 / 人员的增删改；新闻支持**草稿 / 立即发布 / 定时发布**；统一**分类体系**（Category 表，新闻 + 资源共用）
+- **信息管理** — 新闻 / 资源 / 人员的增删改；新闻支持**草稿 / 立即发布 / 定时发布**；统一**分类体系**（Category 表，新闻 + 资源共用）；人员列表带**座位编号**与停用状态
 - **工位布局编辑** — 可视化编辑楼层、区域（grid / free，**顺序可调**）与工位几何；右侧实时预览；**一人一工位**约束（DB 唯一索引 + 写入校验）；支持 xlsx 批量导入工位分配
 - **用户管理** — 设置登录账号角色（管理员 / 成员）、关联人员档案、**封禁**（登录 + API 双层拦截，已登录 session 即时失效）、自保护防锁死
 - **API 密钥** — 颁发带 **scope** 的机器密钥（同步 / 发布 / 读取），sha256 哈希存储；每 key 可配置速率限额
@@ -32,8 +32,9 @@ IDRL Portal 是一个为科研实验室设计的内部信息看板。它把人�
 - **审计日志** — 所有管理写操作留痕（操作者 / 动作 / 目标 / 摘要），保留天数可配
 
 ### 钉钉集成
-- **成员同步** — 拉取部门成员，建立 Person 档案（职位 / 邮箱 / 手机），自动关联钉钉登录账号
-- **考勤同步** — 拉取当日打卡 / 请假 / 出差，按优先级映射状态（**出差 > 请假 > 在位 > 未到**），记录打卡时间与出差事由；历史日自动归档（finalize 水位线）
+- **成员同步** — 拉取部门成员，建立 Person 档案（职位 / 邮箱 / 手机），自动关联钉钉登录账号；检测退出组织 / 调离同步范围的人员（页面提示 + 一键停用），钉钉删除重加账号（unionid 不变 userid 变）自动级联修复
+- **考勤同步** — 拉取当日打卡 / 请假 / 出差，按优先级映射状态（**出差 > 请假 > 在位 > 未到**），记录打卡时间与出差事由；历史日自动归档（finalize 水位线）。出差审批支持**多模板**（京外出差商旅表单 + 京内因公，配置逗号分隔）；审批详情持久化缓存，进程重启不重拉
+- **同步任务化** — 同步在后台执行，前端实时显示阶段进度与审批拉取计数；全局互斥（手动 / API / 调度器共享），重复触发被拒绝
 - **状态展示** — 红 / 琥珀 / 绿 / 蓝高对比配色，人员卡片色条 + 详情徽章
 
 ### 认证
@@ -94,7 +95,7 @@ pnpm exec next dev -p 3500
 | `AUTHENTIK_ISSUER` / `AUTHENTIK_CLIENT_ID` / `AUTHENTIK_CLIENT_SECRET` | Authentik OIDC |
 | `DINGTALK_CLIENT_ID` / `DINGTALK_CLIENT_SECRET` | 钉钉扫码登录 + 服务端 API |
 | `DINGTALK_DEPT_ID` | 钉钉成员同步的部门根 id |
-| `DINGTALK_TRIP_PROCESS_CODE` | 京外出差审批流程码 |
+| `DINGTALK_TRIP_PROCESS_CODE` | 出差类审批流程码，**逗号分隔多个**（京外出差 + 京内因公）；批准天数计入考勤「出差」 |
 
 ## 📡 API 参考
 
@@ -125,7 +126,7 @@ Authorization: Bearer idrl_<48 hex>
 | `news:publish` | `POST / PATCH / DELETE /api/news(/:id)`、`POST /api/news/reorder`、`POST /api/uploads` |
 | `resource:read` | `GET /api/resources` |
 | `resource:publish` | `POST / PATCH / DELETE /api/resources(/:id)`、`POST /api/resources/reorder` |
-| `admin` | `GET /api/news?includeDrafts=1`、`GET /api/personnel`、`GET /api/categories`、`GET /api/attendance/*`（查询+导出）、`GET /api/sync-logs`、`GET /api/audit-logs` |
+| `admin` | 上述读取 + `GET /api/workstations`（工位查询）、`PUT /api/workstations/assignment`（工位改派）、考勤记录 / 导出、同步 / 审计日志 |
 
 - 未列出的端点（用户、布局、备份、设置、人员/分类**写**等管理面）**只接受 admin session**，不识别 API key（`admin` scope 解锁的是读取/审核类，见上表）
 - 无效 / 已吊销 / scope 不符的 key 会**静默回落**到 session 判定（不会报「key 无效」），所以 key 用错时看到的是 401/403
@@ -173,9 +174,20 @@ KEY=idrl_xxxxxxxx              # Admin UI 颁发，勾选所需 scope
 curl -X POST "$BASE/api/dingtalk/sync-members" -H "Authorization: Bearer $KEY"
 # → {"total":91,"created":0,"updated":91,"linked":7}
 
-# 2) 触发考勤同步
+# 2) 触发考勤同步（Bearer 调用阻塞至完成；浏览器发起则是异步任务）
 curl -X POST "$BASE/api/dingtalk/sync-attendance" -H "Authorization: Bearer $KEY"
-# → {"total":91,"stats":{"present":30,"leave":1,"trip":2,"absent":58},"finalizedDays":1}
+# → {"total":103,"stats":{"present":51,"leave":8,"trip":7,"absent":37},"finalizedDays":0,
+#    "timings":{"attendanceMs":3666,"leaveMs":2990,"tripMs":6901,"writeMs":152,"dingtalkCalls":22}}
+
+# 2b) 查询有工位的人员（工位管理 API，admin scope）
+curl "$BASE/api/workstations?occupied=1" -H "Authorization: Bearer $KEY"
+# → {"workstations":[{id,name,floorName,zoneName,row,col,personId,personName},...]}
+
+# 2c) 把某人改派到工位（原工位自动释放；目标被占 → 409，可 force 顶替）
+curl -X PUT "$BASE/api/workstations/assignment" \
+  -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"workstationId":"<工位id>","personId":"<人员id>"}'
+# personId 传 null 清空该工位
 
 # 3) 发布一条动态（可定时：status=draft + publishAt=未来 ISO 时间，由调度自动发布）
 curl -X POST "$BASE/api/news" \
@@ -267,6 +279,10 @@ cp -r .agents/skills/idrl-portal-api ~/.agents/skills/
 | POST | `/api/backup/upload` | 🛡 | 上传 .sqlite 并恢复 |
 | GET | `/api/export` | 🛡 | 业务数据 JSON 导出（7 表） |
 | GET · PUT | `/api/admin-data` | 👤 / 🛡 | 管理端聚合读 / 全量重建三表（⚠️ 级联删考勤，见下文） |
+| GET | `/api/workstations?personId=&floorId=&free=1&occupied=1` | 🔑 `admin` | 工位查询（楼层/区域/占用者已解析） |
+| PUT | `/api/workstations/assignment` | 🔑 `admin` | 按人改派 / 清空工位（换位自动释放，冲突 409 可 force） |
+| POST | `/api/personnel/:id/offboard` · `/reinstate` | 🛡 | 停用离组织人员（置未到 + 释放工位 + 禁登录，历史保留）/ 恢复 |
+| GET | `/api/sync/status?id=` | 👤 | 最近一次同步任务的阶段进度（后台任务轮询） |
 
 ---
 
@@ -451,11 +467,13 @@ Query：`from`、`to`（均必填，`from <= to`）、`personId`（可选）
 
 **POST /api/dingtalk/sync-members** — 🔑 `sync:members`
 
-拉取 `DINGTALK_DEPT_ID` 部门成员，按 unionid upsert Person，并关联未绑定的钉钉 User → `{ total, created, updated, linked }`（裸 JSON）。写 SyncLog（source = `api` / `manual`）。
+拉取 `DINGTALK_DEPT_ID` 部门成员，按 unionid upsert Person（unionid 匹配但 userid 变化时自动级联改名），并关联未绑定的钉钉 User → `{ total, created, updated, linked, renamed, offboarded[], transferred[] }`（裸 JSON）。写 SyncLog（source = `api` / `manual`）。
 
 **POST /api/dingtalk/sync-attendance** — 🔑 `sync:attendance`
 
-今天实时刷新 + 历史日归档（推进 finalize 水位线）→ `{ total, stats: { present, leave, trip, absent }, finalizedDays, message? }`。
+今天实时刷新 + 历史日归档（推进 finalize 水位线）→ `{ total, stats: { present, leave, trip, absent }, finalizedDays, timings?, message? }`（`timings` 为各阶段耗时与钉钉调用次数）。
+
+> **执行模型（双轨）**：`Authorization: Bearer` 调用**阻塞至完成**（机器契约不变）；浏览器 / cookie 会话调用**立即返回 `{ taskId, task }`** 并在后台执行——前端轮询 `GET /api/sync/status?id=` 获取阶段进度（拉取考勤 → 请假 → 出差审批 n/m → 写库，含各阶段耗时）。同一时刻全局只允许一个同步任务（手动 / API / 调度器共享互斥），重复触发返回 409 + 当前任务状态。服务重启丢任务：轮询方显示「同步中断」，水位线保证数据不丢。
 
 ### 配置与日志 `/api/settings` `/api/sync-logs` `/api/audit-logs` — 全部 🛡
 
@@ -538,6 +556,7 @@ Category 1—* NewsItem / Resource                  （统一分类，kind 区�
 Person 1—* AttendanceRecord                       （考勤，[personId, date] 唯一）
 Feedback 1—* FeedbackReply                        （问题反馈讨论版，登录用户可发帖/回复）
 ApiKey / Setting / SyncLog / AuditLog             （密钥 / 配置 / 调度审计 / 操作审计）
+TripInstanceCache                                 （钉钉审批实例解析缓存，持久化避免重拉）
 ```
 
 Prisma schema 见 `prisma/schema.prisma`；SQLite 文件 `prisma/db.sqlite`（gitignore）；备份快照存 `prisma/backups/`（gitignore）。
@@ -556,7 +575,7 @@ Prisma schema 见 `prisma/schema.prisma`；SQLite 文件 `prisma/db.sqlite`（gi
 - **反向代理**：所有面向外部的重定向经 `lib/request-origin.ts` 的 `getRequestOrigin()`（读 `X-Forwarded-Proto/Host`，nginx 显式覆盖防 host 头注入），不得直接用 `req.url` 拼跳转。
 - **限流**：API 密钥按 key 限额（DB 行级原子计数，多实例共享），超限返回 429 + `Retry-After`。
 - **调度**：`instrumentation.ts` 启动注册 node-cron；任务每分钟心跳，重读 `Setting` 表的 cron 表达式（北京时间解释），改动无需重启。每个 job 有进程内互斥锁——慢任务（如考勤同步逐人写入）跑超 60s 时，下一 tick 跳过而非并发触发，避免在 SQLite 单写库上竞争。进程重启后对幂等且后果可见的 job（`publish-news`、`backup`）按 SyncLog 最近一次运行时间补漏（source 标 `catchup`）；考勤同步自带 `lastFinalizedDate` 水位自愈，不参与补漏。
-- **钉钉同步**：核心逻辑在 `lib/dingtalk-sync.ts`（route 与 scheduler 共用），access_token 缓存；`Person.role` 直接存钉钉职位原文。
+- **钉钉同步**：核心逻辑在 `lib/dingtalk-sync.ts`（route 与 scheduler 共用），access_token 缓存；`Person.role` 直接存钉钉职位原文。同步任务经 `lib/sync-task.ts` 的全局互斥注册（阶段进度 / 计数 / 计时供前端轮询与 SyncLog）；审批实例解析结果持久化于 `TripInstanceCache`（lib/trip-cache.ts），进程重启零重拉。
 - **审计**：`lib/audit.ts` 的 `logAction()` 记录全部管理写操作（fire-and-forget，不阻塞业务）；backup 任务顺带按 `auditlog.keepDays` 清理。
 - **性能**：热列建有二级索引（`NewsItem` status/categoryId/pinned、`Resource` categoryId/accessLevel/status、`Person` dingUserId/status），避免列表过滤与 `syncMembers` 的全表扫。Markdown 管道（react-markdown + rehype）在交互后才出现的详情弹窗用 `LazyMarkdownContent` 懒加载，移出首屏 bundle。
 
@@ -598,7 +617,7 @@ pnpm release 0.1.4 --yes  # 免交互
 
 ## 🧪 测试
 
-使用 Vitest（`pnpm test`），覆盖：session round-trip / 篡改拒绝 / `SESSION_SECRET` fail-fast、`requireUser`/`requireAdmin`/`requireScope`（含 429/封禁/live-role）、middleware 路由保护、CSRF origin 校验、Markdown sanitize、zod 入参校验、safeError 错误映射、分页夹紧、上传 CSPRNG 文件名、User/Workstation/Category 唯一约束、API key 限流原子计数、调度 cron 匹配 + 互斥 + 补漏、钉钉考勤优先级映射、事务边界契约、备份/恢复/裁剪、审计日志、SyncLog 轮转、WAL 模式、热列索引守卫、考勤导出、changelog 解析。
+使用 Vitest（`pnpm test`），覆盖：工位分配规划（移动 / 冲突 / 顶替）、成员重命名（unionid 匹配 userid 变化）、离组织检测分类、session round-trip / 篡改拒绝 / `SESSION_SECRET` fail-fast、`requireUser`/`requireAdmin`/`requireScope`（含 429/封禁/live-role）、middleware 路由保护、CSRF origin 校验、Markdown sanitize、zod 入参校验、safeError 错误映射、分页夹紧、上传 CSPRNG 文件名、User/Workstation/Category 唯一约束、API key 限流原子计数、调度 cron 匹配 + 互斥 + 补漏、钉钉考勤优先级映射、事务边界契约、备份/恢复/裁剪、审计日志、SyncLog 轮转、WAL 模式、热列索引守卫、考勤导出、changelog 解析。
 
 CI（`.github/workflows/ci.yml`）在 push / PR 时跑 **tsc + test + 迁移 dry-run + build**。迁移 dry-run 对一个临时空 DB 跑 `prisma migrate deploy`，在发布前验证迁移 SQL 语法、顺序与 schema 声明一致——此前迁移只在部署时对线上库执行。
 
