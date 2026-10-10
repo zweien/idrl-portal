@@ -11,6 +11,8 @@ export interface Person {
   loginDisabled?: boolean
   /** Derived live from Person.offboardedAt (departure-detection UI). */
   offboarded?: boolean
+  /** Derived live from the workstation table (admin list); "区-座位号". */
+  seatName?: string | null
   /** Free-text job title/role (sourced from DingTalk's 职位 field on sync).
    * Was a fixed 6-value enum; now any string to preserve the real title. */
   role: string

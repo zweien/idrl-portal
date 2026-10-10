@@ -214,10 +214,16 @@ export default function AdminPage() {
   }
   async function handlePersonUpdate(p: Person) {
     const prevPerson = personnelData?.find(x => x.id === p.id)
-    // PersonDialog builds a fresh object without the derived offboard/
-    // login-disabled flags — carry them over so the badges don't blink off
-    // until mutate() returns the server truth.
-    const merged = { ...p, loginDisabled: prevPerson?.loginDisabled, offboarded: prevPerson?.offboarded }
+    // PersonDialog builds a fresh object without the derived flags
+    // (offboard / login-disabled / seat name) — carry them over so the
+    // badges and the seat column don't blink off until mutate() returns
+    // the server truth.
+    const merged = {
+      ...p,
+      loginDisabled: prevPerson?.loginDisabled,
+      offboarded: prevPerson?.offboarded,
+      seatName: prevPerson?.seatName,
+    }
     setPersonnelData(prev => prev!.map(x => x.id === p.id ? merged : x))
     setEditingPerson(null)
     try {
@@ -376,6 +382,11 @@ export default function AdminPage() {
       const warnCount = data.warnings?.length ? `（${data.warnings.length} 条警告）` : ''
       setImportResult(`导入完成：分配 ${data.assigned} 个，跳过 ${data.skipped} 个${warnCount}`)
       setSaveError(null)
+      // The import rewrote workstation assignments — refresh the admin
+      // bundle and mirror its personnel into local state, or the seat
+      // column (and names/roles) shows the pre-import snapshot.
+      const fresh = await mutate()
+      if (fresh?.personnel) setPersonnelData(fresh.personnel)
     } catch (err) {
       setImportResult(null)
       reportErr(err)
@@ -512,7 +523,8 @@ export default function AdminPage() {
                 columns={[
                   { key: 'name',   label: '姓名' },
                   { key: 'role',   label: '职位',  render: v => v ? String(v) : <span className="text-muted-foreground">—</span> },
-                  { key: 'email',  label: '邮箱' },
+                  { key: 'seatName', label: '座位编号', render: (v: unknown) =>
+                    typeof v === 'string' && v ? String(v) : <span className="text-muted-foreground">—</span> },
                   { key: 'status', label: '状态',  render: (v, item) => (
                     <span className="flex items-center gap-1.5">
                       <Badge variant={v === 'present' ? 'default' : 'secondary'} className="text-[10px] font-normal">
