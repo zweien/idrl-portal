@@ -61,6 +61,10 @@ export function PersonDialog({ initialData, trigger, onSubmit, onCloseRequest }:
   }
 
   const handleOpenChange = (val: boolean) => {
+    // Dismissals via the X button / Escape / backdrop land here (cancel and
+    // submit call setOpen directly) — the parent must unmount the dialog on
+    // every path or the stale mounted instance blocks the next edit.
+    if (!val) onCloseRequest?.()
     setOpen(val)
     if (val && initialData) {
       setForm({
