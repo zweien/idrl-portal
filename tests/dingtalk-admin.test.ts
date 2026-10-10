@@ -119,6 +119,30 @@ describe('mapStatusForDay (per-day priority: trip > leave > present > absent)', 
     expect(mapStatusForDay('u_unknown', DAY, trip, leave, new Map()).status).toBe('absent')
   })
 
+  it('placeholder punches are dropped, not stored as check-in', () => {
+    // attendance/list echoes the shift's base check time into userCheckTime
+    // on NotSigned/Absenteeism rows even though nobody punched (absentees
+    // ended up with checkIn "08:00" in exports). Placeholders must not
+    // surface as punches.
+    const r = mapStatusForDay('u_present', DAY, trip, leave, attDay('Absenteeism'))
+    expect(r.status).toBe('absent')
+    expect(r.onDuty).toBeUndefined()
+    const r2 = mapStatusForDay('u_present', DAY, trip, leave, attDay('NotSigned'))
+    expect(r2.onDuty).toBeUndefined()
+  })
+
+  it('absent: real OffDuty kept for record, placeholder OffDuty dropped', () => {
+    const att = (off: DayAttendance['offDuty']) =>
+      new Map([['u_present', new Map([[DAY, { offDuty: off }]])]])
+    const real = mapStatusForDay('u_present', DAY, trip, leave,
+      att({ timeResult: 'Normal', checkTime: '18:30' }))
+    expect(real.status).toBe('absent')
+    expect(real.offDuty?.checkTime).toBe('18:30')
+    const fake = mapStatusForDay('u_present', DAY, trip, leave,
+      att({ timeResult: 'NotSigned', checkTime: '18:00' }))
+    expect(fake.offDuty).toBeUndefined()
+  })
+
   it('surfaces onDuty + offDuty punches on present', () => {
     const inner = new Map<string, DayAttendance>([
       [DAY, {

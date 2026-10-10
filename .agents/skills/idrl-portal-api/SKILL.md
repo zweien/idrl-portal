@@ -24,7 +24,7 @@ Authorization: Bearer idrl_<48 hex>     # API key，Admin UI「API 密钥」颁�
 | `news:publish` | `POST / PATCH / DELETE /api/news(/:id)`、`POST /api/news/reorder`、`POST /api/uploads` |
 | `resource:read` | `GET /api/resources` |
 | `resource:publish` | `POST / PATCH / DELETE /api/resources(/:id)`、`POST /api/resources/reorder` |
-| `admin` | 管理门户：草稿可见（`GET /api/news?includeDrafts=1`）、考勤查询（leaderboard/records/export）、人员列表、分类读取、同步/审计日志 |
+| `admin` | 管理门户：草稿可见（`GET /api/news?includeDrafts=1`）、考勤查询（leaderboard/records/export）、人员列表、工位查询/改派（`/api/workstations`）、分类读取、同步/审计日志 |
 
 > `admin` scope 让 key 以**管理员身份**访问读取/审核类端点（写操作仍走各自 scope）。布局/备份/设置/用户等管理端点仍只接受 admin session（见 REFERENCE.md）。
 
@@ -112,7 +112,15 @@ curl -s "$BASE/api/personnel?page=1&pageSize=100&status=present" -H "Authorizati
 # 只能翻页拉全量（pageSize=100 × page=1..totalPages）后本地过滤。
 # role 是自由文本（钉钉「职位」同步而来），常见值：学生（统招）/学生（联培）/学生（实习）/
 # 科研人员/工程师/staff/助理，可为空；前缀匹配「学生」可覆盖三类学生。
+# 注意取值会随成员同步整体漂移（钉钉侧职位改动，联培曾一次 21→50），统计前先看当前分布。
 curl -s "$BASE/api/personnel?page=$p&pageSize=100" -H "Authorization: Bearer $KEY"   # 循环取页 → 过滤 role
+
+# 有工位人员的考勤（端到端，已实战验证）：工位 → 人员 → 考勤
+curl -s "$BASE/api/workstations?occupied=1" -H "Authorization: Bearer $KEY"
+# → 返回裸对象 {workstations:[{name=座位号, personId, personName, floorName, zoneName, …}]}
+#   与 personnel 按 personId 取交集得目标人群：今日 status 用 personnel 的 status 字段，
+#   打卡时段用 export/detail CSV——表头是中文（姓名/日期/上班/下班/工时/状态）且无 ID 列，
+#   需按姓名关联（现库无重名；重名出现后改走逐人 records）
 
 # 同步/审计日志（admin）
 curl -s "$BASE/api/sync-logs?limit=20"  -H "Authorization: Bearer $KEY"
