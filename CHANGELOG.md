@@ -5,6 +5,12 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v0.8.0] - 2026-10-10
+
+### 新增
+
+- feat(personnel): 成员退出组织检测 + 一键停用 (#92)
+
 ## [v0.7.1] - 2026-10-09
 
 ### 修复
