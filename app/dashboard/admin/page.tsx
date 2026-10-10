@@ -214,7 +214,11 @@ export default function AdminPage() {
   }
   async function handlePersonUpdate(p: Person) {
     const prevPerson = personnelData?.find(x => x.id === p.id)
-    setPersonnelData(prev => prev!.map(x => x.id === p.id ? p : x))
+    // PersonDialog builds a fresh object without the derived offboard/
+    // login-disabled flags — carry them over so the badges don't blink off
+    // until mutate() returns the server truth.
+    const merged = { ...p, loginDisabled: prevPerson?.loginDisabled, offboarded: prevPerson?.offboarded }
+    setPersonnelData(prev => prev!.map(x => x.id === p.id ? merged : x))
     setEditingPerson(null)
     try {
       await updatePerson(p.id, p)
@@ -523,7 +527,7 @@ export default function AdminPage() {
                       {!item.offboarded && item.loginDisabled && (
                         <span className="text-[9px] px-1 rounded bg-muted text-muted-foreground">登录已禁</span>
                       )}
-                      {item.offboarded && item.loginDisabled && (
+                      {item.offboarded && (
                         <Button
                           size="sm"
                           variant="ghost"
