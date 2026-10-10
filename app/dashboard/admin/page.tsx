@@ -382,6 +382,11 @@ export default function AdminPage() {
       const warnCount = data.warnings?.length ? `（${data.warnings.length} 条警告）` : ''
       setImportResult(`导入完成：分配 ${data.assigned} 个，跳过 ${data.skipped} 个${warnCount}`)
       setSaveError(null)
+      // The import rewrote workstation assignments — refresh the admin
+      // bundle and mirror its personnel into local state, or the seat
+      // column (and names/roles) shows the pre-import snapshot.
+      const fresh = await mutate()
+      if (fresh?.personnel) setPersonnelData(fresh.personnel)
     } catch (err) {
       setImportResult(null)
       reportErr(err)
