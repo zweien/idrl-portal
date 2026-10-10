@@ -512,7 +512,8 @@ export default function AdminPage() {
                 columns={[
                   { key: 'name',   label: '姓名' },
                   { key: 'role',   label: '职位',  render: v => v ? String(v) : <span className="text-muted-foreground">—</span> },
-                  { key: 'email',  label: '邮箱' },
+                  { key: 'seatName', label: '座位编号', render: (v: unknown) =>
+                    typeof v === 'string' && v ? String(v) : <span className="text-muted-foreground">—</span> },
                   { key: 'status', label: '状态',  render: (v, item) => (
                     <span className="flex items-center gap-1.5">
                       <Badge variant={v === 'present' ? 'default' : 'secondary'} className="text-[10px] font-normal">

@@ -20,13 +20,18 @@ export async function GET() {
   if (session instanceof NextResponse) return session
 
   const isAdmin = session.role === 'admin'
-  const [persons, disabledUsers, news, resources] = await Promise.all([
+  const [persons, disabledUsers, seats, news, resources] = await Promise.all([
     prisma.person.findMany(),
     // Offboard/login-disabled state for the admin list badge (mirrors
     // /api/personnel GET).
     prisma.user.findMany({
       where: { personId: { not: null }, disabledAt: { not: null } },
       select: { personId: true },
+    }),
+    // Current seat per person (workstation name doubles as the seat number).
+    prisma.workstation.findMany({
+      where: { personId: { not: null } },
+      select: { personId: true, name: true, zone: { select: { name: true } } },
     }),
     // Non-admins only see published news; admins see drafts too.
     prisma.newsItem.findMany({
@@ -37,11 +42,13 @@ export async function GET() {
     prisma.resource.findMany({ where: isAdmin ? undefined : { accessLevel: { not: 'admin' } } }),
   ])
   const disabledSet = new Set(disabledUsers.map(u => u.personId))
+  const seatByPerson = new Map(seats.map(s => [s.personId, s.zone.name ? `${s.zone.name}-${s.name}` : s.name]))
   return NextResponse.json({
     personnel: persons.map(p => ({
       ...toPerson(p),
       loginDisabled: disabledSet.has(p.id),
       offboarded: p.offboardedAt !== null,
+      seatName: seatByPerson.get(p.id) ?? null,
     })),
     news: news.map(toNewsItem).sort(compareNews),
     resources: resources.map(toResource).sort(compareResources),
