@@ -77,10 +77,15 @@ export function SyncTaskButton({
   // sync's stages (then vanish at completion, terminal tasks not auto-adopted).
   const adoptedRunning = task && task.state === 'running' && !myTaskId && task.kind === kind
   const myTask = task && (task.id === myTaskId || adoptedRunning) ? task : null
-  const anyRunning = starting || task?.state === 'running'
+  // Global mutex: ANY running task blocks starting another one (button
+  // disabled) — but only THIS component's own task spins its spinner and
+  // swaps the label, otherwise the sibling sync button falsely shows
+  // 同步中… while it is merely waiting.
+  const anyRunning = task?.state === 'running'
+  const myRunning = starting || myTask?.state === 'running'
 
   const start = useCallback(async () => {
-    if (anyRunning || disabled) return
+    if (anyRunning || myRunning || disabled) return
     setStarting(true)
     setActionError(null)
     setInterrupted(false)
@@ -107,7 +112,7 @@ export function SyncTaskButton({
     } finally {
       setStarting(false)
     }
-  }, [anyRunning, disabled, kind, url, mutateStatus])
+  }, [anyRunning, myRunning, disabled, kind, url, mutateStatus])
 
   // Interrupted detection: our task disappeared from the registry while we
   // were polling it (process restart). One observation is enough — SWR gives
@@ -135,24 +140,25 @@ export function SyncTaskButton({
       : null
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="relative flex flex-col gap-1.5">
       <Button
         size="sm"
         variant="outline"
         className={cn('h-8 text-xs gap-1.5', className)}
         onClick={start}
         disabled={anyRunning || disabled}
+        title={anyRunning && !myRunning ? '已有同步任务进行中' : undefined}
       >
-        {anyRunning ? (
+        {myRunning ? (
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
         ) : (
           <RefreshCw className="h-3.5 w-3.5" />
         )}
-        {anyRunning ? runningLabel : label}
+        {myRunning ? runningLabel : label}
       </Button>
 
       {(showMyState || interrupted || actionError) && (
-        <div className="rounded-md border border-border bg-card px-2.5 py-2 text-xs space-y-1">
+        <div className="absolute left-0 top-full mt-1.5 z-10 min-w-[260px] rounded-md border border-border bg-card shadow-md px-2.5 py-2 text-xs space-y-1">
           {showMyState && myTask.state === 'running' && (
             <div className="space-y-0.5">
               {myTask.stages.map(s => (
