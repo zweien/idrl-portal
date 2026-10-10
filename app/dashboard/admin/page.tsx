@@ -214,10 +214,16 @@ export default function AdminPage() {
   }
   async function handlePersonUpdate(p: Person) {
     const prevPerson = personnelData?.find(x => x.id === p.id)
-    // PersonDialog builds a fresh object without the derived offboard/
-    // login-disabled flags — carry them over so the badges don't blink off
-    // until mutate() returns the server truth.
-    const merged = { ...p, loginDisabled: prevPerson?.loginDisabled, offboarded: prevPerson?.offboarded }
+    // PersonDialog builds a fresh object without the derived flags
+    // (offboard / login-disabled / seat name) — carry them over so the
+    // badges and the seat column don't blink off until mutate() returns
+    // the server truth.
+    const merged = {
+      ...p,
+      loginDisabled: prevPerson?.loginDisabled,
+      offboarded: prevPerson?.offboarded,
+      seatName: prevPerson?.seatName,
+    }
     setPersonnelData(prev => prev!.map(x => x.id === p.id ? merged : x))
     setEditingPerson(null)
     try {
