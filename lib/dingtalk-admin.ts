@@ -790,13 +790,19 @@ export function mapStatusForDay(
   // partial-day leave/trip still has real attendance data that must be
   // stored, otherwise the per-person punch history and work-minute display
   // silently lose it).
+  //
+  // Except placeholders: on NotSigned/Absenteeism rows DingTalk echoes the
+  // shift's base check time into userCheckTime even though nobody punched,
+  // so storing them fabricates a check-in (absentees showing "08:00"). A
+  // real punch always carries Normal/Late/Early/SeriousLate.
+  const realPunch = (p?: DayPunch): DayPunch | undefined =>
+    p && p.timeResult !== 'NotSigned' && p.timeResult !== 'Absenteeism' ? p : undefined
   const dayAtt = attByDay.get(userid)?.get(day)
-  const punches = { onDuty: dayAtt?.onDuty, offDuty: dayAtt?.offDuty }
+  const punches = { onDuty: realPunch(dayAtt?.onDuty), offDuty: realPunch(dayAtt?.offDuty) }
   if (tripByDay.get(userid)?.days.has(day)) return { status: 'trip', ...punches }
   if (leaveByDay.get(userid)?.has(day)) return { status: 'leave', ...punches }
-  if (dayAtt?.onDuty && dayAtt.onDuty.timeResult !== 'NotSigned' && dayAtt.onDuty.timeResult !== 'Absenteeism') {
-    return { status: 'present', ...punches }
-  }
+  // punches.onDuty survived realPunch, so it's a genuine punch by definition.
+  if (punches.onDuty) return { status: 'present', ...punches }
   // Absent, but still surface any OffDuty punch we have (rare, but for record).
   return { status: 'absent', ...punches }
 }
