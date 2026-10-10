@@ -301,9 +301,19 @@ export async function syncAttendance(progress?: SyncProgress): Promise<{
   progress?.stage('write')
   const tWrite = Date.now()
   await prisma.$transaction(async (tx) => {
+    // The fetches above take tens of seconds; an admin may have offboarded
+    // someone in that window. Re-check the marker so the sync doesn't
+    // overwrite the absent freeze (later syncs skip offboarded rows, so the
+    // overwritten status would stick indefinitely).
+    const stillActive = await tx.person.findMany({
+      where: { id: { in: [...useridToPersonId.values()] }, offboardedAt: null },
+      select: { id: true },
+    })
+    const activeIds = new Set(stillActive.map(p => p.id))
     // 1. Finalize history: upsert one AttendanceRecord per (person, day).
     for (const day of daysToFinalize) {
       for (const [userid, personId] of useridToPersonId) {
+        if (!activeIds.has(personId)) continue
         const { status, onDuty, offDuty } = mapStatusForDay(userid, day, tripByDay, leaveByDay, attByDay)
         await tx.attendanceRecord.upsert({
           where: { personId_date: { personId, date: day } },
@@ -330,6 +340,7 @@ export async function syncAttendance(progress?: SyncProgress): Promise<{
     // overwrite the same row; tomorrow's finalize of "yesterday" re-pulls this
     // day in the 3-day window and upserts again, correcting any late punches.
     for (const [userid, personId] of useridToPersonId) {
+      if (!activeIds.has(personId)) continue
       const { status, onDuty, offDuty } = mapStatusForDay(userid, today, tripByDay, leaveByDay, attByDay)
       stats[status]++
       const tripReason = tripByDay.get(userid)?.reason
@@ -442,7 +453,14 @@ export async function backfillDay(day: string, progress?: SyncProgress): Promise
   // One transaction for the whole day's upserts: a mid-loop failure rolls
   // back the partial day so a retry re-pulls cleanly. Network calls are done.
   await prisma.$transaction(async (tx) => {
+    const activeIds = new Set(
+      (await tx.person.findMany({
+        where: { id: { in: [...useridToPersonId.values()] }, offboardedAt: null },
+        select: { id: true },
+      })).map(p => p.id),
+    )
     for (const [userid, personId] of useridToPersonId) {
+      if (!activeIds.has(personId)) continue
       const { status, onDuty, offDuty } = mapStatusForDay(userid, day, tripByDay, leaveByDay, attByDay)
       await tx.attendanceRecord.upsert({
         where: { personId_date: { personId, date: day } },
