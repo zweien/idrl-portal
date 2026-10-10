@@ -218,6 +218,8 @@ export async function syncAttendance(progress?: SyncProgress): Promise<{
   message?: string
   /** Per-stage wall time (ms) + DingTalk call count, for SyncLog stats. */
   timings?: { attendanceMs: number; leaveMs: number; tripMs: number; writeMs: number; dingtalkCalls: number }
+  /** People offboarded while the fetches were in flight — skipped at write time. */
+  lateOffboarded?: number
 }> {
   resetDingtalkCallCount()
   const token = await getEnterpriseAccessToken()
@@ -298,12 +300,25 @@ export async function syncAttendance(progress?: SyncProgress): Promise<{
   // isn't advanced, so the next sync retries the whole window. Network calls
   // are done above; the tx body is DB-only.
   const stats = { present: 0, leave: 0, trip: 0, absent: 0 }
+  // People offboarded while the fetches above were in flight — skipped at
+  // write time and excluded from the reported total.
+  let lateOffboarded = 0
   progress?.stage('write')
   const tWrite = Date.now()
   await prisma.$transaction(async (tx) => {
+    // The fetches above take tens of seconds; an admin may have offboarded
+    // someone in that window. Re-check the marker so the sync doesn't
+    // overwrite the absent freeze (later syncs skip offboarded rows, so the
+    // overwritten status would stick indefinitely).
+    const stillActive = await tx.person.findMany({
+      where: { id: { in: [...useridToPersonId.values()] }, offboardedAt: null },
+      select: { id: true },
+    })
+    const activeIds = new Set(stillActive.map(p => p.id))
     // 1. Finalize history: upsert one AttendanceRecord per (person, day).
     for (const day of daysToFinalize) {
       for (const [userid, personId] of useridToPersonId) {
+        if (!activeIds.has(personId)) continue
         const { status, onDuty, offDuty } = mapStatusForDay(userid, day, tripByDay, leaveByDay, attByDay)
         await tx.attendanceRecord.upsert({
           where: { personId_date: { personId, date: day } },
@@ -330,6 +345,7 @@ export async function syncAttendance(progress?: SyncProgress): Promise<{
     // overwrite the same row; tomorrow's finalize of "yesterday" re-pulls this
     // day in the 3-day window and upserts again, correcting any late punches.
     for (const [userid, personId] of useridToPersonId) {
+      if (!activeIds.has(personId)) { lateOffboarded++; continue }
       const { status, onDuty, offDuty } = mapStatusForDay(userid, today, tripByDay, leaveByDay, attByDay)
       stats[status]++
       const tripReason = tripByDay.get(userid)?.reason
@@ -379,7 +395,9 @@ export async function syncAttendance(progress?: SyncProgress): Promise<{
   })
 
   return {
-    total: userids.length,
+    // Exclude people offboarded mid-flight: stats counters skipped them, so
+    // total must equal the four status counts for the summary to add up.
+    total: userids.length - lateOffboarded,
     stats,
     finalizedDays: daysToFinalize.length,
     timings: {
@@ -389,6 +407,7 @@ export async function syncAttendance(progress?: SyncProgress): Promise<{
       writeMs: Date.now() - tWrite,
       dingtalkCalls: getDingtalkCallCount(),
     },
+    lateOffboarded,
   }
 }
 
@@ -442,7 +461,14 @@ export async function backfillDay(day: string, progress?: SyncProgress): Promise
   // One transaction for the whole day's upserts: a mid-loop failure rolls
   // back the partial day so a retry re-pulls cleanly. Network calls are done.
   await prisma.$transaction(async (tx) => {
+    const activeIds = new Set(
+      (await tx.person.findMany({
+        where: { id: { in: [...useridToPersonId.values()] }, offboardedAt: null },
+        select: { id: true },
+      })).map(p => p.id),
+    )
     for (const [userid, personId] of useridToPersonId) {
+      if (!activeIds.has(personId)) continue
       const { status, onDuty, offDuty } = mapStatusForDay(userid, day, tripByDay, leaveByDay, attByDay)
       await tx.attendanceRecord.upsert({
         where: { personId_date: { personId, date: day } },
