@@ -31,7 +31,7 @@ export default function PersonnelPage() {
   const { user } = useAuth()
   const invalidateSyncedAt = useInvalidateSyncedAt()
   const { data: personnelResp, mutate: mutatePersonnel } = usePersonnel({ pageSize: 1000 })
-  const { data: floorData } = useFloorLayout()
+  const { data: floorData, mutate: mutateFloorLayout } = useFloorLayout()
   const personnel = personnelResp?.data?.items ?? []
   const floors = floorData?.floors ?? []
 
@@ -114,12 +114,16 @@ export default function PersonnelPage() {
           onHandled={(handled) => {
             setDeparted(d => {
               if (!d) return d
-              const rest = {
+              return {
                 offboarded: d.offboarded.filter(m => m.id !== handled.id),
                 transferred: d.transferred.filter(m => m.id !== handled.id),
               }
-              return rest
             })
+            // Offboard freed the person's workstation in the DB — refresh the
+            // floor plan cache and drop the stale selection so the plan stops
+            // rendering it as occupied.
+            void mutateFloorLayout()
+            setSelectedWs(null)
             void mutatePersonnel()
           }}
         />
@@ -163,6 +167,9 @@ export default function PersonnelPage() {
               onDone={(task) => {
                 const s = task.result?.stats as { offboarded?: DepartedMember[]; transferred?: DepartedMember[] } | undefined
                 setDeparted({ offboarded: s?.offboarded ?? [], transferred: s?.transferred ?? [] })
+                // The sync just created/updated people — refresh the board now
+                // instead of waiting for a focus revalidation.
+                void mutatePersonnel()
               }}
             />
             <SyncTaskButton
