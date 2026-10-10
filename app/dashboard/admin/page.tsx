@@ -517,13 +517,24 @@ export default function AdminPage() {
                       {item.offboarded && (
                         <span className="text-[9px] px-1 rounded bg-muted text-muted-foreground">已停用</span>
                       )}
-                      {item.offboarded && (
+                      {/* A login banned outside offboarding stays banned after
+                          reinstate — show it without the restore button (the
+                          用户 tab is the place to lift those). */}
+                      {!item.offboarded && item.loginDisabled && (
+                        <span className="text-[9px] px-1 rounded bg-muted text-muted-foreground">登录已禁</span>
+                      )}
+                      {item.offboarded && item.loginDisabled && (
                         <Button
                           size="sm"
                           variant="ghost"
                           className="h-5 text-[10px] px-1.5"
                           onClick={async () => {
-                            await fetch(`/api/personnel/${item.id}/reinstate`, { method: 'POST' })
+                            const res = await fetch(`/api/personnel/${item.id}/reinstate`, { method: 'POST' })
+                            if (!res.ok) {
+                              const body = await res.json().catch(() => ({}) as { error?: string })
+                              setSaveError(body.error || `恢复失败 (${res.status})`)
+                              return
+                            }
                             void mutate().then(fresh => {
                               if (fresh?.personnel) setPersonnelData(fresh.personnel)
                             })
