@@ -150,6 +150,22 @@ Body `{ "ids": string[] }`：同一分类的完整有序 id 列表（未分类�
 
 `?page, pageSize, actorId, action, targetType, targetId` → 分页管理操作审计（写操作自动留痕，actor 为 User 名或 ApiKey 名）。
 
+### GET /api/workstations — `admin`
+
+`?personId=dt-…`（查某人的工位，0/1 行）｜`?floorId=`（按层）｜`?free=1`（仅空位）→
+`{workstations: [{id, name, floorId, floorName, zoneId, zoneName, row, col, status, personId, personName}]}`。
+
+### PUT /api/workstations/assignment — `admin`
+
+Body `{workstationId, personId, force?}`：
+
+- `personId: null` → 清空该工位
+- `personId: "dt-…"` → 分配；该人**原工位自动释放**（人移动，不占两座）
+- 目标已被他人占用 → `409 {error, reason:"conflict", conflict:{personId}}`；`force:true` 顶替原占用者（其座位清空）
+- 未知工位/人员 → `404 {reason:"workstation-not-found"|"person-not-found"}`
+
+成功 → `{ok:true, summary, workstation:{id,name,personId,personName}}`。操作写入审计日志（`workstation.assign`）。
+
 ## 响应与错误约定
 
 | 场景 | 形态 |
@@ -176,6 +192,7 @@ Body `{ "ids": string[] }`：同一分类的完整有序 id 列表（未分类�
 - 用户：`GET /api/users`、`PATCH /api/users/:id`
 - 分类写：`POST/PATCH/DELETE /api/categories(/:id)`（分类**读取**已支持 `admin` key）
 - 工位布局：`GET/PUT /api/floor-layout`、`POST /api/floor-layout/import-assignments`
+- 工位管理（admin）：查某人工位 `GET /api/workstations?personId=…`；改派 `PUT /api/workstations/assignment`（body `{workstationId, personId|null, force?}`——换工位自动释放原座，占用冲突 409 可 `force` 顶替）
 - 配置：`GET/PATCH /api/settings`
 - 备份：`GET/POST/DELETE /api/backup`、`POST /api/backup/restore`、`GET /api/backup/download`、`POST /api/backup/upload`
 - 导出：`GET /api/export`（业务 7 表 JSON）
