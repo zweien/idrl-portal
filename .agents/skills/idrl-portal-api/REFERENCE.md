@@ -138,9 +138,13 @@ Body `{ "ids": string[] }`：同一分类的完整有序 id 列表（未分类�
 
 `?personId=&from=YYYY-MM-DD&to=YYYY-MM-DD&page=&pageSize=` → 分页 `AttendanceRecordItem[]`（checkIn/checkOut/status/workMinutes）。admin 可查任何人；key 带 `admin` 等同 admin。
 
+> 坑：**「status=absent 且 checkIn=整点」是钉钉占位数据，非真实打卡**——attendance/list 对 NotSigned/Absenteeism 行会把 userCheckTime 回填为班次基准时间（如 08:00 整）。新同步已过滤占位 punch（mapStatusForDay），历史归档天仍可能残留；导出 CSV 同理。
+
 ### GET /api/attendance/export/detail | /summary — `admin`
 
 `?from=&to=` → CSV（`text/csv`，附件头）。detail=逐人逐日，summary=按人汇总（含出差工时 `readTripWorkHours`）。admin scope key 可导出全量。
+
+detail 表头为**中文**：`姓名,日期,上班,下班,工时(小时),状态`，且**没有 personId 列**——跨表关联只能按姓名（现库无重名；一旦出现重名，改用逐人 `/api/attendance/records`）。
 
 ### GET /api/sync-logs — `admin`
 
