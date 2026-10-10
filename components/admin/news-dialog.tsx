@@ -28,6 +28,8 @@ import {
 import { Plus, Pencil, ImagePlus, Loader2 } from 'lucide-react'
 
 interface NewsDialogProps {
+  /** Parent unmounts the dialog on close so the next edit remounts with open=true. */
+  onCloseRequest?: () => void
   initialData?: NewsItem
   trigger?: React.ReactNode
   onSubmit: (news: NewsItem) => void | Promise<void>
@@ -53,7 +55,7 @@ function isoToLocal(iso?: string | null): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-export function NewsDialog({ initialData, trigger, onSubmit }: NewsDialogProps) {
+export function NewsDialog({ initialData, trigger, onSubmit, onCloseRequest }: NewsDialogProps) {
   const isEdit = !!initialData
   const { data: catResp } = useCategories('news')
   const categories = catResp?.data ?? []
@@ -135,6 +137,7 @@ export function NewsDialog({ initialData, trigger, onSubmit }: NewsDialogProps) 
         categoryId: form.categoryId || null,
       })
       setOpen(false)
+      onCloseRequest?.()
     } catch {
       // parent surfaces the error
     } finally {
@@ -303,7 +306,7 @@ export function NewsDialog({ initialData, trigger, onSubmit }: NewsDialogProps) 
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" size="sm" onClick={() => setOpen(false)}>取消</Button>
+          <Button variant="outline" size="sm" onClick={() => { setOpen(false); onCloseRequest?.() }}>取消</Button>
           <Button size="sm" onClick={handleSubmit} disabled={submitting || uploading || !form.title || (form.status === 'scheduled' && !form.publishAt)}>{isEdit ? '保存' : '发布'}</Button>
         </DialogFooter>
       </DialogContent>
