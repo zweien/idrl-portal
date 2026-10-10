@@ -133,7 +133,19 @@ export function SyncTaskButton({
     onDone?.(myTask)
   }, [myTask, onDone])
 
-  const showMyState = myTask !== null
+  // A terminal panel in normal flow would sit over the page content forever
+  // (nothing unmounts it), so let it settle for a few seconds then fade the
+  // state by dropping our task id. Errors/interruptions persist until the
+  // next start — they need to be read, not timed out.
+  const [summaryCleared, setSummaryCleared] = useState(false)
+  useEffect(() => {
+    if (!myTask || myTask.state !== 'done') return
+    setSummaryCleared(false)
+    const t = setTimeout(() => setSummaryCleared(true), 10_000)
+    return () => clearTimeout(t)
+  }, [myTask])
+
+  const showMyState = myTask !== null && !(myTask.state === 'done' && summaryCleared)
   const totalMs =
     myTask && myTask.endedAt
       ? new Date(myTask.endedAt).getTime() - new Date(myTask.startedAt).getTime()
@@ -146,7 +158,7 @@ export function SyncTaskButton({
         variant="outline"
         className={cn('h-8 text-xs gap-1.5', className)}
         onClick={start}
-        disabled={anyRunning || disabled}
+        disabled={anyRunning || myRunning || disabled}
         title={anyRunning && !myRunning ? '已有同步任务进行中' : undefined}
       >
         {myRunning ? (
@@ -158,7 +170,12 @@ export function SyncTaskButton({
       </Button>
 
       {(showMyState || interrupted || actionError) && (
-        <div className="absolute left-0 top-full mt-1.5 z-10 min-w-[260px] rounded-md border border-border bg-card shadow-md px-2.5 py-2 text-xs space-y-1">
+        <div className={cn(
+          'rounded-md border border-border bg-card px-2.5 py-2 text-xs space-y-1',
+          // Floating while running keeps the toolbar height stable; terminal
+          // panels drop back into the flow so they never cover page content.
+          myTask?.state === 'running' && 'absolute left-0 top-full mt-1.5 z-10 min-w-[260px] shadow-md',
+        )}>
           {showMyState && myTask.state === 'running' && (
             <div className="space-y-0.5">
               {myTask.stages.map(s => (
