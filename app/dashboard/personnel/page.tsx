@@ -7,9 +7,11 @@ import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { FloorPlan } from '@/components/dashboard/floor-plan'
 import { SyncTaskButton } from '@/components/dashboard/sync-task'
+import { OffboardNotice } from '@/components/dashboard/offboard-notice'
 import { FloorTabs } from '@/components/dashboard/floor-tabs'
 import { SyncTimeBadge, useInvalidateSyncedAt } from '@/components/dashboard/sync-time'
 import { usePersonnel, useFloorLayout } from '@/lib/api'
+import type { DepartedMember } from '@/lib/dingtalk-sync'
 import type { Person, NewWorkstation } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
@@ -38,6 +40,7 @@ export default function PersonnelPage() {
   const [selectedPerson, setSelectedPerson]     = useState<Person | null>(null)
   const [selectedWs, setSelectedWs]             = useState<NewWorkstation | null>(null)
   const [activeFloorId, setActiveFloorId]       = useState('')
+  const [departed, setDeparted]                 = useState<{ offboarded: DepartedMember[]; transferred: DepartedMember[] } | null>(null)
   useEffect(() => {
     if (!activeFloorId && floors.length > 0) setActiveFloorId(floors[0].id)
   }, [floors, activeFloorId])
@@ -104,6 +107,24 @@ export default function PersonnelPage() {
         </p>
       </div>
 
+      {departed && (departed.offboarded.length > 0 || departed.transferred.length > 0) && (
+        <OffboardNotice
+          offboarded={departed.offboarded}
+          transferred={departed.transferred}
+          onHandled={(handled) => {
+            setDeparted(d => {
+              if (!d) return d
+              const rest = {
+                offboarded: d.offboarded.filter(m => m.id !== handled.id),
+                transferred: d.transferred.filter(m => m.id !== handled.id),
+              }
+              return rest
+            })
+            void mutatePersonnel()
+          }}
+        />
+      )}
+
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -136,6 +157,14 @@ export default function PersonnelPage() {
         ))}
         {user?.role === 'admin' && (
           <>
+            <SyncTaskButton
+              kind="members"
+              label="同步钉钉成员"
+              onDone={(task) => {
+                const s = task.result?.stats as { offboarded?: DepartedMember[]; transferred?: DepartedMember[] } | undefined
+                setDeparted({ offboarded: s?.offboarded ?? [], transferred: s?.transferred ?? [] })
+              }}
+            />
             <SyncTaskButton
               kind="attendance"
               label="同步考勤"
@@ -227,6 +256,24 @@ export default function PersonnelPage() {
                       <span className="truncate">{selectedPerson.email}</span>
                     </div>
                   )}
+                {selectedPerson.loginDisabled && (
+                  <div className="flex items-center justify-between gap-2 rounded-md border border-border px-2 py-1.5">
+                    <span className="text-xs text-muted-foreground">门户登录已停用</span>
+                    {user?.role === 'admin' && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-6 text-[11px] px-2"
+                        onClick={async () => {
+                          await fetch(`/api/personnel/${selectedPerson.id}/reinstate`, { method: 'POST' })
+                          void mutatePersonnel()
+                        }}
+                      >
+                        恢复登录
+                      </Button>
+                    )}
+                  </div>
+                )}
                   {selectedWs && (
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <MapPin className="h-3.5 w-3.5 shrink-0" />
@@ -288,6 +335,9 @@ export default function PersonnelPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs font-medium truncate">{person.name}</span>
+                    {person.loginDisabled && (
+                      <span className="text-[9px] px-1 rounded bg-muted text-muted-foreground shrink-0">已停用</span>
+                    )}
                   </div>
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <span className={cn('inline-block h-1.5 w-1.5 rounded-full', statusBg[person.status])} />

@@ -7,6 +7,8 @@ export interface Person {
   id: string
   name: string
   avatar?: string
+  /** Derived live from User.disabledAt (offboard UI); not a Person column. */
+  loginDisabled?: boolean
   /** Free-text job title/role (sourced from DingTalk's 职位 field on sync).
    * Was a fixed 6-value enum; now any string to preserve the real title. */
   role: string

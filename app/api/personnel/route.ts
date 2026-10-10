@@ -31,7 +31,15 @@ export async function GET(request: Request) {
 
   // Fetch all matching rows (researchAreas filter still in-memory)
   const allRows = await prisma.person.findMany({ where })
-  let filtered = allRows.map(toPerson)
+  // Attach login-disabled state (offboarded people keep their row visible
+  // with a badge and can be reinstated; derived live, never persisted on
+  // Person itself).
+  const personIds = allRows.map(p => p.id)
+  const disabledUsers = personIds.length
+    ? await prisma.user.findMany({ where: { personId: { in: personIds }, disabledAt: { not: null } }, select: { personId: true } })
+    : []
+  const disabledSet = new Set(disabledUsers.map(u => u.personId))
+  let filtered = allRows.map(p => ({ ...toPerson(p), loginDisabled: disabledSet.has(p.id) }))
 
   if (search) {
     const query = search.toLowerCase()
