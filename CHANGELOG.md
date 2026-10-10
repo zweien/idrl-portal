@@ -5,6 +5,12 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v0.10.0] - 2026-10-10
+
+### 新增
+
+- feat(admin): 信息管理人员列表——邮箱列换为座位编号 (#98)
+
 ## [v0.9.2] - 2026-10-10
 
 ### 修复
