@@ -214,7 +214,11 @@ export default function AdminPage() {
   }
   async function handlePersonUpdate(p: Person) {
     const prevPerson = personnelData?.find(x => x.id === p.id)
-    setPersonnelData(prev => prev!.map(x => x.id === p.id ? p : x))
+    // PersonDialog builds a fresh object without the derived offboard/
+    // login-disabled flags — carry them over so the badges don't blink off
+    // until mutate() returns the server truth.
+    const merged = { ...p, loginDisabled: prevPerson?.loginDisabled, offboarded: prevPerson?.offboarded }
+    setPersonnelData(prev => prev!.map(x => x.id === p.id ? merged : x))
     setEditingPerson(null)
     try {
       await updatePerson(p.id, p)
@@ -509,10 +513,41 @@ export default function AdminPage() {
                   { key: 'name',   label: '姓名' },
                   { key: 'role',   label: '职位',  render: v => v ? String(v) : <span className="text-muted-foreground">—</span> },
                   { key: 'email',  label: '邮箱' },
-                  { key: 'status', label: '状态',  render: v => (
-                    <Badge variant={v === 'present' ? 'default' : 'secondary'} className="text-[10px] font-normal">
-                      {statusLabels[v as keyof typeof statusLabels]}
-                    </Badge>
+                  { key: 'status', label: '状态',  render: (v, item) => (
+                    <span className="flex items-center gap-1.5">
+                      <Badge variant={v === 'present' ? 'default' : 'secondary'} className="text-[10px] font-normal">
+                        {statusLabels[v as keyof typeof statusLabels]}
+                      </Badge>
+                      {item.offboarded && (
+                        <span className="text-[9px] px-1 rounded bg-muted text-muted-foreground">已停用</span>
+                      )}
+                      {/* A login banned outside offboarding stays banned after
+                          reinstate — show it without the restore button (the
+                          用户 tab is the place to lift those). */}
+                      {!item.offboarded && item.loginDisabled && (
+                        <span className="text-[9px] px-1 rounded bg-muted text-muted-foreground">登录已禁</span>
+                      )}
+                      {item.offboarded && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-5 text-[10px] px-1.5"
+                          onClick={async () => {
+                            const res = await fetch(`/api/personnel/${item.id}/reinstate`, { method: 'POST' })
+                            if (!res.ok) {
+                              const body = await res.json().catch(() => ({}) as { error?: string })
+                              setSaveError(body.error || `恢复失败 (${res.status})`)
+                              return
+                            }
+                            void mutate().then(fresh => {
+                              if (fresh?.personnel) setPersonnelData(fresh.personnel)
+                            })
+                          }}
+                        >
+                          恢复登录
+                        </Button>
+                      )}
+                    </span>
                   )},
                 ]}
                 onEdit={item => setEditingPerson(item)}
