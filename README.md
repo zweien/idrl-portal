@@ -126,7 +126,7 @@ Authorization: Bearer idrl_<48 hex>
 | `news:publish` | `POST / PATCH / DELETE /api/news(/:id)`、`POST /api/news/reorder`、`POST /api/uploads` |
 | `resource:read` | `GET /api/resources` |
 | `resource:publish` | `POST / PATCH / DELETE /api/resources(/:id)`、`POST /api/resources/reorder` |
-| `admin` | 上述读取 + `GET /api/workstations`（工位查询）、`PUT /api/workstations/assignment`（工位改派）、考勤记录 / 导出、同步 / 审计日志 |
+| `admin` | `GET /api/news?includeDrafts=1`、`GET /api/personnel`、`GET /api/categories`、`GET /api/workstations`（查询）、`PUT /api/workstations/assignment`（改派）、考勤记录 / 导出、同步 / 审计日志（资源读取需 `resource:read`，不接受 `admin`） |
 
 - 未列出的端点（用户、布局、备份、设置、人员/分类**写**等管理面）**只接受 admin session**，不识别 API key（`admin` scope 解锁的是读取/审核类，见上表）
 - 无效 / 已吊销 / scope 不符的 key 会**静默回落**到 session 判定（不会报「key 无效」），所以 key 用错时看到的是 401/403
@@ -473,7 +473,7 @@ Query：`from`、`to`（均必填，`from <= to`）、`personId`（可选）
 
 今天实时刷新 + 历史日归档（推进 finalize 水位线）→ `{ total, stats: { present, leave, trip, absent }, finalizedDays, timings?, message? }`（`timings` 为各阶段耗时与钉钉调用次数）。
 
-> **执行模型（双轨）**：`Authorization: Bearer` 调用**阻塞至完成**（机器契约不变）；浏览器 / cookie 会话调用**立即返回 `{ taskId, task }`** 并在后台执行——前端轮询 `GET /api/sync/status?id=` 获取阶段进度（拉取考勤 → 请假 → 出差审批 n/m → 写库，含各阶段耗时）。同一时刻全局只允许一个同步任务（手动 / API / 调度器共享互斥），重复触发返回 409 + 当前任务状态。服务重启丢任务：轮询方显示「同步中断」，水位线保证数据不丢。
+> **执行模型（双轨）**：`Authorization: Bearer` 调用**阻塞至完成**（机器契约不变）；浏览器 / cookie 会话调用**立即返回 `{ taskId, task }`** 并在后台执行——前端轮询 `GET /api/sync/status?id=` 获取阶段进度（拉取考勤 → 请假 → 出差审批 n/m → 写库，含各阶段耗时）。同一时刻全局只允许一个同步任务（手动 / API / 调度器共享互斥），重复触发返回 409——后台任务时 409 附带当前任务状态可供轮询，Bearer/调度器内联运行的冲突仅含错误文案。服务重启丢任务：轮询方显示「同步中断」，水位线保证数据不丢。
 
 ### 配置与日志 `/api/settings` `/api/sync-logs` `/api/audit-logs` — 全部 🛡
 

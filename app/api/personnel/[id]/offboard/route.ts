@@ -35,6 +35,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       // offboardedAt, and a replaced marker would orphan the accounts the
       // first request disabled.
       await tx.$executeRaw`UPDATE Person SET offboardedAt = COALESCE(offboardedAt, ${new Date()}) WHERE id = ${id}`
+      // Freeze as absent + clear the freshness signal (lastSeen) and any trip
+      // reason display. Attendance sync excludes offboardedAt rows, so this
+      // status would otherwise stay 'present' indefinitely after departure.
+      await tx.person.update({
+        where: { id },
+        data: { status: 'absent', lastSeen: null, avatar: null },
+      })
       const ws = await tx.workstation.updateMany({ where: { personId: id }, data: { personId: null } })
       // Never disable the caller's own account: banning yourself through a
       // person-offboard would lock a (possibly sole) admin out mid-session.
