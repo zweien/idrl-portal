@@ -5,6 +5,12 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v0.9.1] - 2026-10-10
+
+### 修复
+
+- fix(sync): 成员同步时考勤按钮误旋转 + 进度面板撑乱按钮行 (#94)
+
 ## [v0.9.0] - 2026-10-10
 
 ### 新增
