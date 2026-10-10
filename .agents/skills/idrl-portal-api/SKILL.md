@@ -105,8 +105,14 @@ curl -s "$BASE/api/attendance/records?personId=<id>&from=2026-07-01&to=2026-07-3
 curl -s "$BASE/api/attendance/export/detail?from=2026-07-01&to=2026-07-31"   -H "Authorization: Bearer $KEY"
 curl -s "$BASE/api/attendance/export/summary?from=2026-07-01&to=2026-07-31"  -H "Authorization: Bearer $KEY"
 
-# 人员列表（admin；可按 status/search 过滤，status=present|leave|trip|absent）
-curl -s "$BASE/api/personnel?pageSize=100&status=present" -H "Authorization: Bearer $KEY"
+# 人员列表（admin；可按 status 过滤，status=present|leave|trip|absent；pageSize 上限 100，超过按 totalPages 翻页）
+curl -s "$BASE/api/personnel?page=1&pageSize=100&status=present" -H "Authorization: Bearer $KEY"
+
+# 按职位（role）筛选人员状态：没有服务端 role 参数，search 也不匹配 role ——
+# 只能翻页拉全量（pageSize=100 × page=1..totalPages）后本地过滤。
+# role 是自由文本（钉钉「职位」同步而来），常见值：学生（统招）/学生（联培）/学生（实习）/
+# 科研人员/工程师/staff/助理，可为空；前缀匹配「学生」可覆盖三类学生。
+curl -s "$BASE/api/personnel?page=$p&pageSize=100" -H "Authorization: Bearer $KEY"   # 循环取页 → 过滤 role
 
 # 同步/审计日志（admin）
 curl -s "$BASE/api/sync-logs?limit=20"  -H "Authorization: Bearer $KEY"

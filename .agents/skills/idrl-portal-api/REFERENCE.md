@@ -117,7 +117,12 @@ Body `{ "ids": string[] }`：同一分类的完整有序 id 列表（未分类�
 
 ### GET /api/personnel — `admin`
 
-分页人员列表。Query：`page, pageSize, status=present|leave|trip|absent, search`（姓名/职位/邮箱/手机）。
+分页人员列表。Query：`page, pageSize, status=present|leave|trip|absent, search`。
+
+- `search` 只匹配**姓名/邮箱/研究方向**（researchAreas），不匹配职位（role）和手机
+- `pageSize` 静默钳制到 **100**（`MAX_PAGE_SIZE`）；总人数超 100 时必须按 `totalPages` 翻页取全
+- item 字段：`id, name, role, phone, dingUserId, status, avatar, loginDisabled, offboarded`（email/researchAreas 有值才出现）
+- `role` 是自由文本（钉钉「职位」字段同步而来，如 `学生（统招）`/`学生（联培）`/`学生（实习）`/`科研人员`/`工程师`，可为空）——**按职位筛选无服务端参数**，翻页拉全量后本地过滤（前缀匹配「学生」覆盖三类学生）
 
 ### GET /api/categories — `admin`
 
