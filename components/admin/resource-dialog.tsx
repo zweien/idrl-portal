@@ -41,12 +41,14 @@ const accessOptions: { value: Resource['accessLevel']; label: string }[] = [
 ]
 
 interface ResourceDialogProps {
+  /** Parent unmounts the dialog on close so the next edit remounts with open=true. */
+  onCloseRequest?: () => void
   initialData?: Resource
   trigger?: React.ReactNode
   onSubmit: (resource: Resource) => void | Promise<void>
 }
 
-export function ResourceDialog({ initialData, trigger, onSubmit }: ResourceDialogProps) {
+export function ResourceDialog({ initialData, trigger, onSubmit, onCloseRequest }: ResourceDialogProps) {
   const isEdit = !!initialData
   const { data: catResp } = useCategories('resource')
   const categories = catResp?.data ?? []
@@ -98,6 +100,7 @@ export function ResourceDialog({ initialData, trigger, onSubmit }: ResourceDialo
         categoryId: form.categoryId || null,
       })
       setOpen(false)
+      onCloseRequest?.()
     } catch {
       // parent surfaces the error
     } finally {
@@ -106,6 +109,10 @@ export function ResourceDialog({ initialData, trigger, onSubmit }: ResourceDialo
   }
 
   const handleOpenChange = (val: boolean) => {
+    // Dismissals via the X button / Escape / backdrop land here (cancel and
+    // submit call setOpen directly) — the parent must unmount the dialog on
+    // every path or the stale mounted instance blocks the next edit.
+    if (!val) onCloseRequest?.()
     setOpen(val)
     if (val && initialData) {
       setForm({
@@ -239,7 +246,7 @@ export function ResourceDialog({ initialData, trigger, onSubmit }: ResourceDialo
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" size="sm" onClick={() => setOpen(false)}>取消</Button>
+          <Button variant="outline" size="sm" onClick={() => { setOpen(false); onCloseRequest?.() }}>取消</Button>
           <Button size="sm" onClick={handleSubmit} disabled={submitting || !form.name}>{isEdit ? '保存' : '添加'}</Button>
         </DialogFooter>
       </DialogContent>

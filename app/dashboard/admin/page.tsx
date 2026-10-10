@@ -559,6 +559,7 @@ export default function AdminPage() {
             <PersonDialog
               initialData={editingPerson}
               onSubmit={handlePersonUpdate}
+              onCloseRequest={() => setEditingPerson(null)}
             />
           )}
         </TabsContent>
@@ -608,6 +609,7 @@ export default function AdminPage() {
             <ResourceDialog
               initialData={editingResource}
               onSubmit={handleResourceUpdate}
+              onCloseRequest={() => setEditingResource(null)}
             />
           )}
         </TabsContent>
@@ -658,6 +660,7 @@ export default function AdminPage() {
             <NewsDialog
               initialData={editingNews}
               onSubmit={handleNewsUpdate}
+              onCloseRequest={() => setEditingNews(null)}
             />
           )}
         </TabsContent>

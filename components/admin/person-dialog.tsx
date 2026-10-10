@@ -24,12 +24,14 @@ const statusOptions: { value: Person['status']; label: string }[] = [
 ]
 
 interface PersonDialogProps {
+  /** Parent unmounts the dialog on close so the next edit remounts with open=true. */
+  onCloseRequest?: () => void
   initialData?: Person
   trigger?: React.ReactNode
   onSubmit: (person: Person) => void
 }
 
-export function PersonDialog({ initialData, trigger, onSubmit }: PersonDialogProps) {
+export function PersonDialog({ initialData, trigger, onSubmit, onCloseRequest }: PersonDialogProps) {
   const isEdit = !!initialData
   const [open, setOpen] = useState(!!initialData)
   const [form, setForm] = useState({
@@ -55,9 +57,14 @@ export function PersonDialog({ initialData, trigger, onSubmit }: PersonDialogPro
         : undefined,
     })
     setOpen(false)
+    onCloseRequest?.()
   }
 
   const handleOpenChange = (val: boolean) => {
+    // Dismissals via the X button / Escape / backdrop land here (cancel and
+    // submit call setOpen directly) — the parent must unmount the dialog on
+    // every path or the stale mounted instance blocks the next edit.
+    if (!val) onCloseRequest?.()
     setOpen(val)
     if (val && initialData) {
       setForm({
@@ -125,7 +132,7 @@ export function PersonDialog({ initialData, trigger, onSubmit }: PersonDialogPro
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" size="sm" onClick={() => setOpen(false)}>取消</Button>
+          <Button variant="outline" size="sm" onClick={() => { setOpen(false); onCloseRequest?.() }}>取消</Button>
           <Button size="sm" onClick={handleSubmit} disabled={!form.name}>{isEdit ? '保存' : '添加'}</Button>
         </DialogFooter>
       </DialogContent>
