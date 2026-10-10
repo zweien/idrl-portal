@@ -52,6 +52,12 @@ export async function GET(req: NextRequest) {
       : undefined
     if (byDing) personId = byDing.id
 
+    // A person deliberately offboarded through the departure UI must not get
+    // a session via a first-time login that would auto-create their User.
+    if (byDing?.offboardedAt) {
+      return NextResponse.redirect(new URL(LOGIN_DISABLED_URL, getRequestOrigin(req)))
+    }
+
     const user = await prisma.user.upsert({
       where: {
         provider_externalId: { provider: 'dingtalk', externalId },

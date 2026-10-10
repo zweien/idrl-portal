@@ -1,0 +1,52 @@
+import { assertSameOrigin } from '@/lib/csrf'
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/db'
+import { requireAdmin } from '@/lib/auth-api'
+import { logAction, actorFromAuth } from '@/lib/audit'
+import { toSafeError } from '@/lib/safe-error'
+
+/**
+ * POST /api/personnel/[id]/reinstate
+ *
+ * Reverse of /offboard: re-enable the person's login User(s). Their status
+ * stays absent until the next attendance sync sees them (which only happens
+ * if they were re-added on the DingTalk side) — reinstating a person who is
+ * still off-org leaves them as a plain absent row, which is honest.
+ */
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const __csrf = assertSameOrigin(req)
+  if (__csrf) return __csrf
+  const auth = await requireAdmin()
+  if (auth instanceof NextResponse) return auth
+
+  const { id } = await params
+  try {
+    const person = await prisma.person.findUnique({ where: { id } })
+    if (!person) return NextResponse.json({ error: '人员不存在' }, { status: 404 })
+
+    // Re-enable ONLY the accounts this offboard disabled: a login banned
+    // earlier through user management (unrelated security/administrative
+    // reason) must stay banned. Offboard stamps disabledAt >= its own
+    // offboardedAt, so the timestamp comparison separates the two.
+    const reenabled = person.offboardedAt
+      ? await prisma.user.updateMany({
+          where: { personId: id, disabledAt: { not: null, gte: person.offboardedAt } },
+          data: { disabledAt: null },
+        })
+      : { count: 0 }
+    // Clear the offboard marker so the person re-enters departure detection
+    // (they will be re-reported only if still absent from the org) and the
+    // attendance pipeline.
+    await prisma.person.update({ where: { id }, data: { offboardedAt: null } })
+
+    void logAction({
+      ...actorFromAuth(auth),
+      action: 'person.reinstate', targetType: 'person', targetId: id,
+      summary: `恢复人员 ${person.name} 的登录（${reenabled.count} 个账号）`,
+    })
+    return NextResponse.json({ ok: true, usersReenabled: reenabled.count })
+  } catch (e) {
+    const { message: msg } = toSafeError(e)
+    return NextResponse.json({ error: msg }, { status: 500 })
+  }
+}

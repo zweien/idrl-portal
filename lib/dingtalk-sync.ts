@@ -30,6 +30,12 @@ async function readLastFinalized(): Promise<string> {
  * both the HTTP route and the background scheduler can call it. Returns
  * aggregate stats; callers decide where to persist a SyncLog entry.
  */
+/** A person detected as no longer synced, for the offboard UI. */
+export interface DepartedMember {
+  id: string
+  name: string
+}
+
 export async function syncMembers(progress?: SyncProgress): Promise<{
   total: number
   created: number
@@ -37,6 +43,10 @@ export async function syncMembers(progress?: SyncProgress): Promise<{
   linked: number
   /** Person rows whose embedded userid was refreshed (DingTalk delete+re-add). */
   renamed: number
+  /** unionid gone from the whole DingTalk org (resigned / account deleted). */
+  offboarded: DepartedMember[]
+  /** unionid still in DingTalk but outside the synced department subtree (transferred out). */
+  transferred: DepartedMember[]
 }> {
   resetDingtalkCallCount()
   progress?.stage('fetch')
@@ -139,7 +149,40 @@ export async function syncMembers(progress?: SyncProgress): Promise<{
     }
   })
 
-  return { total: members.length, created, updated, linked, renamed }
+  // ---- Departure detection ----
+  // Pull the WHOLE org (root dept 1) and classify every synced person not in
+  // the configured subtree: unionid gone entirely = offboarded (resigned /
+  // account deleted); unionid present but outside the subtree = transferred
+  // out. Detection is computed live (never persisted) — the UI offers a
+  // deliberate offboard action instead of the sync deleting anything.
+  let offboarded: DepartedMember[] = []
+  let transferred: DepartedMember[] = []
+  try {
+    const orgMembers = await listDeptMembers(1)
+    const subtreeUnions = new Set(members.map(m => m.unionid).filter(Boolean))
+    const orgUnions = new Set(orgMembers.map(m => m.unionid).filter(Boolean))
+    const dtPersons = await prisma.person.findMany({
+      // Already-offboarded people stay handled — re-reporting them would
+      // make the notice permanent.
+      where: { id: { startsWith: 'dt-' }, offboardedAt: null },
+      select: { id: true, name: true, dingUserId: true },
+    })
+    for (const p of dtPersons) {
+      // Rows without a unionid are local/manual persons (never DingTalk
+      // synced) — they are not departure candidates.
+      if (!p.dingUserId) continue
+      if (orgUnions.has(p.dingUserId) === false) {
+        offboarded.push({ id: p.id, name: p.name })
+      } else if (subtreeUnions.has(p.dingUserId) === false) {
+        transferred.push({ id: p.id, name: p.name })
+      }
+    }
+  } catch (e) {
+    // Detection must not fail the sync itself — it is advisory.
+    console.error('sync-members departure detection failed:', e)
+  }
+
+  return { total: members.length, created, updated, linked, renamed, offboarded, transferred }
 }
 
 /**
@@ -179,9 +222,11 @@ export async function syncAttendance(progress?: SyncProgress): Promise<{
   resetDingtalkCallCount()
   const token = await getEnterpriseAccessToken()
 
-  // Find all persons synced from DingTalk (id starts with 'dt-')
+  // Find all persons synced from DingTalk (id starts with 'dt-').
+  // Offboarded people are excluded: no status refresh, no attendance rows —
+  // their history stays frozen as of the offboard.
   const dtPersons = await prisma.person.findMany({
-    where: { id: { startsWith: 'dt-' } },
+    where: { id: { startsWith: 'dt-' }, offboardedAt: null },
     select: { id: true },
   })
 
@@ -374,7 +419,7 @@ export async function backfillDay(day: string, progress?: SyncProgress): Promise
   resetDingtalkCallCount()
   const token = await getEnterpriseAccessToken()
   const dtPersons = await prisma.person.findMany({
-    where: { id: { startsWith: 'dt-' } },
+    where: { id: { startsWith: 'dt-' }, offboardedAt: null },
     select: { id: true },
   })
   const useridToPersonId = new Map<string, string>()

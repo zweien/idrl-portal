@@ -53,9 +53,12 @@ export async function POST(req: Request) {
         stats: JSON.stringify(result),
       },
     })
+    const departNote = result.offboarded.length + result.transferred.length > 0
+      ? `，检测到 ${result.offboarded.length} 人退出组织 / ${result.transferred.length} 人调离同步范围`
+      : ''
     return {
       summary: `成员同步完成：共 ${result.total} 人，新建 ${result.created}，更新 ${result.updated}，关联登录 ${result.linked}` +
-        (result.renamed > 0 ? `，钉钉重加账号修复 ${result.renamed} 人` : ''),
+        (result.renamed > 0 ? `，钉钉重加账号修复 ${result.renamed} 人` : '') + departNote,
       stats: result as unknown as Record<string, unknown>,
     }
   }, { background })
