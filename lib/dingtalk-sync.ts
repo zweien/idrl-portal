@@ -162,7 +162,9 @@ export async function syncMembers(progress?: SyncProgress): Promise<{
     const subtreeUnions = new Set(members.map(m => m.unionid).filter(Boolean))
     const orgUnions = new Set(orgMembers.map(m => m.unionid).filter(Boolean))
     const dtPersons = await prisma.person.findMany({
-      where: { id: { startsWith: 'dt-' } },
+      // Already-offboarded people stay handled — re-reporting them would
+      // make the notice permanent.
+      where: { id: { startsWith: 'dt-' }, offboardedAt: null },
       select: { id: true, name: true, dingUserId: true },
     })
     for (const p of dtPersons) {
@@ -220,9 +222,11 @@ export async function syncAttendance(progress?: SyncProgress): Promise<{
   resetDingtalkCallCount()
   const token = await getEnterpriseAccessToken()
 
-  // Find all persons synced from DingTalk (id starts with 'dt-')
+  // Find all persons synced from DingTalk (id starts with 'dt-').
+  // Offboarded people are excluded: no status refresh, no attendance rows —
+  // their history stays frozen as of the offboard.
   const dtPersons = await prisma.person.findMany({
-    where: { id: { startsWith: 'dt-' } },
+    where: { id: { startsWith: 'dt-' }, offboardedAt: null },
     select: { id: true },
   })
 
@@ -415,7 +419,7 @@ export async function backfillDay(day: string, progress?: SyncProgress): Promise
   resetDingtalkCallCount()
   const token = await getEnterpriseAccessToken()
   const dtPersons = await prisma.person.findMany({
-    where: { id: { startsWith: 'dt-' } },
+    where: { id: { startsWith: 'dt-' }, offboardedAt: null },
     select: { id: true },
   })
   const useridToPersonId = new Map<string, string>()

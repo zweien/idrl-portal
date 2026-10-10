@@ -29,7 +29,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!person) return NextResponse.json({ error: '人员不存在' }, { status: 404 })
 
     const result = await prisma.$transaction(async (tx) => {
-      await tx.person.update({ where: { id }, data: { status: 'absent', lastSeen: null, avatar: null } })
+      await tx.person.update({ where: { id }, data: { status: 'absent', lastSeen: null, avatar: null, offboardedAt: new Date() } })
       const ws = await tx.workstation.updateMany({ where: { personId: id }, data: { personId: null } })
       const users = await tx.user.updateMany({ where: { personId: id, disabledAt: null }, data: { disabledAt: new Date() } })
       return { workstationsCleared: ws.count, usersDisabled: users.count }

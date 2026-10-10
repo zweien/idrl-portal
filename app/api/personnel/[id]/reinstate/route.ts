@@ -25,6 +25,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!person) return NextResponse.json({ error: '人员不存在' }, { status: 404 })
 
     const reenabled = await prisma.user.updateMany({ where: { personId: id, disabledAt: { not: null } }, data: { disabledAt: null } })
+    // Clear the offboard marker so the person re-enters departure detection
+    // (they will be re-reported only if still absent from the org) and the
+    // attendance pipeline.
+    await prisma.person.update({ where: { id }, data: { offboardedAt: null } })
 
     void logAction({
       ...actorFromAuth(auth),

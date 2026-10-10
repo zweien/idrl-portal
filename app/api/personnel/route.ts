@@ -39,7 +39,11 @@ export async function GET(request: Request) {
     ? await prisma.user.findMany({ where: { personId: { in: personIds }, disabledAt: { not: null } }, select: { personId: true } })
     : []
   const disabledSet = new Set(disabledUsers.map(u => u.personId))
-  let filtered = allRows.map(p => ({ ...toPerson(p), loginDisabled: disabledSet.has(p.id) }))
+  let filtered = allRows.map(p => ({
+    ...toPerson(p),
+    loginDisabled: disabledSet.has(p.id),
+    offboarded: p.offboardedAt !== null,
+  }))
 
   if (search) {
     const query = search.toLowerCase()

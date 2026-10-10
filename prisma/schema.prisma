@@ -59,6 +59,10 @@ model Person {
   lastSeen          String?
   researchAreas     String?
   avatar            String?
+  // Deliberate offboard marker (departure-detection UI): excluded from
+  // departure detection and attendance processing; history kept. Cleared by
+  // reinstate.
+  offboardedAt      DateTime?
   workstations      Workstation[]
   users             User[]
   attendanceRecords AttendanceRecord[]

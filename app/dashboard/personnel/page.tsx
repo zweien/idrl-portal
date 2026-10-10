@@ -256,9 +256,9 @@ export default function PersonnelPage() {
                       <span className="truncate">{selectedPerson.email}</span>
                     </div>
                   )}
-                {selectedPerson.loginDisabled && (
+                {selectedPerson.offboarded && (
                   <div className="flex items-center justify-between gap-2 rounded-md border border-border px-2 py-1.5">
-                    <span className="text-xs text-muted-foreground">门户登录已停用</span>
+                    <span className="text-xs text-muted-foreground">已停用（登录已禁用）</span>
                     {user?.role === 'admin' && (
                       <Button
                         size="sm"
@@ -266,7 +266,12 @@ export default function PersonnelPage() {
                         className="h-6 text-[11px] px-2"
                         onClick={async () => {
                           await fetch(`/api/personnel/${selectedPerson.id}/reinstate`, { method: 'POST' })
-                          void mutatePersonnel()
+                          // selectedPerson is an independent copy — refresh it
+                          // from the revalidated list or the panel keeps
+                          // showing the stopped state.
+                          const fresh = await mutatePersonnel()
+                          const updated = fresh?.data?.items.find(x => x.id === selectedPerson.id)
+                          if (updated) setSelectedPerson(updated)
                         }}
                       >
                         恢复登录
@@ -335,7 +340,7 @@ export default function PersonnelPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs font-medium truncate">{person.name}</span>
-                    {person.loginDisabled && (
+                    {person.offboarded && (
                       <span className="text-[9px] px-1 rounded bg-muted text-muted-foreground shrink-0">已停用</span>
                     )}
                   </div>

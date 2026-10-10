@@ -48,7 +48,8 @@ beforeAll(async () => {
       "status" TEXT NOT NULL,
       "lastSeen" TEXT,
       "researchAreas" TEXT,
-      "avatar" TEXT
+      "avatar" TEXT,
+      "offboardedAt" DATETIME
     );
     CREATE TABLE "Workstation" (
       "id" TEXT NOT NULL PRIMARY KEY,
