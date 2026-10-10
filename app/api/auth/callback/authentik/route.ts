@@ -40,6 +40,11 @@ export async function GET(req: NextRequest) {
     if (info.email) {
       const person = await prisma.person.findFirst({ where: { email: info.email } })
       personId = person?.id
+      // Offboarded person: refuse the session before the upsert can
+      // auto-create their User (mirrors the DingTalk callback gate).
+      if (person?.offboardedAt) {
+        return NextResponse.redirect(new URL(LOGIN_DISABLED_URL, getRequestOrigin(req)))
+      }
     }
 
     const user = await prisma.user.upsert({

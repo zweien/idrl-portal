@@ -29,10 +29,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!person) return NextResponse.json({ error: '人员不存在' }, { status: 404 })
 
     const result = await prisma.$transaction(async (tx) => {
-      // Keep the FIRST offboard timestamp on retries: the reinstate scoping
-      // compares disabledAt >= offboardedAt, and replacing the marker would
-      // orphan the accounts disabled by the earlier call.
-      await tx.person.update({ where: { id }, data: { status: 'absent', lastSeen: null, avatar: null, ...(person.offboardedAt ? {} : { offboardedAt: new Date() }) } })
+      // Keep the FIRST offboard timestamp — atomically (COALESCE), so two
+      // concurrent offboards cannot both observe null and replace each
+      // other's marker: the reinstate scoping compares disabledAt >=
+      // offboardedAt, and a replaced marker would orphan the accounts the
+      // first request disabled.
+      await tx.$executeRaw`UPDATE Person SET offboardedAt = COALESCE(offboardedAt, ${new Date()}) WHERE id = ${id}`
       const ws = await tx.workstation.updateMany({ where: { personId: id }, data: { personId: null } })
       // Never disable the caller's own account: banning yourself through a
       // person-offboard would lock a (possibly sole) admin out mid-session.
