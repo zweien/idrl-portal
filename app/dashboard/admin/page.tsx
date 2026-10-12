@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { useAdminData, useCategories, createPerson, updatePerson, deletePerson, createResource, updateResource, deleteResource, createNews, updateNews, deleteNews, reorderNews, reorderResources } from '@/lib/api'
 import { compareNews, compareResources } from '@/lib/ordering'
@@ -22,7 +23,7 @@ import { AuditLogPanel } from '@/components/admin/audit-log-panel'
 import {
   Users, Server, Newspaper, Pencil, Trash2, ChevronUp, ChevronDown,
   Database, AlertTriangle, CheckCircle, Info,
-  ShieldAlert, MapPin, Upload, Key, Clock, Folder, UserCog, DatabaseBackup,
+  ShieldAlert, MapPin, Search, Upload, Key, Clock, Folder, UserCog, DatabaseBackup,
   ScrollText,
 } from 'lucide-react'
 
@@ -182,16 +183,37 @@ export default function AdminPage() {
   const resCategories = resCatResp?.data ?? []
   const newsCategories = newsCatResp?.data ?? []
 
-  // Sync server → local on first load
+  // Sync server → local whenever the SERVER payload changes (fingerprint of
+  // the editable fields), not just on first load: an admin's own optimistic
+  // updates are followed by mutate() (server truth wins), and edits made
+  // elsewhere — the floor-layout editor, the workstation API, another tab —
+  // must not be blocked by this page's stale local snapshot. The mirror
+  // replaces local rows wholesale; the dialog handlers re-add their derived
+  // fields on top of the server payload after each action.
+  const serverFp = (rows: unknown[] | undefined) =>
+    rows ? JSON.stringify(rows) : ''
+  const lastServer = useRef<{ p: string; r: string; n: string }>({ p: '', r: '', n: '' })
   useEffect(() => {
-    if (data?.personnel && personnelData === null) setPersonnelData(data.personnel)
-  }, [data?.personnel, personnelData])
+    const fp = serverFp(data?.personnel)
+    if (data?.personnel && fp !== lastServer.current.p) {
+      lastServer.current.p = fp
+      setPersonnelData(data.personnel)
+    }
+  }, [data?.personnel])
   useEffect(() => {
-    if (data?.resources && resourcesData === null) setResourcesData(data.resources)
-  }, [data?.resources, resourcesData])
+    const fp = serverFp(data?.resources)
+    if (data?.resources && fp !== lastServer.current.r) {
+      lastServer.current.r = fp
+      setResourcesData(data.resources)
+    }
+  }, [data?.resources])
   useEffect(() => {
-    if (data?.news && newsData === null) setNewsData(data.news)
-  }, [data?.news, newsData])
+    const fp = serverFp(data?.news)
+    if (data?.news && fp !== lastServer.current.n) {
+      lastServer.current.n = fp
+      setNewsData(data.news)
+    }
+  }, [data?.news])
 
   // Dirty = any of the three differs from server
   // Per-action persistence (single-item endpoints). Each mutation is optimistic:
@@ -360,6 +382,7 @@ export default function AdminPage() {
   }
 
   const [editingPerson, setEditingPerson]     = useState<Person | null>(null)
+  const [personSearch, setPersonSearch] = useState('')
   const [editingResource, setEditingResource] = useState<Resource | null>(null)
   const [editingNews, setEditingNews]         = useState<NewsItem | null>(null)
   const [importing, setImporting] = useState(false)
@@ -395,6 +418,17 @@ export default function AdminPage() {
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
+
+  const filteredPersonnel = useMemo(() => {
+    const q = personSearch.trim().toLowerCase()
+    const rows = personnelData ?? []
+    if (!q) return rows
+    return rows.filter(p =>
+      p.name.toLowerCase().includes(q) ||
+      (p.role ?? '').toLowerCase().includes(q) ||
+      (p.seatName ?? '').toLowerCase().includes(q),
+    )
+  }, [personSearch, personnelData])
 
   if (user?.role !== 'admin') {
     return (
@@ -490,7 +524,9 @@ export default function AdminPage() {
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
               <div>
                 <p className="text-sm font-medium">人员管理</p>
-                <p className="text-xs text-muted-foreground mt-0.5">管理实验室人员信息</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  管理实验室人员信息{personSearch && ` · 筛选 "${personSearch}"（${filteredPersonnel.length}/${personnelData?.length ?? 0}）`}
+                </p>
               </div>
               <div className="flex items-center gap-2">
                 <SyncTaskButton
@@ -517,9 +553,20 @@ export default function AdminPage() {
                 <PersonDialog onSubmit={handlePersonCreate} />
               </div>
             </div>
+            <div className="px-4 py-3 border-b border-border">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="搜索姓名、职位、座位编号…"
+                  value={personSearch}
+                  onChange={e => setPersonSearch(e.target.value)}
+                  className="pl-8 h-8 text-sm w-72"
+                />
+              </div>
+            </div>
             <div className="px-4">
               <DataTable
-                data={personnelData}
+                data={filteredPersonnel}
                 columns={[
                   { key: 'name',   label: '姓名' },
                   { key: 'role',   label: '职位',  render: v => v ? String(v) : <span className="text-muted-foreground">—</span> },
