@@ -3,6 +3,7 @@ import Database from 'better-sqlite3'
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { removeTempDir } from './helpers/temp-dir'
 
 /**
  * WAL mode. The migration `20260806002721_enable_wal_mode` flips the DB's
@@ -27,7 +28,7 @@ beforeAll(() => {
 })
 
 afterAll(() => {
-  rmSync(tmpDir, { recursive: true, force: true })
+  removeTempDir(tmpDir)
 })
 
 describe('WAL migration', () => {

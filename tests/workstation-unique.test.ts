@@ -5,6 +5,7 @@ import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3'
 import { join } from 'node:path'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
+import { removeTempDir } from './helpers/temp-dir'
 
 /**
  * One-person-one-workstation: the @@unique([personId]) constraint must reject a
@@ -82,7 +83,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await prisma?.$disconnect()
-  rmSync(tmpDir, { recursive: true, force: true })
+  removeTempDir(tmpDir)
 })
 
 describe('Workstation.personId @@unique', () => {

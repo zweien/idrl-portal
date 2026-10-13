@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os'
 import { compareNews, compareResources } from '@/lib/ordering'
 import { toNewsItem, toResource, fromNewsItem, fromResource } from '@/lib/db/serialize'
 import type { NewsItem, Resource } from '@/lib/types'
+import { removeTempDir } from './helpers/temp-dir'
 
 /**
  * Manual ordering: NewsItem.order applies within the pinned group (unpinned
@@ -94,7 +95,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await prisma?.$disconnect()
-  rmSync(tmpDir, { recursive: true, force: true })
+  removeTempDir(tmpDir)
 })
 
 describe('order persistence', () => {

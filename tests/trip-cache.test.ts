@@ -3,6 +3,7 @@ import Database from 'better-sqlite3'
 import { join } from 'node:path'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
+import { removeTempDir } from './helpers/temp-dir'
 
 // TripInstanceCache: the SQLite mirror of the in-memory approval cache must
 // round-trip (persist → fresh map load) so a pm2 restart skips the ~84 detail
@@ -83,7 +84,7 @@ beforeAll(async () => {
   await new Promise(r => setTimeout(r, 20))
 })
 
-afterAll(() => rmSync(tmpDir, { recursive: true, force: true }))
+afterAll(() => removeTempDir(tmpDir))
 
 describe('trip-cache (persistent approval-instance cache)', () => {
   it('loads persisted instances into a fresh memory map (restart simulation)', async () => {

@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { toCategory } from '@/lib/db/serialize'
+import { removeTempDir } from './helpers/temp-dir'
 
 /**
  * Category model: unified news/resource categories. Verifies the (kind, name)
@@ -35,7 +36,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await prisma?.$disconnect()
-  rmSync(tmpDir, { recursive: true, force: true })
+  removeTempDir(tmpDir)
 })
 
 describe('Category (kind, name) uniqueness', () => {

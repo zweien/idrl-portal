@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { validateImage, resolveUploadPath, randomSuffix, uploadsDir, IMAGE_TYPES, UploadValidationError } from '@/lib/uploads'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { removeTempDir } from './helpers/temp-dir'
 
 const pngHeader = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
 
@@ -88,7 +89,7 @@ describe('resolveUploadPath', () => {
   })
   afterAll(() => {
     delete process.env.UPLOADS_DIR
-    rmSync(dir, { recursive: true, force: true })
+    removeTempDir(dir)
   })
 
   it('resolves an existing image file with the right mime', async () => {
