@@ -60,6 +60,8 @@ export function Brand({
   }
   return (
     <>
+      {/* 两张图都带 alt：被隐藏的一张 display:none 不进入无障碍树，
+          因此任一主题下可访问名称都恰好出现一次（codex review 意见）。 */}
       <Image
         {...shared}
         {...props}
@@ -71,8 +73,7 @@ export function Brand({
         {...shared}
         {...props}
         src={dark}
-        alt=""
-        aria-hidden
+        alt={alt}
         className={cn('brand-dark', className)}
       />
     </>
