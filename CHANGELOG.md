@@ -5,6 +5,16 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v0.11.0] - 2026-10-13
+
+### 新增
+
+- feat(brand): adopt IDRL visual identity (VI v0.1) across the portal (#102)
+
+### 修复
+
+- fix(test): best-effort temp dir cleanup so the suite passes on Windows
+
 ## [v0.10.3] - 2026-10-12
 
 ### 新增
