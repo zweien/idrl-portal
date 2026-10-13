@@ -49,3 +49,6 @@ prisma/backups/
 prisma/ci-migrate-check.sqlite
 prisma/db.sqlite-wal
 prisma/db.sqlite-shm
+
+# Local before/after refactor screenshots
+.screenshots/

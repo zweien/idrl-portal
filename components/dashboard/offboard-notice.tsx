@@ -54,7 +54,7 @@ export function OffboardNotice({
         <span className="shrink-0 text-muted-foreground">{icon}</span>
         <span className={cn('text-xs', done && 'line-through text-muted-foreground')}>{m.name}</span>
         {done ? (
-          <span className="text-xs text-emerald-600 flex items-center gap-0.5"><Check className="h-3 w-3" />已停用</span>
+          <span className="text-xs text-success flex items-center gap-0.5"><Check className="h-3 w-3" />已停用</span>
         ) : (
           <Button
             size="sm"
@@ -74,9 +74,9 @@ export function OffboardNotice({
   const total = offboarded.length + transferred.length
 
   return (
-    <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2">
+    <div className="rounded-lg border border-warning/30 bg-warning/5 px-3 py-2">
       <button className="w-full flex items-center gap-2 text-left" onClick={() => setOpen(o => !o)}>
-        <span className="text-xs font-medium text-amber-700 dark:text-amber-400">
+        <span className="text-xs font-medium text-warning">
           成员同步检测到 {total} 人不在同步范围
         </span>
         {open ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}

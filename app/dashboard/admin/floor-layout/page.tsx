@@ -95,7 +95,7 @@ export default function FloorLayoutPage() {
         </div>
         <div className="flex items-center gap-3">
           {dirty && (
-            <span className="text-xs text-amber-600 font-medium">● 未保存改动</span>
+            <span className="text-xs text-warning font-medium">● 未保存改动</span>
           )}
           {saveError && (
             <span className="text-xs text-destructive">保存失败：{saveError}</span>

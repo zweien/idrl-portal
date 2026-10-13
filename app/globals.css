@@ -3,104 +3,129 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* ============================================
-   IDRL Portal – Linear-style Design System
-   ============================================ */
+/* ============================================================
+   IDRL Portal — IDRL 视觉识别（VI）设计系统
+   颜色 / 字体 / 圆角 / 动效取自 IDRL VI 的语义 tokens
+   （assets/brand/tokens.json，原始值备份于 public/brand/tokens.json），
+   按品牌规则映射到 shadcn/ui 变量名。使用规则见根目录 DESIGN.md。
+   深色主题使用 VI 的独立深色语义值，不做整体颜色反转；
+   深色底 logo 一律使用专用 reverse 资产（public/brand/logo/*-reverse.svg）。
+   ============================================================ */
 
 :root {
-  /* Light theme */
-  --background:        oklch(0.99 0 0);
-  --foreground:        oklch(0.13 0.01 260);
-  --card:              oklch(1 0 0);
-  --card-foreground:   oklch(0.13 0.01 260);
-  --popover:           oklch(1 0 0);
-  --popover-foreground: oklch(0.13 0.01 260);
+  /* VI light 主题语义值 */
+  --background:            #f5f8fc;
+  --foreground:            #182a43;
+  --card:                  #ffffff;   /* VI surface */
+  --card-foreground:       #182a43;
+  --popover:               #ffffff;
+  --popover-foreground:    #182a43;
 
-  --primary:           oklch(0.47 0.18 264);
-  --primary-foreground: oklch(0.99 0 0);
-  --secondary:         oklch(0.95 0.005 260);
-  --secondary-foreground: oklch(0.35 0.01 260);
-  --muted:             oklch(0.96 0.003 260);
-  --muted-foreground:  oklch(0.55 0.01 260);
-  --accent:            oklch(0.95 0.005 260);
-  --accent-foreground: oklch(0.13 0.01 260);
-  --destructive:       oklch(0.55 0.22 25);
-  --destructive-foreground: oklch(0.99 0 0);
-  --border:            oklch(0.91 0.005 260);
-  --input:             oklch(0.95 0.005 260);
-  --ring:              oklch(0.47 0.18 264);
+  --primary:               #236db9;   /* VI primary（品牌 blue） */
+  --primary-foreground:    #ffffff;
+  --primary-hover:         #1c5999;   /* VI primary-hover */
 
-  --chart-1: oklch(0.47 0.18 264);
-  --chart-2: oklch(0.58 0.18 220);
-  --chart-3: oklch(0.62 0.17 170);
-  --chart-4: oklch(0.65 0.15 45);
-  --chart-5: oklch(0.55 0.18 300);
+  --secondary:             #edf3fa;   /* VI surface-subtle */
+  --secondary-foreground:  #182a43;
+  --muted:                 #edf3fa;
+  --muted-foreground:      #52637a;
+  --accent:                #dff4fb;   /* VI accent */
+  --accent-foreground:     #203663;   /* VI accent-foreground（品牌 navy） */
 
+  --destructive:           #b5343b;
+  --destructive-foreground: #ffffff;
+
+  --border:                #dce4ef;
+  --input:                 #7b8a9b;   /* VI control-border：独立辨认的控件边界 */
+  --ring:                  #236db9;   /* VI focus */
+
+  /* VI 功能色：错误 / 警告 / 成功须配文字与图标，不能只靠颜色 */
+  --success:               #16734a;
+  --warning:               #8a5200;
+
+  /* 图表类别色：从品牌三主色 + 功能色延展（见 DESIGN.md 新增约定） */
+  --chart-1:               #236db9;
+  --chart-2:               #203663;
+  --chart-3:               #56c0e5;
+  --chart-4:               #16734a;
+  --chart-5:               #8a5200;
+
+  /* VI：控件圆角 6px、卡片 12px、弹窗 16px */
   --radius: 0.375rem;
 
-  --sidebar:                oklch(0.97 0.003 260);
-  --sidebar-foreground:     oklch(0.13 0.01 260);
-  --sidebar-primary:        oklch(0.47 0.18 264);
-  --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent:         oklch(0.93 0.005 260);
-  --sidebar-accent-foreground: oklch(0.13 0.01 260);
-  --sidebar-border:         oklch(0.91 0.005 260);
-  --sidebar-ring:           oklch(0.47 0.18 264);
+  --sidebar:                        #ffffff;
+  --sidebar-foreground:             #182a43;
+  --sidebar-primary:                #236db9;
+  --sidebar-primary-foreground:     #ffffff;
+  --sidebar-accent:                 #edf3fa;
+  --sidebar-accent-foreground:      #236db9;
+  --sidebar-border:                 #dce4ef;
+  --sidebar-ring:                   #236db9;
 
-  /* Status tokens — red/amber/green/blue, max hue separation */
-  --status-present: oklch(0.62 0.17 145);
-  --status-absent:  oklch(0.58 0.20 25);
-  --status-trip:    oklch(0.55 0.18 255);
-  --status-leave:   oklch(0.72 0.15 65);
+  /* 考勤状态 → VI 功能色映射 */
+  --status-present: var(--success);
+  --status-absent:  var(--destructive);
+  --status-trip:    var(--primary);
+  --status-leave:   var(--warning);
 }
 
 .dark {
-  --background:        oklch(0.115 0.012 260);
-  --foreground:        oklch(0.93 0.008 260);
-  --card:              oklch(0.145 0.012 260);
-  --card-foreground:   oklch(0.93 0.008 260);
-  --popover:           oklch(0.14 0.012 260);
-  --popover-foreground: oklch(0.93 0.008 260);
+  /* VI dark 主题独立语义值（非整体反转） */
+  --background:            #0e1726;
+  --foreground:            #edf4ff;
+  --card:                  #162238;   /* VI surface */
+  --card-foreground:       #edf4ff;
+  --popover:               #162238;
+  --popover-foreground:    #edf4ff;
 
-  --primary:           oklch(0.62 0.2 264);
-  --primary-foreground: oklch(0.99 0 0);
-  --secondary:         oklch(0.2 0.012 260);
-  --secondary-foreground: oklch(0.82 0.008 260);
-  --muted:             oklch(0.19 0.01 260);
-  --muted-foreground:  oklch(0.55 0.01 260);
-  --accent:            oklch(0.22 0.012 260);
-  --accent-foreground: oklch(0.93 0.008 260);
-  --destructive:       oklch(0.52 0.22 25);
-  --destructive-foreground: oklch(0.99 0 0);
-  --border:            oklch(0.22 0.012 260);
-  --input:             oklch(0.19 0.012 260);
-  --ring:              oklch(0.62 0.2 264);
+  --primary:               #69b8ff;
+  --primary-foreground:    #0e1726;
+  --primary-hover:         #93ccff;
 
-  --chart-1: oklch(0.62 0.2 264);
-  --chart-2: oklch(0.62 0.18 220);
-  --chart-3: oklch(0.65 0.17 170);
-  --chart-4: oklch(0.65 0.15 45);
-  --chart-5: oklch(0.58 0.18 300);
+  --secondary:             #1d2e47;   /* VI surface-subtle */
+  --secondary-foreground:  #edf4ff;
+  --muted:                 #1d2e47;
+  --muted-foreground:      #a8b8cf;
+  --accent:                #1b3e50;
+  --accent-foreground:     #9bdcf2;
 
-  --sidebar:                oklch(0.10 0.012 260);
-  --sidebar-foreground:     oklch(0.93 0.008 260);
-  --sidebar-primary:        oklch(0.62 0.2 264);
-  --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent:         oklch(0.18 0.012 260);
-  --sidebar-accent-foreground: oklch(0.93 0.008 260);
-  --sidebar-border:         oklch(0.19 0.012 260);
-  --sidebar-ring:           oklch(0.62 0.2 264);
+  --destructive:           #ff9298;
+  --destructive-foreground: #0e1726;
 
-  /* Status tokens — red/amber/green/blue (dark mode, brightened) */
-  --status-present: oklch(0.70 0.18 145);
-  --status-absent:  oklch(0.65 0.21 25);
-  --status-trip:    oklch(0.68 0.17 255);
-  --status-leave:   oklch(0.80 0.15 65);
+  --border:                #344764;
+  --input:                 #687b94;
+  --ring:                  #69b8ff;
+
+  --success:               #5fd1a0;
+  --warning:               #f7c66b;
+
+  --chart-1:               #69b8ff;
+  --chart-2:               #8fb8dc;  /* VI reverse 资产中深 navy 的深色底适配色 */
+  --chart-3:               #9bdcf2;
+  --chart-4:               #5fd1a0;
+  --chart-5:               #f7c66b;
+
+  --sidebar:                        #162238;
+  --sidebar-foreground:             #edf4ff;
+  --sidebar-primary:                #69b8ff;
+  --sidebar-primary-foreground:     #0e1726;
+  --sidebar-accent:                 #1d2e47;
+  --sidebar-accent-foreground:      #69b8ff;
+  --sidebar-border:                 #344764;
+  --sidebar-ring:                   #69b8ff;
+
+  --status-present: var(--success);
+  --status-absent:  var(--destructive);
+  --status-trip:    var(--primary);
+  --status-leave:   var(--warning);
 }
 
 @theme inline {
-  --font-sans: var(--font-inter), 'Inter', system-ui, sans-serif;
-  --font-mono: var(--font-jetbrains-mono), 'JetBrains Mono', monospace;
+  /* VI 字体：英文/数字 Inter，中文 Noto Sans CJK SC（本地未安装时回退
+     系统黑体，见 DESIGN.md「字体」约定）；代码用平台等宽字体。 */
+  --font-sans: var(--font-inter), 'Inter', 'Noto Sans CJK SC', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Consolas, 'Courier New', monospace;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -110,6 +135,7 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
@@ -118,6 +144,8 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -127,10 +155,16 @@
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
 
+  /* VI 品牌三主色：仅用于图形装饰与深色底适配，不作为界面语义色 */
+  --color-brand-navy: #203663;
+  --color-brand-blue: #236db9;
+  --color-brand-cyan: #56c0e5;
+
   --radius-sm: calc(var(--radius) - 2px);
   --radius-md: var(--radius);
   --radius-lg: calc(var(--radius) + 2px);
-  --radius-xl: calc(var(--radius) + 6px);
+  --radius-xl: 0.75rem;   /* VI 卡片圆角 12px（Card = rounded-xl） */
+  /* 弹窗 16px = Tailwind 默认 rounded-2xl（1rem） */
 
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
@@ -142,17 +176,60 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+:root {
+  /* VI 动效 tokens（prefers-reduced-motion 时归零） */
+  --motion-fast: 120ms;
+  --motion-normal: 180ms;
+  --motion-slow: 240ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion-normal: 0ms;
+    --motion-slow: 0ms;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
   html {
-    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   }
   body {
     @apply bg-background text-foreground;
+    line-height: 1.6; /* VI 正文行高 */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+  /* 数字指标与表格使用 tabular-nums（VI 规则） */
+  table {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* ── 品牌 logo：深浅主题使用不同官方资产，禁止滤镜整体变白 ── */
+@layer utilities {
+  .brand-light {
+    display: block;
+  }
+  .brand-dark {
+    display: none;
+  }
+  .dark .brand-light {
+    display: none;
+  }
+  .dark .brand-dark {
+    display: block;
   }
 }
 
@@ -219,8 +296,8 @@
   color: var(--primary);
   text-decoration: underline;
   text-underline-offset: 2px;
-  text-decoration-color: var(--primary) / 40%;
-  transition: text-decoration-color 0.15s;
+  text-decoration-color: color-mix(in srgb, var(--primary) 40%, transparent);
+  transition: text-decoration-color var(--motion-normal);
 }
 .prose-idrl a:hover {
   text-decoration-color: var(--primary);
@@ -243,12 +320,12 @@
   margin-bottom: 0;
 }
 .prose-idrl blockquote {
-  border-left: 3px solid var(--primary) / 60%;
+  border-left: 3px solid color-mix(in srgb, var(--primary) 60%, transparent);
   padding: 0.5em 0 0.5em 1em;
   margin: 0.75em 0;
   color: var(--prose-muted);
   font-style: italic;
-  background: var(--muted) / 40%;
+  background: color-mix(in srgb, var(--muted) 40%, transparent);
   border-radius: 0 6px 6px 0;
 }
 .prose-idrl blockquote p:last-child {
@@ -263,8 +340,8 @@
   color: var(--foreground);
 }
 .prose-idrl pre {
-  background: oklch(0.13 0.01 260);
-  color: oklch(0.88 0.01 260);
+  background: #182a43;
+  color: #edf4ff;
   padding: 1em;
   border-radius: 8px;
   overflow-x: auto;
@@ -301,7 +378,7 @@
   border-bottom: 1px solid var(--prose-border);
 }
 .prose-idrl tbody tr:hover {
-  background: var(--muted) / 50%;
+  background: color-mix(in srgb, var(--muted) 50%, transparent);
 }
 .prose-idrl tbody tr:last-child td {
   border-bottom: none;
@@ -317,5 +394,6 @@
   margin: 1.25em 0;
 }
 .dark .prose-idrl pre {
-  background: oklch(0.16 0.015 260);
+  background: var(--surface-subtle, #1d2e47);
+  color: var(--foreground);
 }

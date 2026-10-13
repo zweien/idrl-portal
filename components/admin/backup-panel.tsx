@@ -256,7 +256,7 @@ export function BackupPanel() {
           ) : backups.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 text-center">
               <Database className="h-8 w-8 text-muted-foreground/40 mb-3" />
-              <p className="text-sm text-muted-foreground">暂无备份，点击"立即备份"创建</p>
+              <p className="text-sm text-muted-foreground">暂无备份，点击「立即备份」创建</p>
             </div>
           ) : (
             <div className="overflow-x-auto">

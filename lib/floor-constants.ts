@@ -11,22 +11,23 @@ export const ZONES_PER_ROW = 3
 // (title + 4 status rows). Without this the legend overlaps the bottom-right zone.
 export const LEGEND_HEIGHT = 80
 
-// SVG fill for workstation status dots. Kept in sync with the --status-* CSS
-// variables in app/globals.css (same oklch values) so the legend, the floor
-// plan dots, and the personnel page all show identical colors.
+// SVG fill for workstation status dots. References the --status-* CSS
+// variables in app/globals.css (mapped to the IDRL VI functional colors),
+// so the legend, the floor plan dots, and the personnel page all show
+// identical colors and follow the active theme automatically.
 export const statusColors: Record<string, string> = {
-  present: 'fill-[oklch(0.62_0.17_145)]',
-  absent: 'fill-[oklch(0.58_0.20_25)]',
-  trip: 'fill-[oklch(0.55_0.18_255)]',
-  leave: 'fill-[oklch(0.72_0.15_65)]',
+  present: 'fill-[var(--status-present)]',
+  absent: 'fill-[var(--status-absent)]',
+  trip: 'fill-[var(--status-trip)]',
+  leave: 'fill-[var(--status-leave)]',
 }
 
 // Same colors as statusColors but as CSS background (for HTML dots, not SVG fill).
 export const statusBg: Record<string, string> = {
-  present: 'bg-[oklch(0.62_0.17_145)]',
-  absent: 'bg-[oklch(0.58_0.20_25)]',
-  trip: 'bg-[oklch(0.55_0.18_255)]',
-  leave: 'bg-[oklch(0.72_0.15_65)]',
+  present: 'bg-[var(--status-present)]',
+  absent: 'bg-[var(--status-absent)]',
+  trip: 'bg-[var(--status-trip)]',
+  leave: 'bg-[var(--status-leave)]',
 }
 
 export const statusLabels: Record<string, string> = {
@@ -35,3 +36,14 @@ export const statusLabels: Record<string, string> = {
   trip: '出差',
   leave: '请假',
 }
+
+// 新建区域的默认颜色：从 IDRL VI 品牌色板（含功能色）中按顺序轮转，
+// 选取在深浅主题下均可辨认的中间调（区域描边以 0.6 不透明度渲染）。
+export const ZONE_COLOR_PALETTE = [
+  '#236db9', // 品牌 blue
+  '#56c0e5', // 品牌 cyan
+  '#16734a', // success
+  '#b5343b', // destructive
+  '#8a5200', // warning
+  '#203663', // 品牌 navy
+] as const

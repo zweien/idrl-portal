@@ -10,6 +10,7 @@ import { Plus, Trash2, ChevronUp, ChevronDown, Lock } from 'lucide-react'
 import { ZoneFreeCanvas } from './zone-free-canvas'
 import { WorkstationAssigner } from './workstation-assigner'
 import { makeIdGen } from '@/lib/floor-layout'
+import { ZONE_COLOR_PALETTE } from '@/lib/floor-constants'
 import {
   Select,
   SelectContent,
@@ -100,7 +101,7 @@ export function FloorEditor({ floors, onChange, selectedFloorId, onSelectedFloor
       id,
       name: newZoneName.trim(),
       floorId: selectedFloor.id,
-      color: `oklch(0.65 0.15 ${Math.floor(Math.random() * 360)})`,
+      color: ZONE_COLOR_PALETTE[selectedFloor.zones.length % ZONE_COLOR_PALETTE.length],
       order: selectedFloor.zones.reduce((max, z) => Math.max(max, z.order), -1) + 1,
       mode: 'grid' as const,
       rows: 2,

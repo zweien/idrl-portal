@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import Image from 'next/image'
 import { useAuth } from '@/lib/auth-context'
+import { Brand } from '@/components/brand'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -15,22 +15,32 @@ export function LoginForm() {
   const [password, setPassword]     = useState('')
   const [error, setError]           = useState('')
   const [ssoMessage, setSsoMessage] = useState('')
-  const { devLogin, isLoading } = useAuth()
+  // 登录提交中的本地状态。不要用 useAuth 的 isLoading：那是会话 hydration
+  // 状态，首屏为 true，会让按钮在未提交时就显示「登录中…」。
+  const [submitting, setSubmitting] = useState(false)
+  const { devLogin } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     if (!username || !password) { setError('请输入用户名和密码'); return }
-    const ok = await devLogin(username)
-    if (!ok) {
-      setError('登录失败')
-      return
+    setSubmitting(true)
+    try {
+      const ok = await devLogin(username)
+      if (!ok) {
+        setError('登录失败')
+        return
+      }
+      window.location.href = '/dashboard'
+    } finally {
+      setSubmitting(false)
     }
-    window.location.href = '/dashboard'
   }
 
   const handleSSOLogin = async (provider: 'authentik' | 'dingtalk') => {
+    if (submitting) return
     setSsoMessage('')
+    setSubmitting(true)
     if (provider === 'authentik') {
       // Server-side OIDC redirect: full-page navigation to Authentik authorize.
       window.location.href = '/api/auth/login/authentik'
@@ -44,13 +54,12 @@ export function LoginForm() {
     <div className="w-full max-w-sm space-y-6">
       {/* Wordmark */}
       <div className="space-y-1">
-        <div className="flex items-center gap-2 mb-4">
-          <Image src="/favicon.svg" alt="" width={28} height={28} className="w-7 h-7 shrink-0" priority />
-          <span className="text-base font-semibold tracking-tight">IDRL Portal</span>
+        <div className="mb-4">
+          <Brand variant="bilingual" width={216} priority />
         </div>
         <h1 className="text-xl font-semibold tracking-tight">登录</h1>
         <p className="text-sm text-muted-foreground">
-          智能数据研究实验室信息聚合门户
+          智能设计与鲁棒学习 · 信息聚合门户
         </p>
       </div>
 
@@ -61,7 +70,7 @@ export function LoginForm() {
           variant="outline"
           className="w-full h-9 text-sm justify-start gap-2.5"
           onClick={() => handleSSOLogin('authentik')}
-          disabled={isLoading}
+          disabled={submitting}
         >
           <ShieldCheck className="h-4 w-4 text-primary shrink-0" />
           使用 Authentik SSO 登录
@@ -71,7 +80,7 @@ export function LoginForm() {
           variant="outline"
           className="w-full h-9 text-sm justify-start gap-2.5"
           onClick={() => handleSSOLogin('dingtalk')}
-          disabled={isLoading}
+          disabled={submitting}
         >
           <QrCode className="h-4 w-4 text-primary shrink-0" />
           钉钉扫码登录
@@ -106,7 +115,7 @@ export function LoginForm() {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className="h-9 text-sm"
-                disabled={isLoading}
+                disabled={submitting}
                 autoComplete="username"
               />
             </div>
@@ -121,7 +130,7 @@ export function LoginForm() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="h-9 text-sm"
-                disabled={isLoading}
+                disabled={submitting}
                 autoComplete="current-password"
               />
             </div>
@@ -136,9 +145,9 @@ export function LoginForm() {
             <Button
               type="submit"
               className="w-full h-9 text-sm"
-              disabled={isLoading}
+              disabled={submitting}
             >
-              {isLoading ? (
+              {submitting ? (
                 <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />登录中...</>
               ) : '登录'}
             </Button>

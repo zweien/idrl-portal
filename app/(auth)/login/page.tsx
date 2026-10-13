@@ -1,5 +1,6 @@
 'use client'
 
+import { Brand } from '@/components/brand'
 import { LoginForm } from '@/components/login-form'
 
 export default function LoginPage() {
@@ -10,11 +11,15 @@ export default function LoginPage() {
         <LoginForm />
       </div>
 
-      {/* Right – decorative panel (lg+) */}
-      <aside className="hidden lg:flex flex-col flex-1 items-center justify-center bg-muted/30 border-l border-border px-12 py-16 gap-8">
+      {/* Right – brand panel (lg+)：品牌深 navy 底，使用专用 reverse 组合 */}
+      <aside className="hidden lg:flex flex-col flex-1 items-center justify-center bg-brand-navy px-12 py-16 gap-8">
+        <Brand variant="bilingual" theme="dark" width={264} />
+
         <div className="space-y-2 text-center max-w-xs">
-          <h2 className="text-lg font-semibold tracking-tight">实验室信息聚合</h2>
-          <p className="text-sm text-muted-foreground leading-relaxed">
+          <h2 className="text-lg font-semibold tracking-tight text-white">
+            实验室信息聚合
+          </h2>
+          <p className="text-sm leading-relaxed text-white/70">
             实时掌握人员在位状态、工位分布、算力资源与最新动态，一站式管理实验室信息。
           </p>
         </div>
@@ -26,8 +31,8 @@ export default function LoginPage() {
             '论文发表 & 实验室动态',
             'Authentik SSO / 钉钉扫码登录',
           ].map((label) => (
-            <div key={label} className="flex items-center gap-2.5 text-sm text-muted-foreground">
-              <div className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
+            <div key={label} className="flex items-center gap-2.5 text-sm text-white/80">
+              <div className="w-1.5 h-1.5 rounded-full bg-brand-cyan shrink-0" />
               {label}
             </div>
           ))}
