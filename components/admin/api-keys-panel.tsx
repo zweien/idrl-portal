@@ -206,7 +206,7 @@ export function ApiKeysPanel() {
         {keys.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-10 text-center">
             <Key className="h-8 w-8 text-muted-foreground/40 mb-3" />
-            <p className="text-sm text-muted-foreground">暂无密钥，点击"新建密钥"创建</p>
+            <p className="text-sm text-muted-foreground">暂无密钥，点击「新建密钥」创建</p>
           </div>
         ) : (
           <div className="overflow-x-auto">

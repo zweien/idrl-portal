@@ -325,7 +325,7 @@ function CanvasSurface({
               width={CELL_W}
               height={CELL_H}
               rx="6"
-              fill={brush === 'add' ? 'oklch(0.85 0.1 145)' : 'oklch(0.85 0.1 30)'}
+              style={{ fill: brush === 'add' ? 'var(--success)' : 'var(--destructive)' }}
               opacity="0.4"
             />
           ))}

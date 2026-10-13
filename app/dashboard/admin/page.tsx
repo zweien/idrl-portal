@@ -23,12 +23,27 @@ import { AuditLogPanel } from '@/components/admin/audit-log-panel'
 import {
   Users, Server, Newspaper, Pencil, Trash2, ChevronUp, ChevronDown,
   Database, AlertTriangle, CheckCircle, Info,
-  ShieldAlert, MapPin, Search, Upload, Key, Clock, Folder, UserCog, DatabaseBackup,
+  ShieldAlert, MapPin, Search, Upload, Key, Clock, Folder, UserCog, DatabaseBackup, Pin,
   ScrollText,
 } from 'lucide-react'
 
 /* ── Labels ─────────────────────────────────────── */
 const statusLabels = { present: '在位', trip: '出差', leave: '请假', absent: '未到' }
+
+/** 与人员页 / 考勤页同一套 --status-* 功能色徽章（VI：同一状态全篇同色）。 */
+const statusBadgeClass: Record<string, string> = {
+  present: 'bg-[var(--status-present)]/15 text-[var(--status-present)] border-[var(--status-present)]/30',
+  absent: 'bg-[var(--status-absent)]/15 text-[var(--status-absent)] border-[var(--status-absent)]/30',
+  trip: 'bg-[var(--status-trip)]/15 text-[var(--status-trip)] border-[var(--status-trip)]/30',
+  leave: 'bg-[var(--status-leave)]/15 text-[var(--status-leave)] border-[var(--status-leave)]/30',
+}
+
+/** 与资源聚合页一致的状态徽章色。 */
+const resourceStatusBadge: Record<string, string> = {
+  available: 'bg-[var(--status-present)]/15 text-[var(--status-present)] border-[var(--status-present)]/30',
+  maintenance: 'bg-[var(--status-absent)]/15 text-[var(--status-absent)] border-[var(--status-absent)]/30',
+  restricted: 'bg-muted text-muted-foreground',
+}
 
 /** Map a categoryId to a display name using the supplied category list. */
 function catNameOf(categories: { id: string; name: string }[], categoryId?: string | null): string {
@@ -574,7 +589,8 @@ export default function AdminPage() {
                     typeof v === 'string' && v ? String(v) : <span className="text-muted-foreground">—</span> },
                   { key: 'status', label: '状态',  render: (v, item) => (
                     <span className="flex items-center gap-1.5">
-                      <Badge variant={v === 'present' ? 'default' : 'secondary'} className="text-[10px] font-normal">
+                      {/* 与人员页/考勤页一致：状态用 --status-* 功能色徽章（VI：同状态全篇同色） */}
+                      <Badge variant="outline" className={cn('text-[10px] font-normal border', statusBadgeClass[v as keyof typeof statusBadgeClass])}>
                         {statusLabels[v as keyof typeof statusLabels]}
                       </Badge>
                       {item.offboarded && (
@@ -647,7 +663,7 @@ export default function AdminPage() {
                     </Badge>
                   )},
                   { key: 'status', label: '状态', render: v => (
-                    <Badge variant={v === 'available' ? 'default' : 'secondary'} className="text-[10px] font-normal">
+                    <Badge variant="outline" className={cn('text-[10px] font-normal border', resourceStatusBadge[String(v)])}>
                       {v === 'available' ? '可用' : v === 'maintenance' ? '维护中' : '受限'}
                     </Badge>
                   )},
@@ -704,7 +720,7 @@ export default function AdminPage() {
                   }},
                   { key: 'date',   label: '日期' },
                   { key: 'pinned', label: '置顶', render: v => v
-                    ? <Badge className="text-[10px] font-normal">置顶</Badge>
+                    ? <Badge variant="secondary" className="text-[10px] font-normal gap-0.5"><Pin className="h-2.5 w-2.5" />置顶</Badge>
                     : <span className="text-muted-foreground">—</span>
                   },
                 ]}
@@ -784,10 +800,10 @@ export default function AdminPage() {
                 </div>
               )}
               {importWarnings.length > 0 && (
-                <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs space-y-0.5">
-                  <p className="font-medium text-amber-600">警告详情：</p>
+                <div className="rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-xs space-y-0.5">
+                  <p className="font-medium text-warning">警告详情：</p>
                   {importWarnings.map((w, i) => (
-                    <p key={i} className="text-amber-600/80">• {w}</p>
+                    <p key={i} className="text-warning/80">• {w}</p>
                   ))}
                 </div>
               )}

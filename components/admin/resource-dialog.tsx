@@ -213,7 +213,7 @@ export function ResourceDialog({ initialData, trigger, onSubmit, onCloseRequest 
               </Button>
             </div>
             {specRows.length === 0 ? (
-              <p className="text-xs text-muted-foreground">暂无规格，点击"添加规格"新建键值对</p>
+              <p className="text-xs text-muted-foreground">暂无规格，点击「添加规格」新建键值对</p>
             ) : (
               <div className="space-y-1.5">
                 {specRows.map((row, idx) => (

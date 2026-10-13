@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { useSidebar } from '@/lib/sidebar-context'
@@ -42,6 +41,7 @@ import {
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { APP_VERSION } from '@/lib/version'
+import { Brand } from '@/components/brand'
 
 const navItems = [
   { href: '/dashboard',            label: '概览',     icon: LayoutDashboard },
@@ -113,15 +113,15 @@ export function DashboardNav() {
           collapsed ? 'justify-center px-2' : 'justify-between px-4'
         )}>
           {!collapsed && (
-            <Link href="/dashboard" className="flex items-center gap-2 group">
-              <Image src="/favicon.svg" alt="" width={20} height={20} className="w-5 h-5 shrink-0" priority />
-              <span className="text-sm font-semibold tracking-tight">IDRL Portal</span>
+            <Link href="/dashboard" className="flex items-center gap-2.5 group" aria-label="返回概览">
+              {/* 官方 IDRL 字标：深浅主题自动切换 reverse 资产 */}
+              <Brand variant="wordmark" width={88} priority />
               <span className="text-[10px] text-muted-foreground/70 font-mono mt-0.5">v{APP_VERSION}</span>
             </Link>
           )}
           {collapsed && (
-            <Link href="/dashboard">
-              <Image src="/favicon.svg" alt="" width={20} height={20} className="w-5 h-5 shrink-0" priority />
+            <Link href="/dashboard" aria-label="返回概览">
+              <Brand variant="symbol" width={32} priority />
             </Link>
           )}
           {/* Collapse/expand toggle lives in the wordmark row so its position
@@ -232,9 +232,8 @@ export function DashboardNav() {
       {/* ── Mobile header ───────────────────────────── */}
       <header className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-sm border-b border-border">
         <div className="flex items-center justify-between h-12 px-4">
-          <Link href="/dashboard" className="flex items-center gap-2">
-            <Image src="/favicon.svg" alt="" width={20} height={20} className="w-5 h-5 shrink-0" priority />
-            <span className="text-sm font-semibold">IDRL Portal</span>
+          <Link href="/dashboard" className="flex items-center" aria-label="返回概览">
+            <Brand variant="wordmark" width={84} priority />
           </Link>
 
           <div className="flex items-center gap-1">

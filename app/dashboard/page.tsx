@@ -226,7 +226,7 @@ export default function DashboardPage() {
           你好，{user?.name ?? '用户'}
         </h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          IDRL 实验室门户 — 查看人员在位、资源与最新动态
+          IDRL 门户 — 查看人员在位、资源与最新动态
         </p>
       </div>
 

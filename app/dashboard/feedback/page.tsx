@@ -49,11 +49,13 @@ const CATEGORY_LABELS: Record<FeedbackCategory, string> = {
   other: '其他',
 }
 
+// 分类徽章映射到 VI 功能色：bug→destructive、建议→primary、疑问→warning、
+// 其他→muted；深浅主题由语义变量自动适配。
 const CATEGORY_BADGE: Record<FeedbackCategory, string> = {
-  bug: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
-  suggestion: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300',
-  question: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
-  other: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+  bug: 'bg-destructive/10 text-destructive dark:bg-destructive/15',
+  suggestion: 'bg-primary/10 text-primary dark:bg-primary/15',
+  question: 'bg-warning/10 text-warning dark:bg-warning/15',
+  other: 'bg-muted text-muted-foreground',
 }
 
 export default function FeedbackPage() {

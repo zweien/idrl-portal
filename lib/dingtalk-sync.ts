@@ -155,8 +155,8 @@ export async function syncMembers(progress?: SyncProgress): Promise<{
   // account deleted); unionid present but outside the subtree = transferred
   // out. Detection is computed live (never persisted) — the UI offers a
   // deliberate offboard action instead of the sync deleting anything.
-  let offboarded: DepartedMember[] = []
-  let transferred: DepartedMember[] = []
+  const offboarded: DepartedMember[] = []
+  const transferred: DepartedMember[] = []
   try {
     const orgMembers = await listDeptMembers(1)
     const subtreeUnions = new Set(members.map(m => m.unionid).filter(Boolean))

@@ -1,24 +1,24 @@
 import type { Metadata, Viewport } from 'next'
-import { Inter, JetBrains_Mono } from 'next/font/google'
+import localFont from 'next/font/local'
 import { Analytics } from '@vercel/analytics/next'
 import { ResizeObserverFix } from '@/components/resize-observer-fix'
 import { ThemeProvider } from '@/components/theme-provider'
 import './globals.css'
 
-const inter = Inter({ 
-  subsets: ["latin"],
+// IDRL VI 品牌字体：英文与数字使用 Inter（可变字重），
+// 中文使用 Noto Sans CJK SC —— 动态内容不适合固定子集 webfont，
+// 由 globals.css 的字体栈回退到系统 CJK 黑体（见 DESIGN.md 字体约定）。
+const inter = localFont({
+  src: '../public/brand/fonts/InterVariable.woff2',
+  weight: '100 900',
+  style: 'normal',
+  display: 'swap',
   variable: '--font-inter',
 })
 
-const jetbrainsMono = JetBrains_Mono({ 
-  subsets: ["latin"],
-  variable: '--font-jetbrains-mono',
-})
-
 export const metadata: Metadata = {
-  title: 'IDRL Portal - 智能数据研究实验室',
-  description: '实验室信息聚合门户 - 人员在位、资源聚合、最新动态',
-  generator: 'v0.app',
+  title: 'IDRL Portal · 智能设计与鲁棒学习',
+  description: 'IDRL 门户 - 人员在位、资源聚合、最新动态',
   manifest: '/site.webmanifest',
   icons: {
     icon: [
@@ -44,7 +44,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN" suppressHydrationWarning>
-      <body className={`${inter.variable} ${jetbrainsMono.variable} font-sans antialiased`}>
+      <body className={`${inter.variable} font-sans antialiased`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="light"
