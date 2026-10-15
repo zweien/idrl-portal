@@ -79,8 +79,12 @@ export async function POST(req: NextRequest) {
   }
   // role is now free-text and may be blank (a person with no title yet);
   // require it to be present (a string) but allow ''. name + status required.
+  // department is optional free text; reject non-string to keep the column clean.
   if (!body?.name || !body?.status || typeof body?.role !== 'string') {
     return NextResponse.json({ error: 'name, role (string), status required' }, { status: 400 })
+  }
+  if (body.department !== undefined && typeof body.department !== 'string') {
+    return NextResponse.json({ error: 'department must be a string' }, { status: 400 })
   }
 
   const id = `p-${Date.now()}`

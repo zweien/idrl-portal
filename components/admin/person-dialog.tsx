@@ -38,6 +38,7 @@ export function PersonDialog({ initialData, trigger, onSubmit, onCloseRequest }:
     name: initialData?.name ?? '',
     email: initialData?.email ?? '',
     role: initialData?.role ?? '',
+    department: initialData?.department ?? '',
     phone: initialData?.phone ?? '',
     status: initialData?.status ?? ('absent' as Person['status']),
     researchAreas: initialData?.researchAreas?.join(', ') ?? '',
@@ -50,6 +51,7 @@ export function PersonDialog({ initialData, trigger, onSubmit, onCloseRequest }:
       name: form.name,
       email: form.email || undefined,
       role: form.role,
+      department: form.department || undefined,
       phone: form.phone || undefined,
       status: form.status,
       researchAreas: form.researchAreas
@@ -71,6 +73,7 @@ export function PersonDialog({ initialData, trigger, onSubmit, onCloseRequest }:
         name: initialData.name,
         email: initialData.email ?? '',
         role: initialData.role,
+        department: initialData.department ?? '',
         phone: initialData.phone ?? '',
         status: initialData.status,
         researchAreas: initialData.researchAreas?.join(', ') ?? '',
@@ -115,6 +118,16 @@ export function PersonDialog({ initialData, trigger, onSubmit, onCloseRequest }:
               className="h-9"
             />
             <p className="text-[10px] text-muted-foreground">同步钉钉成员时自动用钉钉职位填充；也可手动编辑。</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">部门</Label>
+            <Input
+              value={form.department}
+              onChange={e => setForm({ ...form, department: e.target.value })}
+              placeholder="如：算法组（钉钉同步自动填充）"
+              className="h-9"
+            />
+            <p className="text-[10px] text-muted-foreground">同步钉钉成员时自动用所在部门填充；也可手动编辑。</p>
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs">状态</Label>

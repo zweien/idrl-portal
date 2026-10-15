@@ -441,6 +441,7 @@ export default function AdminPage() {
     return rows.filter(p =>
       p.name.toLowerCase().includes(q) ||
       (p.role ?? '').toLowerCase().includes(q) ||
+      (p.department ?? '').toLowerCase().includes(q) ||
       (p.seatName ?? '').toLowerCase().includes(q),
     )
   }, [personSearch, personnelData])
@@ -572,7 +573,7 @@ export default function AdminPage() {
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
-                  placeholder="搜索姓名、职位、座位编号…"
+                  placeholder="搜索姓名、职位、部门、座位编号…"
                   value={personSearch}
                   onChange={e => setPersonSearch(e.target.value)}
                   className="pl-8 h-8 text-sm w-72"
@@ -585,6 +586,8 @@ export default function AdminPage() {
                 columns={[
                   { key: 'name',   label: '姓名' },
                   { key: 'role',   label: '职位',  render: v => v ? String(v) : <span className="text-muted-foreground">—</span> },
+                  { key: 'department', label: '部门', render: (v: unknown) =>
+                    typeof v === 'string' && v ? String(v) : <span className="text-muted-foreground">—</span> },
                   { key: 'seatName', label: '座位编号', render: (v: unknown) =>
                     typeof v === 'string' && v ? String(v) : <span className="text-muted-foreground">—</span> },
                   { key: 'status', label: '状态',  render: (v, item) => (

@@ -52,6 +52,8 @@ model Person {
   id                String              @id
   name              String
   role              String
+  // 钉钉部门名（syncMembers 从成员所在部门的子树解析）；手动添加的人员可为空。
+  department        String              @default("")
   email             String?
   phone             String?
   dingUserId        String?
