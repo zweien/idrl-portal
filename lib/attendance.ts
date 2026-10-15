@@ -155,6 +155,8 @@ const STATUS_LABEL: Record<string, string> = {
 
 export interface ExportRow {
   name: string
+  /** 部门显示名（钉钉同步；可为空串）。 */
+  department?: string
   date: string
   checkIn?: string | null
   checkOut?: string | null
@@ -181,7 +183,7 @@ function csvField(v: string): string {
  */
 export function buildDetailCsv(rows: ExportRow[], tripHours = 8): string {
   const today = todayDateStr()
-  const lines: string[] = ['姓名,日期,上班,下班,工时(小时),状态']
+  const lines: string[] = ['姓名,部门,日期,上班,下班,工时(小时),状态']
   for (const r of rows) {
     const isFinalized = r.date < today
     const { hours, missingPunch, anomalous } = exportWorkHours(r.status, r.checkIn, r.checkOut, tripHours, isFinalized)
@@ -190,6 +192,7 @@ export function buildDetailCsv(rows: ExportRow[], tripHours = 8): string {
     else if (r.status === 'present' && missingPunch) statusLabel = '在位(缺卡)'
     lines.push([
       csvField(r.name),
+      csvField(r.department ?? ''),
       r.date,
       r.checkIn ?? '—',
       r.checkOut ?? '—',
@@ -203,6 +206,8 @@ export function buildDetailCsv(rows: ExportRow[], tripHours = 8): string {
 
 export interface SummaryRow {
   name: string
+  /** 部门显示名（钉钉同步；可为空串）。 */
+  department?: string
   presentDays: number
   tripDays: number
   leaveDays: number
@@ -219,12 +224,13 @@ export interface SummaryRow {
  * inflate the daily intensity figure.
  */
 export function buildSummaryCsv(rows: SummaryRow[], from: string, to: string): string {
-  const lines: string[] = ['姓名,日期范围,出勤天数,出差天数,请假天数,缺卡天数,总工时(小时),平均工时(小时)']
+  const lines: string[] = ['姓名,部门,日期范围,出勤天数,出差天数,请假天数,缺卡天数,总工时(小时),平均工时(小时)']
   const range = `${from}~${to}`
   for (const r of rows) {
     const avg = r.countedDays > 0 ? r.totalHours / r.countedDays : 0
     lines.push([
       csvField(r.name),
+      csvField(r.department ?? ''),
       range,
       String(r.presentDays),
       String(r.tripDays),

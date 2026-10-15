@@ -74,11 +74,21 @@ describe('buildDetailCsv', () => {
     ]
     const csv = buildDetailCsv(rows, 8)
     const lines = csv.split('\n')
-    expect(lines[0]).toContain('姓名,日期,上班,下班,工时(小时),状态')
-    expect(lines[1]).toBe('付中泰,2026-07-20,08:00,18:00,10.00,在位')
-    expect(lines[2]).toBe('王某某,2026-07-20,—,—,8.00,出差')
-    expect(lines[3]).toBe('李某某,2026-07-20,09:00,12:30,3.50,请假')
-    expect(lines[4]).toBe('赵某某,2026-07-20,08:30,—,0.00,在位(缺卡)')
+    expect(lines[0]).toContain('姓名,部门,日期,上班,下班,工时(小时),状态')
+    expect(lines[1]).toBe('付中泰,,2026-07-20,08:00,18:00,10.00,在位')
+    expect(lines[2]).toBe('王某某,,2026-07-20,—,—,8.00,出差')
+    expect(lines[3]).toBe('李某某,,2026-07-20,09:00,12:30,3.50,请假')
+    expect(lines[4]).toBe('赵某某,,2026-07-20,08:30,—,0.00,在位(缺卡)')
+  })
+  it('writes the department column (empty string when absent)', () => {
+    const rows: ExportRow[] = [
+      { name: '有部门', department: '算法组', date: '2026-07-20', checkIn: '08:00', checkOut: '18:00', status: 'present' },
+      { name: '无部门', date: '2026-07-20', checkIn: '08:00', checkOut: '18:00', status: 'present' },
+    ]
+    const csv = buildDetailCsv(rows, 8)
+    const lines = csv.split('\n')
+    expect(lines[1]).toBe('有部门,算法组,2026-07-20,08:00,18:00,10.00,在位')
+    expect(lines[2]).toBe('无部门,,2026-07-20,08:00,18:00,10.00,在位')
   })
   it('starts with UTF-8 BOM', () => {
     const csv = buildDetailCsv([], 8)
@@ -141,8 +151,8 @@ describe('buildSummaryCsv', () => {
     ]
     const csv = buildSummaryCsv(rows, '2026-07-01', '2026-07-21')
     const lines = csv.split('\n')
-    expect(lines[0]).toContain('姓名,日期范围,出勤天数,出差天数,请假天数,缺卡天数,总工时(小时),平均工时(小时)')
-    expect(lines[1]).toContain('付中泰,2026-07-01~2026-07-21,15,2,1,0,145.50')
+    expect(lines[0]).toContain('姓名,部门,日期范围,出勤天数,出差天数,请假天数,缺卡天数,总工时(小时),平均工时(小时)')
+    expect(lines[1]).toContain('付中泰,,2026-07-01~2026-07-21,15,2,1,0,145.50')
   })
   it('average = total ÷ counted days', () => {
     const rows: SummaryRow[] = [

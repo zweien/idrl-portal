@@ -27,7 +27,7 @@ export async function GET(request: Request) {
       date: { gte: scope.from, lte: scope.to },
       ...(scope.personId ? { personId: scope.personId } : {}),
     },
-    include: { person: { select: { name: true } } },
+    include: { person: { select: { name: true, department: true } } },
   })
 
   const today = todayDateStr()
@@ -37,6 +37,7 @@ export async function GET(request: Request) {
     if (!entry) {
       entry = {
         name: r.person.name,
+        department: r.person.department,
         presentDays: 0,
         tripDays: 0,
         leaveDays: 0,

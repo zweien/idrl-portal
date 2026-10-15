@@ -119,10 +119,11 @@ Body `{ "ids": string[] }`：同一分类的完整有序 id 列表（未分类�
 
 分页人员列表。Query：`page, pageSize, status=present|leave|trip|absent, search`。
 
-- `search` 只匹配**姓名/邮箱/研究方向**（researchAreas），不匹配职位（role）和手机
+- `search` 只匹配**姓名/邮箱/研究方向**（researchAreas），不匹配职位（role）、部门（department）和手机
 - `pageSize` 静默钳制到 **100**（`MAX_PAGE_SIZE`）；总人数超 100 时必须按 `totalPages` 翻页取全
-- item 字段：`id, name, role, phone, dingUserId, status, avatar, loginDisabled, offboarded`（email/researchAreas 有值才出现）
+- item 字段：`id, name, role, department, phone, dingUserId, status, avatar, loginDisabled, offboarded`（email/researchAreas 有值才出现；department 可为空串）
 - `role` 是自由文本（钉钉「职位」字段同步而来，如 `学生（统招）`/`学生（联培）`/`学生（实习）`/`科研人员`/`工程师`，可为空）——**按职位筛选无服务端参数**，翻页拉全量后本地过滤（前缀匹配「学生」覆盖三类学生）
+- `department` 是部门显示名（钉钉成员所在部门同步而来，如 `算法组`，可为空串）
 
 ### GET /api/categories — `admin`
 
@@ -131,12 +132,13 @@ Body `{ "ids": string[] }`：同一分类的完整有序 id 列表（未分类�
 ### GET /api/attendance/leaderboard — `admin`
 
 `?type=today|monthly&limit=N`（默认 today/10，上限 100）。
-- `today`：今日最早打卡，`items: [{personId, name, checkIn:"HH:mm"}]`
-- `monthly`：本月累计工时，`items: [{personId, name, workMinutes}]`
+- `today`：今日最早打卡，`items: [{personId, name, department?, checkIn:"HH:mm"}]`
+- `monthly`：本月累计工时，`items: [{personId, name, department?, workMinutes}]`
+- `department` 为空串时字段缺省（JSON 序列化 `undefined`）
 
 ### GET /api/attendance/records — `admin`
 
-`?personId=&from=YYYY-MM-DD&to=YYYY-MM-DD&page=&pageSize=` → 分页 `AttendanceRecordItem[]`（checkIn/checkOut/status/workMinutes）。admin 可查任何人；key 带 `admin` 等同 admin。
+`?personId=&from=YYYY-MM-DD&to=YYYY-MM-DD&page=&pageSize=` → 分页 `AttendanceRecordItem[]`（checkIn/checkOut/status/workMinutes），`data` 附加 `person: {id, name, department}`（查询对象的身份信息，部门来自钉钉同步，可能为空串）。admin 可查任何人；key 带 `admin` 等同 admin。
 
 > 坑：**「status=absent 且 checkIn=整点」是钉钉占位数据，非真实打卡**——attendance/list 对 NotSigned/Absenteeism 行会把 userCheckTime 回填为班次基准时间（如 08:00 整）。新同步已过滤占位 punch（mapStatusForDay），历史归档天仍可能残留；导出 CSV 同理。
 
@@ -144,7 +146,7 @@ Body `{ "ids": string[] }`：同一分类的完整有序 id 列表（未分类�
 
 `?from=&to=` → CSV（`text/csv`，附件头）。detail=逐人逐日，summary=按人汇总（含出差工时 `readTripWorkHours`）。admin scope key 可导出全量。
 
-detail 表头为**中文**：`姓名,日期,上班,下班,工时(小时),状态`，且**没有 personId 列**——跨表关联只能按姓名（现库无重名；一旦出现重名，改用逐人 `/api/attendance/records`）。
+detail 表头为**中文**：`姓名,部门,日期,上班,下班,工时(小时),状态`，summary 表头：`姓名,部门,日期范围,出勤天数,出差天数,请假天数,缺卡天数,总工时(小时),平均工时(小时)`。两者均**没有 personId 列**——跨表关联只能按姓名（现库无重名；一旦出现重名，改用逐人 `/api/attendance/records`）。
 
 ### GET /api/sync-logs — `admin`
 

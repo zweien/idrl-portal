@@ -371,6 +371,7 @@ export function useAuditLogs(params?: Record<string, string | number>) {
 export interface LeaderboardEntry {
   personId: string
   name: string
+  department?: string
   checkIn?: string | null
   workMinutes?: number | null
 }
