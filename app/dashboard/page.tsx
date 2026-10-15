@@ -98,7 +98,9 @@ function NewsCard({ news, catLabel, cfg, onExpand }: { news: NewsItem; catLabel:
 function NewsExpandModal({ news, catLabel, cfg, onClose }: { news: NewsItem; catLabel: string; cfg: { color: string; accent: string }; onClose: () => void }) {
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
-      <DialogContent className="sm:max-w-2xl gap-0 p-0">
+      {/* 弹窗限高：长公告时头部固定、正文区内部滚动（min-h-0 让 grid 行可收缩），
+          否则 fixed 定位的弹窗会整体超出视口且内容不可达。 */}
+      <DialogContent className="sm:max-w-2xl gap-0 p-0 max-h-[85dvh] grid-rows-[auto_minmax(0,1fr)]">
         {/* Radix requires a DialogTitle for screen readers; the visible title
             is rendered in the body below, so this one is visually hidden. */}
         <DialogTitle className="sr-only">{news.title}</DialogTitle>
@@ -122,7 +124,7 @@ function NewsExpandModal({ news, catLabel, cfg, onClose }: { news: NewsItem; cat
           </div>
         </div>
         {/* Body. DialogContent already renders the close (X) button. */}
-        <div className="p-5 space-y-4">
+        <div className="p-5 space-y-4 overflow-y-auto min-h-0">
           <div>
             <h2 className="text-lg font-semibold leading-snug">{news.title}</h2>
             <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
