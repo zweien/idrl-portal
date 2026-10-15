@@ -1,13 +1,14 @@
-// Regenerate the favicon set from the official IDRL VI symbol.
+// Regenerate the favicon set from the official IDRL VI assets.
 //
 // Usage: node scripts/generate-favicons.mjs
 //
-// Brand rules (see DESIGN.md): the icon canvas is brand navy #203663, so the
-// dedicated reverse symbol (symbol-color-reverse.svg) is used — never a CSS
-// filter over the color logo. Clear space around the symbol ≥ 1/4 of its
-// height. favicon.ico is assembled manually (ICO container with embedded
-// PNGs) because sharp has no ICO writer.
-import { readFileSync, writeFileSync } from 'node:fs'
+// Browser favicon: public/brand/logo/favicon.svg (official transparent
+// adaptive SVG — follows the browser/OS color scheme). Application icons
+// (ICO / PNG / apple-touch / PWA): brand navy #203663 tile + the dedicated
+// reverse symbol — never a CSS filter over the color logo. Clear space
+// around the symbol ≥ 1/4 of its height. favicon.ico is assembled manually
+// (ICO container with embedded PNGs) because sharp has no ICO writer.
+import { copyFileSync, readFileSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
@@ -105,20 +106,17 @@ async function ico(sizes, outName) {
   console.log('✓', outName)
 }
 
-// Scalable favicon: navy tile + reverse symbol (same composition as the
-// PNG tiles — the bare reverse symbol would lose its white letters on a
-// light browser tab strip).
-{
-  const size = 64
-  const sh = size / (SYMBOL_W / SYMBOL_H + 0.5)
-  const sw = sh * (SYMBOL_W / SYMBOL_H)
-  const x = (size - sw) / 2
-  const y = (size - sh) / 2
-  const dataUri = `data:image/svg+xml;base64,${SYMBOL.toString('base64')}`
-  const tile = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}"><rect width="${size}" height="${size}" fill="${NAVY}"/><image href="${dataUri}" x="${x}" y="${y}" width="${sw}" height="${sh}"/></svg>`
-  writeFileSync(path.join(PUBLIC, 'favicon.svg'), tile)
-  console.log('✓ favicon.svg')
-}
+// Browser favicon: the official transparent adaptive favicon.svg from the VI
+// (per VI contract since idrl-vi 8e6d55d: bare transparent canvas, navy block
+// switches to navyOnDark via prefers-color-scheme — follows the browser/OS
+// theme, not the in-app theme toggle). The navy-tile composition below stays
+// for application icons only (ICO / PWA / apple-touch), which need a fixed
+// background.
+copyFileSync(
+  path.join(PUBLIC, 'brand/logo/favicon.svg'),
+  path.join(PUBLIC, 'favicon.svg'),
+)
+console.log('✓ favicon.svg (official adaptive)')
 
 await ico([16, 32, 48], 'favicon.ico')
 for (const s of [16, 32, 48, 64]) await tile(s, `favicon-${s}x${s}.png`)

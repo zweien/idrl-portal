@@ -1,0 +1,26 @@
+{
+  "sourceRepo": "https://github.com/zweien/idrl-vi",
+  "sourceCommit": "8e6d55d877e7eacc753a90516e46298e23075694",
+  "tokenVersion": "0.2.1",
+  "manifest": "idrl-vi:assets/brand/reuse-manifest.json",
+  "contract": "idrl-vi:DESIGN.md",
+  "adoptionGuide": "idrl-vi:docs/design/adoption.md",
+  "copiedFiles": [
+    "public/brand/logo/ (favicon.svg, favicon-tile.svg, lockup-*, symbol-*)",
+    "public/brand/fonts/InterVariable.woff2 + OFL licenses",
+    "public/brand/tokens.json (v0.2.1 snapshot)"
+  ],
+  "localAdaptations": [
+    "主题切换用 next-themes 的 .dark class（非 data-theme 属性）；Brand 组件以 .brand-light/.brand-dark class 在 CSS 层切换深浅 logo 资产",
+    "globals.css 内嵌 VI token 数值（Tailwind v4 @theme inline），未直接加载 tokens-values.css / shadcn-aliases.css；数值已对照 0.2.1 与 shadcn-aliases 逐项核实等价",
+    "浏览器 favicon 用官方透明自适应 favicon.svg；favicon-tile 仅用于 ICO/PWA/apple-touch 等固定底色应用图标（scripts/generate-favicons.mjs）",
+    "中文字体走官方回退栈（动态内容，不用 VI 展示站子集）"
+  ],
+  "validatedAt": "2026-10-15",
+  "validatedAgainst": {
+    "typescript": "pass",
+    "eslint": "0 errors",
+    "vitest": "47 files / 379 tests pass",
+    "nextBuild": "pass"
+  }
+}
