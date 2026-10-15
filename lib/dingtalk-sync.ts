@@ -71,6 +71,9 @@ export async function syncMembers(progress?: SyncProgress): Promise<{
       // manually-set role on re-sync; the UI shows blank as "—".
       const title = m.title?.trim() || ''
       const hasTitle = title !== ''
+      // 同 title：钉钉未提供部门（或解析不到）时不覆盖手动编辑的值。
+      const department = m.department?.trim() || ''
+      const hasDepartment = department !== ''
       const existing = await tx.person.findFirst({ where: { dingUserId: m.unionid } })
 
       if (existing) {
@@ -104,6 +107,8 @@ export async function syncMembers(progress?: SyncProgress): Promise<{
             // Only overwrite the title when DingTalk provided a non-empty one,
             // so a missing/blank title field doesn't wipe a manually-set role.
             ...(hasTitle ? { role: title } : {}),
+            // Same for the department name (人工添加的人员可能没有部门).
+            ...(hasDepartment ? { department } : {}),
             ...(m.email ? { email: m.email } : {}),
             ...(m.mobile ? { phone: m.mobile } : {}),
           },
@@ -119,6 +124,7 @@ export async function syncMembers(progress?: SyncProgress): Promise<{
         const data = {
           name: m.name,
           role: title,
+          department,
           dingUserId: m.unionid,
           status: 'absent' as const,
           ...(m.email ? { email: m.email } : {}),

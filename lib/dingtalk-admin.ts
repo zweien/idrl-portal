@@ -40,6 +40,9 @@ export interface DingTalkMember {
   deptIdList: number[]
   active: boolean
   leader?: boolean
+  /** Resolved by listDeptMembers: display name of the member's first department
+   * inside the synced subtree ('' when unresolvable, e.g. directly under root). */
+  department?: string
 }
 
 export interface DingTalkDept {
@@ -120,20 +123,27 @@ export async function listSubDepartments(accessToken: string, deptId: number): P
 }
 
 /**
- * Recursively collect all department ids under `rootDeptId` (inclusive of root).
+ * Recursively collect all department ids under `rootDeptId` (inclusive of root),
+ * plus an id → name map for every department EXCEPT the root itself (the walk
+ * only ever sees the root's children, so the root's own name is unknown here).
  */
-export async function collectAllDeptIds(accessToken: string, rootDeptId: number): Promise<number[]> {
-  const result: number[] = [rootDeptId]
+export async function collectAllDeptIds(
+  accessToken: string,
+  rootDeptId: number,
+): Promise<{ ids: number[]; names: Map<number, string> }> {
+  const ids: number[] = [rootDeptId]
+  const names = new Map<number, string>()
   const queue: number[] = [rootDeptId]
   while (queue.length > 0) {
     const deptId = queue.shift()!
     const subs = await listSubDepartments(accessToken, deptId)
     for (const s of subs) {
-      result.push(s.deptId)
+      ids.push(s.deptId)
+      names.set(s.deptId, s.name)
       queue.push(s.deptId)
     }
   }
-  return result
+  return { ids, names }
 }
 
 // ── members ───────────────────────────────────────────
@@ -202,22 +212,26 @@ export async function listDepartmentUsers(accessToken: string, deptId: number): 
 // Department-tree cache: the walk costs one listsub call per department
 // (~50 for the org) on every member sync, but the tree changes rarely.
 // 10-minute TTL keeps new-department visibility within one sync cycle.
-let deptIdsCache: { root: number; ids: number[]; at: number } | null = null
+let deptIdsCache: { root: number; ids: number[]; names: Map<number, string>; at: number } | null = null
 const DEPT_TREE_TTL_MS = 10 * 60 * 1000
 
 export async function listDeptMembers(rootDeptId?: number): Promise<DingTalkMember[]> {
   const token = await getEnterpriseAccessToken()
   const targetRoot = rootDeptId ?? Number(process.env.DINGTALK_DEPT_ID ?? '340351089')
   let allDeptIds: number[]
+  let deptNames: Map<number, string>
   if (
     deptIdsCache &&
     deptIdsCache.root === targetRoot &&
     Date.now() - deptIdsCache.at < DEPT_TREE_TTL_MS
   ) {
     allDeptIds = deptIdsCache.ids
+    deptNames = deptIdsCache.names
   } else {
-    allDeptIds = await collectAllDeptIds(token, targetRoot)
-    deptIdsCache = { root: targetRoot, ids: allDeptIds, at: Date.now() }
+    const tree = await collectAllDeptIds(token, targetRoot)
+    allDeptIds = tree.ids
+    deptNames = tree.names
+    deptIdsCache = { root: targetRoot, ids: allDeptIds, names: deptNames, at: Date.now() }
   }
 
   const byUserid = new Map<string, DingTalkMember>()
@@ -225,6 +239,11 @@ export async function listDeptMembers(rootDeptId?: number): Promise<DingTalkMemb
     const members = await listDepartmentUsers(token, deptId)
     for (const m of members) {
       if (m.userid && !byUserid.has(m.userid)) {
+        // 部门显示名：按成员 deptIdList 的顺序取第一个落在同步子树内的部门。
+        // 注意这与上面的成员去重顺序（按部门树 BFS 遍历）可能不同——多部门成员
+        // 以钉钉侧 deptIdList 的首位为准。root 自身名字未知，直接挂在 root 下的
+        // 成员解析不到名字，记为 ''。
+        m.department = (m.deptIdList ?? []).map(id => deptNames.get(id)).find(Boolean) ?? ''
         byUserid.set(m.userid, m)
       }
     }

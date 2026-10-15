@@ -236,7 +236,10 @@ export default function PersonnelPage() {
                   </Avatar>
                   <div>
                     <p className="font-medium">{selectedPerson.name}</p>
-                    <p className="text-xs text-muted-foreground">{selectedPerson.role || '—'}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {selectedPerson.role || '—'}
+                      {selectedPerson.department ? ` · ${selectedPerson.department}` : ''}
+                    </p>
                   </div>
                 </div>
 

@@ -23,6 +23,7 @@ beforeAll(async () => {
       "id" TEXT NOT NULL PRIMARY KEY,
       "name" TEXT NOT NULL,
       "role" TEXT NOT NULL,
+      "department" TEXT NOT NULL DEFAULT '',
       "email" TEXT,
       "phone" TEXT,
       "dingUserId" TEXT,
