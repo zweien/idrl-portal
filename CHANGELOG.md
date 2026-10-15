@@ -5,6 +5,16 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v0.11.1] - 2026-10-15
+
+### 新增
+
+- feat(personnel): add department field, filled from DingTalk member sync (#103)
+
+### 其他
+
+- chore: ignore managed-agents/ working artifacts
+
 ## [v0.11.0] - 2026-10-13
 
 ### 新增
