@@ -5,6 +5,12 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v0.11.3] - 2026-10-16
+
+### 新增
+
+- feat(attendance): expose person department across attendance APIs (#106)
+
 ## [v0.11.2] - 2026-10-15
 
 ### 修复
