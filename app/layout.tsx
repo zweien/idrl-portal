@@ -21,9 +21,11 @@ export const metadata: Metadata = {
   description: 'IDRL 门户 - 人员在位、资源聚合、最新动态',
   manifest: '/site.webmanifest',
   icons: {
+    // SVG 自适应 favicon 放首位（随浏览器系统配色切换 navy 色块）；
+    // ICO / PNG 作为不支持 SVG 图标的浏览器回退。
     icon: [
-      { url: '/favicon.ico', sizes: 'any' },
       { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.ico', sizes: 'any' },
       { url: '/favicon-32x32.png', type: 'image/png', sizes: '32x32' },
       { url: '/favicon-16x16.png', type: 'image/png', sizes: '16x16' },
     ],
