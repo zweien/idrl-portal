@@ -51,7 +51,9 @@ export function PersonDialog({ initialData, trigger, onSubmit, onCloseRequest }:
       name: form.name,
       email: form.email || undefined,
       role: form.role,
-      department: form.department || undefined,
+      // 始终提交字符串（空串也要发）：PATCH 按 {...existing, ...body} 合并，
+      // 字段缺席会保留旧值，导致无法清空部门（codex review P1）。
+      department: form.department,
       phone: form.phone || undefined,
       status: form.status,
       researchAreas: form.researchAreas

@@ -239,8 +239,10 @@ export async function listDeptMembers(rootDeptId?: number): Promise<DingTalkMemb
     const members = await listDepartmentUsers(token, deptId)
     for (const m of members) {
       if (m.userid && !byUserid.has(m.userid)) {
-        // 部门显示名：成员 deptIdList 里第一个落在同步子树内的部门（与上面的
-        // 去重优先序一致）。root 自身名字未知，直接挂在 root 下的成员为 ''。
+        // 部门显示名：按成员 deptIdList 的顺序取第一个落在同步子树内的部门。
+        // 注意这与上面的成员去重顺序（按部门树 BFS 遍历）可能不同——多部门成员
+        // 以钉钉侧 deptIdList 的首位为准。root 自身名字未知，直接挂在 root 下的
+        // 成员解析不到名字，记为 ''。
         m.department = (m.deptIdList ?? []).map(id => deptNames.get(id)).find(Boolean) ?? ''
         byUserid.set(m.userid, m)
       }

@@ -95,6 +95,29 @@ describe('syncMembers department field', () => {
     expect('department' in db.update.mock.calls[0][0].data).toBe(false)
   })
 
+  it('treats a whitespace-only department as unresolvable (no wipe)', async () => {
+    const db = makeDb({ existing: { id: 'dt-u1', name: '陈思', role: '研究员', department: '手填部门' } })
+    mockDb(db.prisma)
+    mockAdmin([
+      { userid: 'u1', unionid: 'uni1', name: '陈思', title: '研究员', department: '   ', deptIdList: [7] },
+    ])
+    const { syncMembers } = await load()
+    await syncMembers()
+    expect(db.update).toHaveBeenCalledTimes(1)
+    expect('department' in db.update.mock.calls[0][0].data).toBe(false)
+  })
+
+  it('trims the resolved department name before writing', async () => {
+    const db = makeDb({ existing: null })
+    mockDb(db.prisma)
+    mockAdmin([
+      { userid: 'u1', unionid: 'uni1', name: '陈思', title: '研究员', department: '  应用组  ', deptIdList: [7] },
+    ])
+    const { syncMembers } = await load()
+    await syncMembers()
+    expect(db.create.mock.calls[0][0].data.department).toBe('应用组')
+  })
+
   it('creates department-less members with an empty department string', async () => {
     const db = makeDb({ existing: null })
     mockDb(db.prisma)
