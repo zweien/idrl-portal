@@ -162,6 +162,15 @@ describe('buildSummaryCsv', () => {
     // 96 / 12 = 8.00
     expect(csv).toContain('96.00,8.00')
   })
+  it('writes the department column and escapes it like other fields', () => {
+    const rows: SummaryRow[] = [
+      { name: 'A', department: '算法组', presentDays: 1, tripDays: 0, leaveDays: 0, missingPunchDays: 0, totalHours: 8, countedDays: 1 },
+      { name: 'B', department: 'x,"y', presentDays: 1, tripDays: 0, leaveDays: 0, missingPunchDays: 0, totalHours: 8, countedDays: 1 },
+    ]
+    const csv = buildSummaryCsv(rows, '2026-07-01', '2026-07-31')
+    expect(csv).toContain('A,算法组,')
+    expect(csv).toContain('"x,""y"')
+  })
   it('zero counted days → average 0.00 (no division by zero)', () => {
     const rows: SummaryRow[] = [
       { name: 'A', presentDays: 0, tripDays: 0, leaveDays: 3, missingPunchDays: 0, totalHours: 0, countedDays: 0 },
