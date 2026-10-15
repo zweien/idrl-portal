@@ -52,3 +52,6 @@ prisma/db.sqlite-shm
 
 # Local before/after refactor screenshots
 .screenshots/
+
+# Other-session working artifacts (research notes etc.)
+managed-agents/
