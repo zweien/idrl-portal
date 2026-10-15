@@ -16,7 +16,7 @@ import type { Person, NewWorkstation } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
-import { Search, MapPin, Mail, User, Settings, Clock, Plane } from 'lucide-react'
+import { Search, MapPin, Mail, User, Settings, Clock, Plane, Building2 } from 'lucide-react'
 import { statusBg } from '@/lib/floor-constants'
 
 const statusFilters = ['present', 'trip', 'leave', 'absent'] as const
@@ -236,10 +236,7 @@ export default function PersonnelPage() {
                   </Avatar>
                   <div>
                     <p className="font-medium">{selectedPerson.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {selectedPerson.role || '—'}
-                      {selectedPerson.department ? ` · ${selectedPerson.department}` : ''}
-                    </p>
+                    <p className="text-xs text-muted-foreground">{selectedPerson.role || '—'}</p>
                   </div>
                 </div>
 
@@ -264,6 +261,12 @@ export default function PersonnelPage() {
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Mail className="h-3.5 w-3.5 shrink-0" />
                       <span className="truncate">{selectedPerson.email}</span>
+                    </div>
+                  )}
+                  {selectedPerson.department && (
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Building2 className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">{selectedPerson.department}</span>
                     </div>
                   )}
                 {selectedPerson.offboarded && (

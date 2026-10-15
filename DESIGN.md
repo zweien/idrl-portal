@@ -1,14 +1,15 @@
 # IDRL Portal Design
 
-状态：2026-10-13 完成 IDRL VI（视觉识别）接入重构。品牌规则上游为 `idrl-vi` 仓库的 `DESIGN.md` 与 `assets/brand/tokens.json`（视觉基础 v0.1，2026-10-12 已审核）。本文是其在本项目落地的主入口：上游未覆盖处沿用本项目的既有模式，并在「新增约定与例外」中记录。
+状态：2026-10-13 完成 IDRL VI（视觉识别）接入重构；2026-10-15 同步 VI tokens v0.2.1 与新 favicon 契约（上游源 commit `8e6d55d`，见根目录 `idrl-source.json`）。品牌规则上游为 `idrl-vi` 仓库的 `DESIGN.md` 与 `assets/brand/tokens.json`。本文是其在本项目落地的主入口：上游未覆盖处沿用本项目的既有模式，并在「新增约定与例外」中记录。
 
 ## 资产位置
 
-- Logo（官方 SVG）：`public/brand/logo/`。横向组合 `lockup-idrl(.reverse).svg`、双语组合 `lockup-bilingual(.reverse).svg`、仅图形 `symbol-color(.reverse).svg`。
+- Logo（官方 SVG）：`public/brand/logo/`。横向组合 `lockup-idrl(.reverse).svg`、双语组合 `lockup-bilingual(.reverse).svg`、仅图形 `symbol-color(.reverse).svg`、自适应 favicon `favicon.svg`、应用图标 tile `favicon-tile.svg`。
 - 字体与授权：`public/brand/fonts/`（InterVariable.woff2 + OFL 许可）。
-- 语义 token 原始值：`public/brand/tokens.json`（由 VI 仓库生成，勿手改）。
-- Favicon 生成脚本：`node scripts/generate-favicons.mjs`（navy 底 + reverse 图形，sharp 来自 next 的传递依赖）。
+- 语义 token 原始值：`public/brand/tokens.json`（VI v0.2.1 快照，由 VI 仓库生成，勿手改；同步流程见 `idrl-source.json`）。
+- Favicon 生成脚本：`node scripts/generate-favicons.mjs`（浏览器 favicon 拷贝官方透明自适应 `favicon.svg`；ICO / PNG / apple-touch 应用图标为 navy 底 + reverse 图形，sharp 来自 next 的传递依赖）。
 - React 封装：`components/brand.tsx`（`<Brand variant="wordmark|bilingual|symbol" width={} theme="auto|light|dark" />`）。
+- 采纳记录：根目录 `idrl-source.json`（上游 sourceCommit、tokenVersion、复制清单、本地适配）。
 
 ## 名称与语气
 
@@ -22,6 +23,7 @@
 - 主题切换由 `components/brand.tsx` 输出双 `<img>` + `globals.css` 的 `.brand-light/.brand-dark` 工具类在 CSS 层完成（SSR 安全）；常驻深色面板用 `theme="dark"` 固定 reverse 资产。
 - 当前使用点：侧栏展开 = 字标（宽 88px）、侧栏收起 = 图形（宽 32px）、移动端头部 = 字标（84px）、登录页 = 双语组合；登录页右侧为品牌 navy 面板 + reverse 双语组合。
 - 净空 ≥ 图形高度的 1/4；不拉伸、不旋转、不加描边；图形最小宽度建议 32px。
+- **Favicon（VI 0.2.1 契约）**：浏览器标签用官方透明自适应 `favicon.svg`（`prefers-color-scheme` 下 navy 色块自动切为 navyOnDark，跟随浏览器系统配色而非应用内主题按钮）；`favicon-tile.svg`（navy 底）只用于需要固定底色的应用图标——ICO、apple-touch-icon、PWA/manifest 图标。换 favicon 后旧标签有缓存，需重开标签验证。
 
 ## 颜色与主题
 
@@ -47,7 +49,9 @@
 - 动效 tokens `--motion-fast/normal/slow`（120/180/240ms），`prefers-reduced-motion` 时全局归零。
 - 弹窗（Dialog/AlertDialog）：`bg-card` + `rounded-2xl`；遮罩用品牌 navy（`bg-brand-navy/60`，深色 `black/60`）。
 
-## 新增约定与例外（上游 VI 未覆盖）
+## 新增约定与例外（上游 VI 未覆盖 / 本地适配）
+
+> 本地适配清单已登记于根目录 `idrl-source.json`（.dark class 主题管理、globals.css 内嵌数值而非加载 aliases 文件、favicon 管线、中文回退栈）；上游 shadcn-aliases.css 已逐项核对等价（2026-10-15，VI 0.2.1）。
 
 1. **中文 webfont 策略**：见「字体」，回退系统 CJK 黑体。
 2. **图表类别色**：VI 只定义三个品牌主色；门户以「三主色 + 功能色」组成 5 色类别板（`--chart-1..5`），全篇映射一致。

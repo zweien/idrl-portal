@@ -78,13 +78,17 @@ export async function GET(request: Request) {
     if (to) where.date.lte = to
   }
 
-  const [total, rows] = await Promise.all([
+  const [total, rows, person] = await Promise.all([
     prisma.attendanceRecord.count({ where }),
     prisma.attendanceRecord.findMany({
       where,
       orderBy: { date: 'desc' },
       skip: (page - 1) * pageSize,
       take: pageSize,
+    }),
+    prisma.person.findUnique({
+      where: { id: personId },
+      select: { name: true, department: true },
     }),
   ])
 
@@ -98,9 +102,19 @@ export async function GET(request: Request) {
   }))
 
   const totalPages = Math.ceil(total / pageSize) || 1
-  const res: ApiResponse<PaginatedResponse<AttendanceRecordItem>> = {
+  const res: ApiResponse<PaginatedResponse<AttendanceRecordItem> & {
+    person: { id: string; name: string; department: string }
+  }> = {
     success: true,
-    data: { items, total, page, pageSize, totalPages },
+    data: {
+      items, total, page, pageSize, totalPages,
+      // 查询对象的身份信息（含部门，钉钉同步），便于调用方标注而无需再查人员列表。
+      person: {
+        id: personId,
+        name: person?.name ?? '',
+        department: person?.department ?? '',
+      },
+    },
   }
   return NextResponse.json(res)
 }

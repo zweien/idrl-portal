@@ -26,11 +26,12 @@ export async function GET(request: Request) {
       ...(scope.personId ? { personId: scope.personId } : {}),
     },
     orderBy: [{ date: 'asc' }, { person: { name: 'asc' } }],
-    include: { person: { select: { name: true } } },
+    include: { person: { select: { name: true, department: true } } },
   })
 
   const exportRows: ExportRow[] = rows.map(r => ({
     name: r.person.name,
+    department: r.person.department,
     date: r.date,
     checkIn: r.checkIn,
     checkOut: r.checkOut,

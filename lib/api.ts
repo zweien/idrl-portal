@@ -371,6 +371,7 @@ export function useAuditLogs(params?: Record<string, string | number>) {
 export interface LeaderboardEntry {
   personId: string
   name: string
+  department?: string
   checkIn?: string | null
   workMinutes?: number | null
 }
@@ -391,6 +392,11 @@ export interface AttendanceRecordItem {
   workMinutes: number | null
 }
 
+/** records 响应 data：分页明细 + 查询对象的身份信息（部门来自钉钉同步）。 */
+export interface AttendanceRecordsData extends PaginatedResponse<AttendanceRecordItem> {
+  person: { id: string; name: string; department: string }
+}
+
 export function useLeaderboard(type: 'today' | 'monthly', limit = 10) {
   return useSWR<ApiResponse<LeaderboardData>>(
     `/api/attendance/leaderboard?type=${type}&limit=${limit}`,
@@ -401,7 +407,7 @@ export function useLeaderboard(type: 'today' | 'monthly', limit = 10) {
 export function useAttendanceRecords(params?: Record<string, string | number> | null) {
   // Passing null params disables the fetch (SWR conditional pattern).
   const key = params === null ? null : `/api/attendance/records${qs(params ?? undefined)}`
-  return useSWR<ApiResponse<PaginatedResponse<AttendanceRecordItem>>>(
+  return useSWR<ApiResponse<AttendanceRecordsData>>(
     key,
     fetcher,
   )

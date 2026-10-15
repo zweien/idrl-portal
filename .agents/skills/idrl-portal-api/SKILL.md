@@ -95,17 +95,22 @@ curl -s -X DELETE "$BASE/api/news/<id>" -H "Authorization: Bearer $KEY"
 curl -s -X POST "$BASE/api/dingtalk/sync-attendance" -H "Authorization: Bearer $KEY"
 
 # 今日最早打卡榜单 / 本月工时排行（admin）
+# items 每项含 department（人员部门，钉钉同步；空串时字段缺省）
 curl -s "$BASE/api/attendance/leaderboard?type=today&limit=10"   -H "Authorization: Bearer $KEY"
 curl -s "$BASE/api/attendance/leaderboard?type=monthly&limit=10" -H "Authorization: Bearer $KEY"
 
 # 某人考勤明细（admin；personId 来自人员列表）
+# data.person = {id, name, department}（查询对象身份信息，无需再查人员列表）
 curl -s "$BASE/api/attendance/records?personId=<id>&from=2026-07-01&to=2026-07-31" -H "Authorization: Bearer $KEY"
 
 # CSV 导出（admin）
+# 表头含部门列：detail=姓名,部门,日期,上班,下班,工时(小时),状态
+#              summary=姓名,部门,日期范围,出勤天数,…,平均工时(小时)
 curl -s "$BASE/api/attendance/export/detail?from=2026-07-01&to=2026-07-31"   -H "Authorization: Bearer $KEY"
 curl -s "$BASE/api/attendance/export/summary?from=2026-07-01&to=2026-07-31"  -H "Authorization: Bearer $KEY"
 
 # 人员列表（admin；可按 status 过滤，status=present|leave|trip|absent；pageSize 上限 100，超过按 totalPages 翻页）
+# item 含 department（部门显示名，钉钉成员同步自动填充；手动添加的人员可为空串）
 curl -s "$BASE/api/personnel?page=1&pageSize=100&status=present" -H "Authorization: Bearer $KEY"
 
 # 按职位（role）筛选人员状态：没有服务端 role 参数，search 也不匹配 role ——
@@ -119,7 +124,7 @@ curl -s "$BASE/api/personnel?page=$p&pageSize=100" -H "Authorization: Bearer $KE
 curl -s "$BASE/api/workstations?occupied=1" -H "Authorization: Bearer $KEY"
 # → 返回裸对象 {workstations:[{name=座位号, personId, personName, floorName, zoneName, …}]}
 #   与 personnel 按 personId 取交集得目标人群：今日 status 用 personnel 的 status 字段，
-#   打卡时段用 export/detail CSV——表头是中文（姓名/日期/上班/下班/工时/状态）且无 ID 列，
+#   打卡时段用 export/detail CSV——表头是中文（姓名/部门/日期/上班/下班/工时/状态）且无 ID 列，
 #   需按姓名关联（现库无重名；重名出现后改走逐人 records）
 
 # 同步/审计日志（admin）
