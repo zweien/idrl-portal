@@ -33,16 +33,16 @@ const statusLabels = { present: '在位', trip: '出差', leave: '请假', absen
 
 /** 与人员页 / 考勤页同一套 --status-* 功能色徽章（VI：同一状态全篇同色）。 */
 const statusBadgeClass: Record<string, string> = {
-  present: 'bg-[var(--status-present)]/15 text-[var(--status-present)] border-[var(--status-present)]/30',
-  absent: 'bg-[var(--status-absent)]/15 text-[var(--status-absent)] border-[var(--status-absent)]/30',
-  trip: 'bg-[var(--status-trip)]/15 text-[var(--status-trip)] border-[var(--status-trip)]/30',
-  leave: 'bg-[var(--status-leave)]/15 text-[var(--status-leave)] border-[var(--status-leave)]/30',
+  present: 'bg-[rgb(var(--success-rgb)/0.15)] text-success border-[rgb(var(--success-rgb)/0.3)]',
+  absent: 'bg-[rgb(var(--destructive-rgb)/0.15)] text-destructive border-[rgb(var(--destructive-rgb)/0.3)]',
+  trip: 'bg-[rgb(var(--primary-rgb)/0.15)] text-primary border-[rgb(var(--primary-rgb)/0.3)]',
+  leave: 'bg-[rgb(var(--warning-rgb)/0.15)] text-warning border-[rgb(var(--warning-rgb)/0.3)]',
 }
 
 /** 与资源聚合页一致的状态徽章色。 */
 const resourceStatusBadge: Record<string, string> = {
-  available: 'bg-[var(--status-present)]/15 text-[var(--status-present)] border-[var(--status-present)]/30',
-  maintenance: 'bg-[var(--status-absent)]/15 text-[var(--status-absent)] border-[var(--status-absent)]/30',
+  available: 'bg-[rgb(var(--success-rgb)/0.15)] text-success border-[rgb(var(--success-rgb)/0.3)]',
+  maintenance: 'bg-[rgb(var(--destructive-rgb)/0.15)] text-destructive border-[rgb(var(--destructive-rgb)/0.3)]',
   restricted: 'bg-muted text-muted-foreground',
 }
 
@@ -81,7 +81,7 @@ function DataTable<T extends { id: string }>({
         </thead>
         <tbody className="divide-y divide-border">
           {data.map(item => (
-            <tr key={item.id} className="hover:bg-muted/30 transition-colors">
+            <tr key={item.id} className="hover:bg-[rgb(var(--muted-rgb)/0.3)] transition-colors">
               {columns.map(col => (
                 <td key={String(col.key)} className="py-2.5 px-3 text-sm">
                   {col.render ? col.render(item[col.key], item) : String(item[col.key] ?? '-')}
@@ -133,7 +133,7 @@ function IntegrationCard({ name, status, description }: {
   description: string
 }) {
   const cfg = {
-    connected: { icon: CheckCircle, color: 'text-[var(--status-present)]', label: '已连接' },
+    connected: { icon: CheckCircle, color: 'text-success', label: '已连接' },
     pending:   { icon: Info,         color: 'text-muted-foreground',        label: '待配置' },
     error:     { icon: AlertTriangle,color: 'text-destructive',             label: '连接失败' },
     mock:      { icon: Database,     color: 'text-primary',                 label: '模拟数据' },
@@ -470,7 +470,7 @@ export default function AdminPage() {
           <p className="text-sm text-muted-foreground mt-0.5">管理实验室数据</p>
         </div>
         <div className="rounded-lg border border-border bg-card flex flex-col items-center justify-center py-16 text-center gap-3">
-          <ShieldAlert className="h-8 w-8 text-muted-foreground/50" />
+          <ShieldAlert className="h-8 w-8 text-[rgb(var(--muted-foreground-rgb)/0.5)]" />
           <div>
             <p className="font-medium">访问受限</p>
             <p className="text-sm text-muted-foreground mt-0.5">您需要管理员权限才能访问此页面</p>
@@ -823,15 +823,15 @@ export default function AdminPage() {
                 />
               </div>
               {importResult && (
-                <div className="rounded-md border border-border bg-primary/5 px-3 py-2 text-xs text-primary">
+                <div className="rounded-md border border-border bg-[rgb(var(--primary-rgb)/0.05)] px-3 py-2 text-xs text-primary">
                   {importResult}
                 </div>
               )}
               {importWarnings.length > 0 && (
-                <div className="rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-xs space-y-0.5">
+                <div className="rounded-md border border-[rgb(var(--warning-rgb)/0.3)] bg-[rgb(var(--warning-rgb)/0.05)] px-3 py-2 text-xs space-y-0.5">
                   <p className="font-medium text-warning">警告详情：</p>
                   {importWarnings.map((w, i) => (
-                    <p key={i} className="text-warning/80">• {w}</p>
+                    <p key={i} className="text-[rgb(var(--warning-rgb)/0.8)]">• {w}</p>
                   ))}
                 </div>
               )}

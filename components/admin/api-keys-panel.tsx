@@ -141,8 +141,8 @@ export function ApiKeysPanel() {
             </DialogHeader>
             {newKey ? (
               <div className="space-y-3 py-2">
-                <div className="rounded-md border border-[var(--status-present)]/30 bg-[var(--status-present)]/5 p-3 space-y-2">
-                  <p className="text-xs font-medium text-[var(--status-present)]">密钥已生成（仅此一次可见，请立即复制）</p>
+                <div className="rounded-md border border-[rgb(var(--success-rgb)/0.3)] bg-[rgb(var(--success-rgb)/0.05)] p-3 space-y-2">
+                  <p className="text-xs font-medium text-success">密钥已生成（仅此一次可见，请立即复制）</p>
                   <div className="flex items-center gap-2">
                     <code className="flex-1 text-xs font-mono bg-muted px-2 py-1.5 rounded truncate">{newKey}</code>
                     <Button size="sm" variant="outline" className="h-7 px-2" onClick={copyKey}>
@@ -205,7 +205,7 @@ export function ApiKeysPanel() {
       <div className="p-2">
         {keys.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-10 text-center">
-            <Key className="h-8 w-8 text-muted-foreground/40 mb-3" />
+            <Key className="h-8 w-8 text-[rgb(var(--muted-foreground-rgb)/0.4)] mb-3" />
             <p className="text-sm text-muted-foreground">暂无密钥，点击「新建密钥」创建</p>
           </div>
         ) : (
@@ -223,7 +223,7 @@ export function ApiKeysPanel() {
               </thead>
               <tbody className="divide-y divide-border">
                 {keys.map(k => (
-                  <tr key={k.id} className="hover:bg-muted/30">
+                  <tr key={k.id} className="hover:bg-[rgb(var(--muted-rgb)/0.3)]">
                     <td className="py-2 px-3 text-sm font-medium">{k.name}</td>
                     <td className="py-2 px-3"><code className="text-xs font-mono text-muted-foreground">{k.prefix}…</code></td>
                     <td className="py-2 px-3">

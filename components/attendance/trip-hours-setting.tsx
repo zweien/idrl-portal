@@ -67,7 +67,7 @@ export function TripHoursSetting() {
           {saving ? '保存中…' : '保存'}
         </Button>
         {msg && (
-          <span className={cn('text-xs', msg === '已保存' ? 'text-[var(--status-present)]' : 'text-destructive')}>
+          <span className={cn('text-xs', msg === '已保存' ? 'text-success' : 'text-destructive')}>
             {msg}
           </span>
         )}

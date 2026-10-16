@@ -269,7 +269,7 @@ export function FloorEditor({ floors, onChange, selectedFloorId, onSelectedFloor
               className={cn(
                 'flex items-center gap-2 p-2 rounded-md border text-sm cursor-pointer transition-colors',
                 selectedFloorId === floor.id
-                  ? 'border-primary/50 bg-primary/5'
+                  ? 'border-[rgb(var(--primary-rgb)/0.5)] bg-[rgb(var(--primary-rgb)/0.05)]'
                   : 'border-border hover:bg-accent',
               )}
               onClick={() => { onSelectedFloorIdChange(floor.id); setSelectedZoneId('') }}
@@ -311,7 +311,7 @@ export function FloorEditor({ floors, onChange, selectedFloorId, onSelectedFloor
                 className={cn(
                   'flex items-center gap-2 p-2 rounded-md border text-sm cursor-pointer transition-colors',
                   selectedZoneId === zone.id
-                    ? 'border-primary/50 bg-primary/5'
+                    ? 'border-[rgb(var(--primary-rgb)/0.5)] bg-[rgb(var(--primary-rgb)/0.05)]'
                     : 'border-border hover:bg-accent',
                 )}
                 onClick={() => setSelectedZoneId(zone.id)}

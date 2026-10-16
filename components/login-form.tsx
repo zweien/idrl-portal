@@ -88,7 +88,7 @@ export function LoginForm() {
       </div>
 
       {ssoMessage && (
-        <div className="flex items-start gap-2 rounded-md border border-border bg-muted/50 px-3 py-2.5 text-xs text-muted-foreground">
+        <div className="flex items-start gap-2 rounded-md border border-border bg-[rgb(var(--muted-rgb)/0.5)] px-3 py-2.5 text-xs text-muted-foreground">
           <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
           {ssoMessage}
         </div>

@@ -74,7 +74,7 @@ export function OffboardNotice({
   const total = offboarded.length + transferred.length
 
   return (
-    <div className="rounded-lg border border-warning/30 bg-warning/5 px-3 py-2">
+    <div className="rounded-lg border border-[rgb(var(--warning-rgb)/0.3)] bg-[rgb(var(--warning-rgb)/0.05)] px-3 py-2">
       <button className="w-full flex items-center gap-2 text-left" onClick={() => setOpen(o => !o)}>
         <span className="text-xs font-medium text-warning">
           成员同步检测到 {total} 人不在同步范围

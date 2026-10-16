@@ -53,9 +53,9 @@ const CATEGORY_LABELS: Record<FeedbackCategory, string> = {
 // 分类徽章映射到 VI 功能色：bug→destructive、建议→primary、疑问→warning、
 // 其他→muted；深浅主题由语义变量自动适配。
 const CATEGORY_BADGE: Record<FeedbackCategory, string> = {
-  bug: 'bg-destructive/10 text-destructive dark:bg-destructive/15',
-  suggestion: 'bg-primary/10 text-primary dark:bg-primary/15',
-  question: 'bg-warning/10 text-warning dark:bg-warning/15',
+  bug: 'bg-[rgb(var(--destructive-rgb)/0.1)] text-destructive dark:bg-[rgb(var(--destructive-rgb)/0.15)]',
+  suggestion: 'bg-[rgb(var(--primary-rgb)/0.1)] text-primary dark:bg-[rgb(var(--primary-rgb)/0.15)]',
+  question: 'bg-[rgb(var(--warning-rgb)/0.1)] text-warning dark:bg-[rgb(var(--warning-rgb)/0.15)]',
   other: 'bg-muted text-muted-foreground',
 }
 
@@ -178,7 +178,7 @@ export default function FeedbackPage() {
             <button
               key={f.id}
               onClick={() => setSelectedId(f.id)}
-              className="w-full text-left rounded-lg border border-border bg-card p-4 hover:border-foreground/20 transition-colors"
+              className="w-full text-left rounded-lg border border-border bg-card p-4 hover:border-[rgb(var(--foreground-rgb)/0.2)] transition-colors"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
@@ -323,7 +323,7 @@ function FeedbackDetail(props: {
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span>{post.authorName}</span>
           <span>{formatTime(post.createdAt)}</span>
-          {post.contact && <span className="text-muted-foreground/70">联系：{post.contact}</span>}
+          {post.contact && <span className="text-[rgb(var(--muted-foreground-rgb)/0.7)]">联系：{post.contact}</span>}
         </div>
         {canDeletePost && (
           <div className="pt-2 border-t border-border">

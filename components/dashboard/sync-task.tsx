@@ -18,7 +18,7 @@ function StageIcon({ stage }: { stage: SyncStageState }) {
   if (stage.status === 'running') return <Loader2 className={cn(cls, 'animate-spin text-primary')} />
   if (stage.status === 'done') return <CheckCircle2 className={cn(cls, 'text-success')} />
   if (stage.status === 'failed') return <XCircle className={cn(cls, 'text-destructive')} />
-  return <Circle className={cn(cls, 'text-muted-foreground/40')} />
+  return <Circle className={cn(cls, 'text-[rgb(var(--muted-foreground-rgb)/0.4)]')} />
 }
 
 function formatMs(ms: number | null): string {
@@ -181,7 +181,7 @@ export function SyncTaskButton({
               {myTask.stages.map(s => (
                 <div key={s.key} className="flex items-center gap-1.5">
                   <StageIcon stage={s} />
-                  <span className={cn(s.status === 'pending' && 'text-muted-foreground/60')}>
+                  <span className={cn(s.status === 'pending' && 'text-[rgb(var(--muted-foreground-rgb)/0.6)]')}>
                     {s.label}
                   </span>
                   {s.status === 'done' && s.ms !== null && (

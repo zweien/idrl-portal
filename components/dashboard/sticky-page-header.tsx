@@ -18,7 +18,7 @@ export function StickyPageHeader({ children, className }: {
     <div
       className={cn(
         'sticky top-12 lg:top-0 z-30 -mx-4 px-4 lg:-mx-6 lg:px-6 pt-2 pb-3 -mt-2',
-        'bg-background/95 backdrop-blur-sm border-b border-border',
+        'bg-[rgb(var(--background-rgb)/0.95)] backdrop-blur-sm border-b border-border',
         className,
       )}
     >

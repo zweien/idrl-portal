@@ -25,11 +25,11 @@ import {
 
 // Cycle through chart color tokens for each category (now dynamic).
 const catPalette = [
-  { color: 'text-[var(--chart-1)]', accent: 'bg-[var(--chart-1)]/8 border-[var(--chart-1)]/20' },
-  { color: 'text-[var(--chart-2)]', accent: 'bg-[var(--chart-2)]/8 border-[var(--chart-2)]/20' },
-  { color: 'text-[var(--chart-3)]', accent: 'bg-[var(--chart-3)]/8 border-[var(--chart-3)]/20' },
-  { color: 'text-[var(--chart-4)]', accent: 'bg-[var(--chart-4)]/8 border-[var(--chart-4)]/20' },
-  { color: 'text-[var(--chart-5)]', accent: 'bg-[var(--chart-5)]/8 border-[var(--chart-5)]/20' },
+  { color: 'text-[var(--chart-1)]', accent: 'bg-[rgb(var(--chart-1-rgb)/0.08)] border-[rgb(var(--chart-1-rgb)/0.2)]' },
+  { color: 'text-[var(--chart-2)]', accent: 'bg-[rgb(var(--chart-2-rgb)/0.08)] border-[rgb(var(--chart-2-rgb)/0.2)]' },
+  { color: 'text-[var(--chart-3)]', accent: 'bg-[rgb(var(--chart-3-rgb)/0.08)] border-[rgb(var(--chart-3-rgb)/0.2)]' },
+  { color: 'text-[var(--chart-4)]', accent: 'bg-[rgb(var(--chart-4-rgb)/0.08)] border-[rgb(var(--chart-4-rgb)/0.2)]' },
+  { color: 'text-[var(--chart-5)]', accent: 'bg-[rgb(var(--chart-5-rgb)/0.08)] border-[rgb(var(--chart-5-rgb)/0.2)]' },
 ]
 
 function catConfig(cat: Category, index: number) {
@@ -41,12 +41,12 @@ function StatCard({ label, value, sub, icon: Icon }: {
 }) {
   return (
     <div className="rounded-lg border border-border bg-card p-4 flex items-center gap-3">
-      <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+      <div className="w-8 h-8 rounded-md bg-[rgb(var(--primary-rgb)/0.1)] flex items-center justify-center shrink-0">
         <Icon className="h-4 w-4 text-primary" />
       </div>
       <div>
         <p className="text-xl font-semibold tabular-nums">{value}</p>
-        <p className="text-xs text-muted-foreground">{label}{sub && <span className="ml-1 text-muted-foreground/60">{sub}</span>}</p>
+        <p className="text-xs text-muted-foreground">{label}{sub && <span className="ml-1 text-[rgb(var(--muted-foreground-rgb)/0.6)]">{sub}</span>}</p>
       </div>
     </div>
   )
@@ -57,7 +57,7 @@ function NewsCard({ news, catLabel, cfg, onExpand }: { news: NewsItem; catLabel:
     <button
       onClick={() => onExpand(news)}
       className={cn(
-        'w-full text-left rounded-lg border bg-card p-4 transition-all hover:shadow-sm hover:border-border/80',
+        'w-full text-left rounded-lg border bg-card p-4 transition-all hover:shadow-sm hover:border-[rgb(var(--border-rgb)/0.8)]',
         news.pinned && cfg.accent
       )}
     >
@@ -315,7 +315,7 @@ export default function DashboardPage() {
               </span>
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
                 resource.status === 'available'
-                  ? 'bg-[var(--status-present)]/15 text-[var(--status-present)]'
+                  ? 'bg-[rgb(var(--success-rgb)/0.15)] text-success'
                   : 'bg-muted text-muted-foreground'
               }`}>
                 {resource.status === 'available' ? '可用' : '维护'}

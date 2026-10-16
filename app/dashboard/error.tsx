@@ -17,7 +17,7 @@ export default function DashboardError({
 }) {
   return (
     <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
-      <AlertTriangle className="h-10 w-10 text-[var(--status-absent)]" />
+      <AlertTriangle className="h-10 w-10 text-destructive" />
       <div className="space-y-1">
         <h2 className="text-lg font-semibold">页面加载失败</h2>
         <p className="text-sm text-muted-foreground">

@@ -217,7 +217,7 @@ export default function NewsPage() {
         <div className="space-y-2">
           {filtered.length === 0 && (
             <div className="rounded-lg border border-border bg-card flex flex-col items-center justify-center py-16 text-center">
-              <Newspaper className="h-8 w-8 text-muted-foreground/40 mb-3" />
+              <Newspaper className="h-8 w-8 text-[rgb(var(--muted-foreground-rgb)/0.4)] mb-3" />
               <p className="text-sm text-muted-foreground">没有找到匹配的动态</p>
             </div>
           )}
@@ -261,7 +261,7 @@ export default function NewsPage() {
                   role="button"
                   aria-label={`编辑 ${news.title}`}
                   title="编辑"
-                  className="shrink-0 self-start p-1 rounded text-muted-foreground/50 hover:text-foreground hover:bg-accent transition-colors"
+                  className="shrink-0 self-start p-1 rounded text-[rgb(var(--muted-foreground-rgb)/0.5)] hover:text-foreground hover:bg-accent transition-colors"
                   onClick={e => { e.stopPropagation(); openEdit(news) }}
                 >
                   <Pencil className="h-3.5 w-3.5" />

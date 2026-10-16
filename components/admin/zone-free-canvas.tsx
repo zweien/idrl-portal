@@ -306,7 +306,7 @@ function CanvasSurface({
               height={CELL_H}
               rx="6"
               fill="none"
-              className="stroke-muted-foreground/15"
+              className="stroke-[rgb(var(--muted-foreground-rgb)/0.15)]"
               strokeWidth="1"
               strokeDasharray="3 3"
             />
@@ -348,8 +348,8 @@ function CanvasSurface({
               rx="6"
               className={cn(
                 'fill-card',
-                isSelected ? 'stroke-primary stroke-2' : 'stroke-muted-foreground/30',
-                inDrag && brush === 'remove' && 'fill-destructive/30',
+                isSelected ? 'stroke-primary stroke-2' : 'stroke-[rgb(var(--muted-foreground-rgb)/0.3)]',
+                inDrag && brush === 'remove' && 'fill-[rgb(var(--destructive-rgb)/0.3)]',
               )}
             />
             <text
@@ -431,7 +431,7 @@ function RenameRow({
         placeholder="清空则恢复默认命名"
       />
       {ws.nameCustomized && (
-        <span className="text-[10px] text-muted-foreground/70">自定义</span>
+        <span className="text-[10px] text-[rgb(var(--muted-foreground-rgb)/0.7)]">自定义</span>
       )}
       <span className="text-xs text-muted-foreground shrink-0 ml-2">分配：</span>
       <div className="w-[160px]">

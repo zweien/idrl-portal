@@ -136,7 +136,7 @@ export function PersonDialog({ initialData, trigger, onSubmit, onCloseRequest }:
                 {form.photoUrl
                   ? <AvatarImage src={form.photoUrl} alt={form.name || '人员照片'} />
                   : null}
-                <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
+                <AvatarFallback className="bg-[rgb(var(--primary-rgb)/0.1)] text-primary text-sm font-semibold">
                   {form.name?.charAt(0) || '?'}
                 </AvatarFallback>
               </Avatar>
