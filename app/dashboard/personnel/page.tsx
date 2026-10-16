@@ -17,6 +17,8 @@ import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
 import { Search, MapPin, Mail, User, Settings, Clock, Plane, Building2 } from 'lucide-react'
+import { StickyPageHeader } from '@/components/dashboard/sticky-page-header'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { statusBg } from '@/lib/floor-constants'
 
 const statusFilters = ['present', 'trip', 'leave', 'absent'] as const
@@ -38,6 +40,8 @@ export default function PersonnelPage() {
   const [search, setSearch]                     = useState('')
   const [statusFilter, setStatusFilter]         = useState<string | null>(null)
   const [selectedPerson, setSelectedPerson]     = useState<Person | null>(null)
+  /** 头像灯箱：详情卡头像点击放大（仅在有照片时启用）。 */
+  const [photoZoomPerson, setPhotoZoomPerson]   = useState<Person | null>(null)
   const [selectedWs, setSelectedWs]             = useState<NewWorkstation | null>(null)
   const [activeFloorId, setActiveFloorId]       = useState('')
   const [departed, setDeparted]                 = useState<{ offboarded: DepartedMember[]; transferred: DepartedMember[] } | null>(null)
@@ -99,13 +103,80 @@ export default function PersonnelPage() {
 
   return (
     <div className="space-y-4 py-2">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">人员与工位</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          查看实验室人员在位情况与工位分布
-          <SyncTimeBadge className="ml-2 align-middle" />
-        </p>
-      </div>
+      <StickyPageHeader>
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">人员与工位</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            查看实验室人员在位情况与工位分布
+            <SyncTimeBadge className="ml-2 align-middle" />
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 mt-3">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="搜索姓名、邮箱、研究方向…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-8 h-8 text-sm w-64"
+            />
+          </div>
+          <Button
+            variant={statusFilter === null ? 'secondary' : 'ghost'}
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => setStatusFilter(null)}
+          >
+            全部 ({personnel.length})
+          </Button>
+          {statusFilters.map(s => (
+            <Button
+              key={s}
+              variant={statusFilter === s ? 'secondary' : 'ghost'}
+              size="sm"
+              className="h-8 text-xs gap-1.5"
+              onClick={() => setStatusFilter(statusFilter === s ? null : s)}
+            >
+              <span className={cn('status-dot', statusConfig[s].dot)} />
+              {statusConfig[s].label} ({counts[s]})
+            </Button>
+          ))}
+          {user?.role === 'admin' && (
+            <>
+              <SyncTaskButton
+                kind="members"
+                label="同步钉钉成员"
+                onDone={(task) => {
+                  const s = task.result?.stats as { offboarded?: DepartedMember[]; transferred?: DepartedMember[] } | undefined
+                  setDeparted({ offboarded: s?.offboarded ?? [], transferred: s?.transferred ?? [] })
+                  // The sync just created/updated people — refresh the board now
+                  // instead of waiting for a focus revalidation.
+                  void mutatePersonnel()
+                }}
+              />
+              <SyncTaskButton
+                kind="attendance"
+                label="同步考勤"
+                runningLabel="考勤同步中…"
+                className="ml-auto"
+                onDone={() => {
+                  // Revalidate personnel SWR so cards/status update immediately,
+                  // and the sync-freshness badge so "x 分钟前" reflects this run.
+                  void mutatePersonnel()
+                  invalidateSyncedAt()
+                }}
+              />
+              <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" asChild>
+                <Link href="/dashboard/admin/floor-layout">
+                  <Settings className="h-3.5 w-3.5" />
+                  工位布局配置
+                </Link>
+              </Button>
+            </>
+          )}
+        </div>
+      </StickyPageHeader>
 
       {departed && (departed.offboarded.length > 0 || departed.transferred.length > 0) && (
         <OffboardNotice
@@ -129,70 +200,6 @@ export default function PersonnelPage() {
         />
       )}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            placeholder="搜索姓名、邮箱、研究方向…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="pl-8 h-8 text-sm w-64"
-          />
-        </div>
-        <Button
-          variant={statusFilter === null ? 'secondary' : 'ghost'}
-          size="sm"
-          className="h-8 text-xs"
-          onClick={() => setStatusFilter(null)}
-        >
-          全部 ({personnel.length})
-        </Button>
-        {statusFilters.map(s => (
-          <Button
-            key={s}
-            variant={statusFilter === s ? 'secondary' : 'ghost'}
-            size="sm"
-            className="h-8 text-xs gap-1.5"
-            onClick={() => setStatusFilter(statusFilter === s ? null : s)}
-          >
-            <span className={cn('status-dot', statusConfig[s].dot)} />
-            {statusConfig[s].label} ({counts[s]})
-          </Button>
-        ))}
-        {user?.role === 'admin' && (
-          <>
-            <SyncTaskButton
-              kind="members"
-              label="同步钉钉成员"
-              onDone={(task) => {
-                const s = task.result?.stats as { offboarded?: DepartedMember[]; transferred?: DepartedMember[] } | undefined
-                setDeparted({ offboarded: s?.offboarded ?? [], transferred: s?.transferred ?? [] })
-                // The sync just created/updated people — refresh the board now
-                // instead of waiting for a focus revalidation.
-                void mutatePersonnel()
-              }}
-            />
-            <SyncTaskButton
-              kind="attendance"
-              label="同步考勤"
-              runningLabel="考勤同步中…"
-              className="ml-auto"
-              onDone={() => {
-                // Revalidate personnel SWR so cards/status update immediately,
-                // and the sync-freshness badge so "x 分钟前" reflects this run.
-                void mutatePersonnel()
-                invalidateSyncedAt()
-              }}
-            />
-            <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" asChild>
-              <Link href="/dashboard/admin/floor-layout">
-                <Settings className="h-3.5 w-3.5" />
-                工位布局配置
-              </Link>
-            </Button>
-          </>
-        )}
-      </div>
       <div className="grid lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 rounded-lg border border-border bg-card">
           <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
@@ -229,14 +236,28 @@ export default function PersonnelPage() {
             {selectedPerson ? (
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
-                  <Avatar className="h-14 w-14">
-                    {selectedPerson.photoUrl
-                      ? <AvatarImage src={selectedPerson.photoUrl} alt={selectedPerson.name} />
-                      : null}
-                    <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
-                      {selectedPerson.name.charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
+                  {selectedPerson.photoUrl ? (
+                    // 有照片：点击放大（灯箱）；无照片时是纯字母占位，不响应点击
+                    <button
+                      type="button"
+                      title="放大查看照片"
+                      className="rounded-full cursor-zoom-in transition hover:ring-2 hover:ring-primary/40 hover:ring-offset-2 hover:ring-offset-card"
+                      onClick={() => setPhotoZoomPerson(selectedPerson)}
+                    >
+                      <Avatar className="h-14 w-14">
+                        <AvatarImage src={selectedPerson.photoUrl} alt={selectedPerson.name} />
+                        <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
+                          {selectedPerson.name.charAt(0)}
+                        </AvatarFallback>
+                      </Avatar>
+                    </button>
+                  ) : (
+                    <Avatar className="h-14 w-14">
+                      <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
+                        {selectedPerson.name.charAt(0)}
+                      </AvatarFallback>
+                    </Avatar>
+                  )}
                   <div>
                     <p className="font-medium">{selectedPerson.name}</p>
                     <p className="text-xs text-muted-foreground">{selectedPerson.role || '—'}</p>
@@ -373,6 +394,24 @@ export default function PersonnelPage() {
           })}
         </div>
       </div>
+
+      {/* 头像灯箱：详情卡头像点击后的大图查看 */}
+      <Dialog open={!!photoZoomPerson} onOpenChange={o => { if (!o) setPhotoZoomPerson(null) }}>
+        <DialogContent className="sm:max-w-md gap-3">
+          <DialogTitle className="sr-only">{photoZoomPerson?.name} 的照片</DialogTitle>
+          {photoZoomPerson?.photoUrl && (
+            <img
+              src={photoZoomPerson.photoUrl}
+              alt={photoZoomPerson.name}
+              className="w-full max-h-[70dvh] object-contain rounded-lg bg-muted"
+            />
+          )}
+          <p className="text-sm text-muted-foreground text-center">
+            {photoZoomPerson?.name}
+            {photoZoomPerson?.department ? ` · ${photoZoomPerson.department}` : ''}
+          </p>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

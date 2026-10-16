@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { StickyPageHeader } from '@/components/dashboard/sticky-page-header'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -490,16 +491,54 @@ export default function AdminPage() {
 
   return (
     <div className="space-y-4 py-2">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">信息管理</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">管理人员、资源和动态信息</p>
+      {/* 冻结行：标题 + 页签（「集成状态」卡较大，随内容滚动——冻结大卡片会吃掉半屏） */}
+      <StickyPageHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight">信息管理</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">管理人员、资源和动态信息</p>
+          </div>
+          {saveError && (
+            <span className="text-xs text-destructive">操作失败：{saveError}</span>
+          )}
         </div>
-        {saveError && (
-          <span className="text-xs text-destructive">操作失败：{saveError}</span>
-        )}
-      </div>
+
+        {/* 冻结行内只放 TabsList（受控 Tabs 的两个 root 共享同一 state） */}
+        <Tabs value={activeTab} onValueChange={v => setActiveTab(v as (typeof ADMIN_TABS)[number])} className="mt-3 w-full">
+          <TabsList className="h-auto p-1 flex-wrap">
+            <TabsTrigger value="personnel" className="text-xs gap-1.5 h-7">
+              <Users className="h-3.5 w-3.5" />人员管理
+            </TabsTrigger>
+            <TabsTrigger value="users" className="text-xs gap-1.5 h-7">
+              <UserCog className="h-3.5 w-3.5" />用户
+            </TabsTrigger>
+            <TabsTrigger value="resources" className="text-xs gap-1.5 h-7">
+              <Server className="h-3.5 w-3.5" />资源管理
+            </TabsTrigger>
+            <TabsTrigger value="news" className="text-xs gap-1.5 h-7">
+              <Newspaper className="h-3.5 w-3.5" />动态管理
+            </TabsTrigger>
+            <TabsTrigger value="categories" className="text-xs gap-1.5 h-7">
+              <Folder className="h-3.5 w-3.5" />分类管理
+            </TabsTrigger>
+            <TabsTrigger value="scheduling" className="text-xs gap-1.5 h-7">
+              <Clock className="h-3.5 w-3.5" />调度设置
+            </TabsTrigger>
+            <TabsTrigger value="api-keys" className="text-xs gap-1.5 h-7">
+              <Key className="h-3.5 w-3.5" />API 密钥
+            </TabsTrigger>
+            <TabsTrigger value="backup" className="text-xs gap-1.5 h-7">
+              <DatabaseBackup className="h-3.5 w-3.5" />备份
+            </TabsTrigger>
+            <TabsTrigger value="audit" className="text-xs gap-1.5 h-7">
+              <ScrollText className="h-3.5 w-3.5" />操作日志
+            </TabsTrigger>
+            <TabsTrigger value="floor-layout" className="text-xs gap-1.5 h-7">
+              <MapPin className="h-3.5 w-3.5" />工位布局
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </StickyPageHeader>
 
       {/* Integration status */}
       <div className="rounded-lg border border-border bg-card">
@@ -518,38 +557,6 @@ export default function AdminPage() {
 
       {/* Data management tabs */}
       <Tabs value={activeTab} onValueChange={v => setActiveTab(v as (typeof ADMIN_TABS)[number])}>
-        <TabsList className="h-9 p-1 flex-wrap">
-          <TabsTrigger value="personnel" className="text-xs gap-1.5 h-7">
-            <Users className="h-3.5 w-3.5" />人员管理
-          </TabsTrigger>
-          <TabsTrigger value="users" className="text-xs gap-1.5 h-7">
-            <UserCog className="h-3.5 w-3.5" />用户
-          </TabsTrigger>
-          <TabsTrigger value="resources" className="text-xs gap-1.5 h-7">
-            <Server className="h-3.5 w-3.5" />资源管理
-          </TabsTrigger>
-          <TabsTrigger value="news" className="text-xs gap-1.5 h-7">
-            <Newspaper className="h-3.5 w-3.5" />动态管理
-          </TabsTrigger>
-          <TabsTrigger value="categories" className="text-xs gap-1.5 h-7">
-            <Folder className="h-3.5 w-3.5" />分类管理
-          </TabsTrigger>
-          <TabsTrigger value="scheduling" className="text-xs gap-1.5 h-7">
-            <Clock className="h-3.5 w-3.5" />调度设置
-          </TabsTrigger>
-          <TabsTrigger value="api-keys" className="text-xs gap-1.5 h-7">
-            <Key className="h-3.5 w-3.5" />API 密钥
-          </TabsTrigger>
-          <TabsTrigger value="backup" className="text-xs gap-1.5 h-7">
-            <DatabaseBackup className="h-3.5 w-3.5" />备份
-          </TabsTrigger>
-          <TabsTrigger value="audit" className="text-xs gap-1.5 h-7">
-            <ScrollText className="h-3.5 w-3.5" />操作日志
-          </TabsTrigger>
-          <TabsTrigger value="floor-layout" className="text-xs gap-1.5 h-7">
-            <MapPin className="h-3.5 w-3.5" />工位布局
-          </TabsTrigger>
-        </TabsList>
 
         <TabsContent value="personnel" className="mt-3">
           <div className="rounded-lg border border-border bg-card">

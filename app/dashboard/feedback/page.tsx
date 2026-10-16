@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { StickyPageHeader } from '@/components/dashboard/sticky-page-header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -130,39 +131,41 @@ export default function FeedbackPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">问题反馈</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            提交使用中遇到的问题或建议，管理员会跟进处理。
-          </p>
+      <StickyPageHeader className="pt-3 pb-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-semibold">问题反馈</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              提交使用中遇到的问题或建议，管理员会跟进处理。
+            </p>
+          </div>
+          <Button onClick={() => setComposing(true)}>
+            <MessageSquarePlus className="h-4 w-4 mr-1.5" />发起反馈
+          </Button>
         </div>
-        <Button onClick={() => setComposing(true)}>
-          <MessageSquarePlus className="h-4 w-4 mr-1.5" />发起反馈
-        </Button>
-      </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v as FeedbackStatus | 'all'); setPageSize(20) }}>
-          <SelectTrigger className="w-[120px] h-9"><SelectValue placeholder="状态" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全部状态</SelectItem>
-            <SelectItem value="open">待处理</SelectItem>
-            <SelectItem value="resolved">已处理</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={categoryFilter} onValueChange={(v) => { setCategoryFilter(v as FeedbackCategory | 'all'); setPageSize(20) }}>
-          <SelectTrigger className="w-[120px] h-9"><SelectValue placeholder="分类" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全部分类</SelectItem>
-            <SelectItem value="bug">问题反馈</SelectItem>
-            <SelectItem value="suggestion">建议</SelectItem>
-            <SelectItem value="question">疑问</SelectItem>
-            <SelectItem value="other">其他</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+        {/* Filters */}
+        <div className="flex flex-wrap items-center gap-2 mt-3">
+          <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v as FeedbackStatus | 'all'); setPageSize(20) }}>
+            <SelectTrigger className="w-[120px] h-9"><SelectValue placeholder="状态" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部状态</SelectItem>
+              <SelectItem value="open">待处理</SelectItem>
+              <SelectItem value="resolved">已处理</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={categoryFilter} onValueChange={(v) => { setCategoryFilter(v as FeedbackCategory | 'all'); setPageSize(20) }}>
+            <SelectTrigger className="w-[120px] h-9"><SelectValue placeholder="分类" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部分类</SelectItem>
+              <SelectItem value="bug">问题反馈</SelectItem>
+              <SelectItem value="suggestion">建议</SelectItem>
+              <SelectItem value="question">疑问</SelectItem>
+              <SelectItem value="other">其他</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </StickyPageHeader>
 
       {/* List */}
       {!listResp ? (
