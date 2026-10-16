@@ -8,18 +8,18 @@ import { logAction, actorFromAuth } from '@/lib/audit'
 import { uploadsDir, validateImage, randomSuffix, IMAGE_TYPES, UploadValidationError } from '@/lib/uploads'
 
 /**
- * POST /api/uploads — upload a news image.
+ * POST /api/uploads — 上传图片（动态正文插图或人员照片）。
  * Accepts multipart FormData with a `file` field (image/*). Validates the file
  * kind by extension, then checks the magic bytes so a renamed non-image is
  * rejected. Stores under <uploads>/<timestamp>-<random>.<ext> and returns the
  * public URL (served by GET /api/uploads/[...path]).
  *
- * Scope: news:publish (same as writing news — API key or admin session).
+ * Scope: news:publish 或 admin（API key）；admin session 亦可。
  */
 export async function POST(req: NextRequest) {
   const __csrf = assertSameOrigin(req)
   if (__csrf) return __csrf
-  const auth = await requireScope(req, 'news:publish')
+  const auth = await requireScope(req, ['news:publish', 'admin'])
   if (auth instanceof NextResponse) return auth
 
   const formData = await req.formData()

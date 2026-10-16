@@ -18,6 +18,8 @@ export interface Person {
   role: string
   /** Department display name (sourced from the DingTalk synced subtree on sync). */
   department?: string
+  /** 人员照片 URL（/api/uploads 上传）。avatar 字段已被考勤同步征用为出差原因。 */
+  photoUrl?: string
   email?: string
   phone?: string
   dingUserId?: string

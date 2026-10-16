@@ -65,9 +65,9 @@ Body：必填 `title, content, date`；可选 `summary, author, tags[], imageUrl
 Body `{ "ids": string[] }`：置顶组的完整有序 id 列表（全部存在、均置顶、无重复）→ 按位置重写 `order` 为 0..n-1 → 200 `{ "ok": true }`。
 排序语义：置顶优先，置顶组内 `order` 升序（日期倒序兜底）；非置顶永远按日期倒序。`order` 字段随 NewsItem 返回。
 
-### POST /api/uploads — scope `news:publish`
+### POST /api/uploads — scope `news:publish` 或 `admin`
 
-上传动态内嵌图片。multipart `file` 字段，仅 jpg/jpeg/png/gif/webp（按**魔数**校验），≤5MB。
+上传图片（动态内嵌插图或人员照片）。multipart `file` 字段，仅 jpg/jpeg/png/gif/webp（按**魔数**校验），≤5MB。
 
 → 201 `{ "url": "/api/uploads/<ts>-<rand>.<ext>", "filename", "mime" }`。
 把 `url` 以 `![](url)` 插入动态正文即可显示；图片通过 `GET /api/uploads/:path`（**公开**，无需 key）读取。
@@ -121,7 +121,8 @@ Body `{ "ids": string[] }`：同一分类的完整有序 id 列表（未分类�
 
 - `search` 只匹配**姓名/邮箱/研究方向**（researchAreas），不匹配职位（role）、部门（department）和手机
 - `pageSize` 静默钳制到 **100**（`MAX_PAGE_SIZE`）；总人数超 100 时必须按 `totalPages` 翻页取全
-- item 字段：`id, name, role, department, phone, dingUserId, status, avatar, loginDisabled, offboarded`（email/researchAreas 有值才出现；department 可为空串）
+- item 字段：`id, name, role, department, photoUrl, phone, dingUserId, status, avatar, loginDisabled, offboarded`（email/researchAreas/photoUrl 有值才出现；department 可为空串）
+- `photoUrl` 是人员照片 URL（先 `POST /api/uploads` 上传，再 `PATCH /api/personnel/:id` 写入 `{"photoUrl": "<url>"}`；置空传 `""`）。照片不受钉钉成员同步影响；`avatar` 字段是另一回事（考勤同步征用为「今日出差原因」），不要用它存照片
 - `role` 是自由文本（钉钉「职位」字段同步而来，如 `学生（统招）`/`学生（联培）`/`学生（实习）`/`科研人员`/`工程师`，可为空）——**按职位筛选无服务端参数**，翻页拉全量后本地过滤（前缀匹配「学生」覆盖三类学生）
 - `department` 是部门显示名（钉钉成员所在部门同步而来，如 `算法组`，可为空串）
 

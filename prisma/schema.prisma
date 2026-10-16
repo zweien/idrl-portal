@@ -54,6 +54,9 @@ model Person {
   role              String
   // 钉钉部门名（syncMembers 从成员所在部门的子树解析）；手动添加的人员可为空。
   department        String              @default("")
+  // 人员照片（/api/uploads 的 URL）。注意：avatar 字段被考勤同步征用为
+  // 「今日出差原因」，照片存这里，两者互不干扰。
+  photoUrl          String?
   email             String?
   phone             String?
   dingUserId        String?

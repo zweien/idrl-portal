@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { FloorPlan } from '@/components/dashboard/floor-plan'
 import { SyncTaskButton } from '@/components/dashboard/sync-task'
 import { OffboardNotice } from '@/components/dashboard/offboard-notice'
@@ -229,7 +229,10 @@ export default function PersonnelPage() {
             {selectedPerson ? (
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
-                  <Avatar className="h-10 w-10">
+                  <Avatar className="h-14 w-14">
+                    {selectedPerson.photoUrl
+                      ? <AvatarImage src={selectedPerson.photoUrl} alt={selectedPerson.name} />
+                      : null}
                     <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
                       {selectedPerson.name.charAt(0)}
                     </AvatarFallback>
@@ -346,6 +349,9 @@ export default function PersonnelPage() {
               >
                 <span className={cn('absolute left-0 top-0 bottom-0 w-1', statusBg[person.status])} />
                 <Avatar className="h-7 w-7 shrink-0">
+                  {person.photoUrl
+                    ? <AvatarImage src={person.photoUrl} alt={person.name} />
+                    : null}
                   <AvatarFallback className="bg-primary/10 text-primary text-[11px] font-semibold">
                     {person.name.charAt(0)}
                   </AvatarFallback>

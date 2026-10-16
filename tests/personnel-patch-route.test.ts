@@ -15,7 +15,9 @@ vi.mock('@/lib/db', () => ({
   },
 }))
 vi.mock('@/lib/auth-api', () => ({
-  requireAdmin: vi.fn(async () => ({ userId: 'admin-1', role: 'admin' })),
+  // 路由现用 requireScope(req, 'admin')：admin session 或 admin scope key。
+  // scope 匹配逻辑由 require-scope.test.ts 覆盖，这里只回归合并语义。
+  requireScope: vi.fn(async () => ({ userId: 'admin-1', provider: 'local', role: 'admin' })),
 }))
 vi.mock('@/lib/audit', () => ({
   logAction: vi.fn(async () => {}),
