@@ -5,6 +5,12 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v0.11.9] - 2026-10-16
+
+### 修复
+
+- fix(ui): dialog centering via transform for old WebViews (DingTalk mobile) (#111)
+
 ## [v0.11.8] - 2026-10-16
 
 ### 修复
