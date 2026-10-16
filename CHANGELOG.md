@@ -5,6 +5,12 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v0.11.4] - 2026-10-16
+
+### 修复
+
+- fix(admin): integration status read runtime env; explain reorder restrictions (#107)
+
 ## [v0.11.3] - 2026-10-16
 
 ### 新增
