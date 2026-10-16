@@ -66,16 +66,17 @@ export function PersonDialog({ initialData, trigger, onSubmit, onCloseRequest }:
   }
 
   const handleSubmit = () => {
-    if (!form.name) return
+    if (!form.name || photoUploading) return
     onSubmit({
       id: initialData?.id ?? `p-${Date.now()}`,
       name: form.name,
       email: form.email || undefined,
       role: form.role,
       // 始终提交字符串（空串也要发）：PATCH 按 {...existing, ...body} 合并，
-      // 字段缺席会保留旧值，导致无法清空部门（codex review P1）。
+      // 字段缺席会保留旧值，导致无法清空（codex review 曾两次抓到这类问题：
+      // department 与本处的 photoUrl）。
       department: form.department,
-      photoUrl: form.photoUrl || undefined,
+      photoUrl: form.photoUrl,
       phone: form.phone || undefined,
       status: form.status,
       researchAreas: form.researchAreas
@@ -131,11 +132,13 @@ export function PersonDialog({ initialData, trigger, onSubmit, onCloseRequest }:
             <Label className="text-xs">照片</Label>
             <div className="flex items-center gap-3">
               <Avatar className="h-14 w-14 border border-border">
+                {/* AvatarImage 加载/解析失败时 Radix 自动回退到 AvatarFallback */}
                 {form.photoUrl
                   ? <AvatarImage src={form.photoUrl} alt={form.name || '人员照片'} />
-                  : <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
-                      {form.name?.charAt(0) || '?'}
-                    </AvatarFallback>}
+                  : null}
+                <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
+                  {form.name?.charAt(0) || '?'}
+                </AvatarFallback>
               </Avatar>
               <div className="space-y-1.5">
                 <input
@@ -207,7 +210,8 @@ export function PersonDialog({ initialData, trigger, onSubmit, onCloseRequest }:
         </div>
         <DialogFooter>
           <Button variant="outline" size="sm" onClick={() => { setOpen(false); onCloseRequest?.() }}>取消</Button>
-          <Button size="sm" onClick={handleSubmit} disabled={!form.name}>{isEdit ? '保存' : '添加'}</Button>
+          {/* 照片上传期间禁用保存：提交旧 URL 会丢掉刚上传的新照片 */}
+          <Button size="sm" onClick={handleSubmit} disabled={!form.name || photoUploading}>{isEdit ? '保存' : '添加'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
