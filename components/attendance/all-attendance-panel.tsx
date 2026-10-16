@@ -15,10 +15,10 @@ import { cn } from '@/lib/utils'
 import { RefreshCw } from 'lucide-react'
 
 const statusConfig: Record<string, { label: string; badge: string }> = {
-  present: { label: '在位', badge: 'bg-[var(--status-present)]/15 text-[var(--status-present)] border-[var(--status-present)]/30' },
-  trip:    { label: '出差', badge: 'bg-[var(--status-trip)]/15 text-[var(--status-trip)] border-[var(--status-trip)]/30' },
-  leave:   { label: '请假', badge: 'bg-[var(--status-leave)]/15 text-[var(--status-leave)] border-[var(--status-leave)]/30' },
-  absent:  { label: '未到', badge: 'bg-[var(--status-absent)]/15 text-[var(--status-absent)] border-[var(--status-absent)]/30' },
+  present: { label: '在位', badge: 'bg-[rgb(var(--success-rgb)/0.15)] text-success border-[rgb(var(--success-rgb)/0.3)]' },
+  trip:    { label: '出差', badge: 'bg-[rgb(var(--primary-rgb)/0.15)] text-primary border-[rgb(var(--primary-rgb)/0.3)]' },
+  leave:   { label: '请假', badge: 'bg-[rgb(var(--warning-rgb)/0.15)] text-warning border-[rgb(var(--warning-rgb)/0.3)]' },
+  absent:  { label: '未到', badge: 'bg-[rgb(var(--destructive-rgb)/0.15)] text-destructive border-[rgb(var(--destructive-rgb)/0.3)]' },
 }
 
 export function AllAttendancePanel() {
@@ -117,7 +117,7 @@ export function AllAttendancePanel() {
                 </thead>
                 <tbody>
                   {(page?.items ?? []).map(r => (
-                    <tr key={r.id} className="border-b last:border-0 hover:bg-accent/40">
+                    <tr key={r.id} className="border-b last:border-0 hover:bg-[rgb(var(--accent-rgb)/0.4)]">
                       <td className="py-2 px-2 tabular-nums">{r.date}</td>
                       <td className="py-2 px-2 tabular-nums text-muted-foreground">{r.checkIn ?? '—'}</td>
                       <td className="py-2 px-2 tabular-nums text-muted-foreground">{r.checkOut ?? '—'}</td>

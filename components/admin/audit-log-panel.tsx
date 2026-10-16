@@ -81,7 +81,7 @@ export function AuditLogPanel() {
             </thead>
             <tbody className="divide-y divide-border">
               {items.map(l => (
-                <tr key={l.id} className="hover:bg-muted/30">
+                <tr key={l.id} className="hover:bg-[rgb(var(--muted-rgb)/0.3)]">
                   <td className="py-2 px-3 text-xs text-muted-foreground whitespace-nowrap">
                     {new Date(l.createdAt).toLocaleString('zh-CN')}
                   </td>
@@ -96,7 +96,7 @@ export function AuditLogPanel() {
                       variant="outline"
                       className={cn(
                         'text-[10px] h-4 px-1 font-normal',
-                        HIGH_RISK.has(l.action) && 'border-[var(--status-absent)]/30 text-[var(--status-absent)]',
+                        HIGH_RISK.has(l.action) && 'border-[rgb(var(--destructive-rgb)/0.3)] text-destructive',
                       )}
                     >
                       {l.action}

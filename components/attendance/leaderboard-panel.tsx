@@ -53,7 +53,7 @@ function Podium({
 
 function Row({ rank, entry, primary }: { rank: number; entry: LeaderboardEntry; primary: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-accent/50 transition-colors">
+    <div className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-[rgb(var(--accent-rgb)/0.5)] transition-colors">
       <span className={cn('inline-flex items-center justify-center h-6 w-6 rounded-full text-xs font-semibold shrink-0', rankClass(rank))}>
         {rank + 1}
       </span>
@@ -92,7 +92,7 @@ function LeaderboardCard({
           <div className="flex flex-col items-center justify-center py-8 text-center gap-2">
             {emptyIcon}
             <p className="text-sm text-muted-foreground">{emptyTitle}</p>
-            <p className="text-xs text-muted-foreground/70">{emptyHint}</p>
+            <p className="text-xs text-[rgb(var(--muted-foreground-rgb)/0.7)]">{emptyHint}</p>
           </div>
         ) : (
           <>
@@ -131,7 +131,7 @@ export function LeaderboardPanel() {
         dateLabel={today?.date}
         loading={todayLoading}
         empty={!today || today.items.length === 0}
-        emptyIcon={<Info className="h-6 w-6 text-muted-foreground/40" />}
+        emptyIcon={<Info className="h-6 w-6 text-[rgb(var(--muted-foreground-rgb)/0.4)]" />}
         emptyTitle="今日数据将在首次同步后更新"
         emptyHint="每天首次考勤同步后，本榜单自动生成"
         items={today?.items ?? []}
@@ -144,7 +144,7 @@ export function LeaderboardPanel() {
         dateLabel={monthly?.from && monthly.to ? `${monthly.from.slice(5)} ~ ${monthly.to.slice(5)}` : undefined}
         loading={monthlyLoading}
         empty={!monthly || monthly.items.length === 0}
-        emptyIcon={<Trophy className="h-6 w-6 text-muted-foreground/40" />}
+        emptyIcon={<Trophy className="h-6 w-6 text-[rgb(var(--muted-foreground-rgb)/0.4)]" />}
         emptyTitle="暂无数据"
         emptyHint="次月同步后会显示本月累计工时"
         items={monthly?.items ?? []}

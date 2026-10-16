@@ -65,7 +65,7 @@ export default function FloorLayoutPage() {
           <p className="text-sm text-muted-foreground mt-0.5">配置楼层、区域和工位</p>
         </div>
         <div className="rounded-lg border border-border bg-card flex flex-col items-center justify-center py-16 text-center gap-3">
-          <ShieldAlert className="h-8 w-8 text-muted-foreground/50" />
+          <ShieldAlert className="h-8 w-8 text-[rgb(var(--muted-foreground-rgb)/0.5)]" />
           <div>
             <p className="font-medium">访问受限</p>
             <p className="text-sm text-muted-foreground mt-0.5">您需要管理员权限才能访问此页面</p>

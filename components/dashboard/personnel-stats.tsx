@@ -18,10 +18,10 @@ export default function PersonnelStats({ personnel }: Props) {
 
     return [
       { label: '总人数', value: total, color: 'text-foreground' },
-      { label: '在位', value: present, color: 'text-[var(--status-present)]' },
-      { label: '出差', value: trip, color: 'text-[var(--status-trip)]' },
-      { label: '请假', value: leave, color: 'text-[var(--status-leave)]' },
-      { label: '未到', value: absent, color: 'text-[var(--status-absent)]' },
+      { label: '在位', value: present, color: 'text-success' },
+      { label: '出差', value: trip, color: 'text-primary' },
+      { label: '请假', value: leave, color: 'text-warning' },
+      { label: '未到', value: absent, color: 'text-destructive' },
     ]
   }, [personnel])
 

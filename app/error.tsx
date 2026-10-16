@@ -23,7 +23,7 @@ export default function Error({
 
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 p-8 text-center">
-      <AlertTriangle className="h-10 w-10 text-[var(--status-absent)]" />
+      <AlertTriangle className="h-10 w-10 text-destructive" />
       <div className="space-y-1">
         <h2 className="text-lg font-semibold">出错了</h2>
         <p className="text-sm text-muted-foreground">

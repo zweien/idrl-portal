@@ -259,11 +259,11 @@ export function NewsDialog({ initialData, trigger, onSubmit, onCloseRequest }: N
                 placeholder="支持 Markdown 语法"
                 className="min-h-[300px] text-sm font-mono resize-y"
               />
-              <div className="min-h-[300px] max-h-[480px] overflow-y-auto rounded-md border border-border bg-muted/20 p-3">
+              <div className="min-h-[300px] max-h-[480px] overflow-y-auto rounded-md border border-border bg-[rgb(var(--muted-rgb)/0.2)] p-3">
                 {deferredContent.trim() ? (
                   preview
                 ) : (
-                  <p className="text-sm text-muted-foreground/60">预览区（输入内容后实时渲染）</p>
+                  <p className="text-sm text-[rgb(var(--muted-foreground-rgb)/0.6)]">预览区（输入内容后实时渲染）</p>
                 )}
               </div>
             </div>

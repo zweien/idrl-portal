@@ -104,7 +104,7 @@ export function DingTalkFreeLogin() {
 
   if (status === 'running') {
     return (
-      <div className="flex items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-2.5 text-xs text-muted-foreground">
+      <div className="flex items-center gap-2 rounded-md border border-border bg-[rgb(var(--muted-rgb)/0.5)] px-3 py-2.5 text-xs text-muted-foreground">
         <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
         正在通过钉钉免登…
       </div>
@@ -112,7 +112,7 @@ export function DingTalkFreeLogin() {
   }
 
   return (
-    <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-xs text-destructive">
+    <div className="flex items-start gap-2 rounded-md border border-[rgb(var(--destructive-rgb)/0.3)] bg-[rgb(var(--destructive-rgb)/0.1)] px-3 py-2.5 text-xs text-destructive">
       <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
       <div className="space-y-0.5">
         <p>{message}</p>

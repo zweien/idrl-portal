@@ -23,10 +23,10 @@ import { statusBg } from '@/lib/floor-constants'
 
 const statusFilters = ['present', 'trip', 'leave', 'absent'] as const
 const statusConfig = {
-  present: { label: '在位', dot: 'status-dot-present', badge: 'bg-[var(--status-present)]/15 text-[var(--status-present)] border-[var(--status-present)]/30' },
-  trip:    { label: '出差', dot: 'status-dot-trip',    badge: 'bg-[var(--status-trip)]/15 text-[var(--status-trip)] border-[var(--status-trip)]/30' },
-  leave:   { label: '请假', dot: 'status-dot-leave',   badge: 'bg-[var(--status-leave)]/15 text-[var(--status-leave)] border-[var(--status-leave)]/30' },
-  absent:  { label: '未到', dot: 'status-dot-absent',  badge: 'bg-[var(--status-absent)]/15 text-[var(--status-absent)] border-[var(--status-absent)]/30' },
+  present: { label: '在位', dot: 'status-dot-present', badge: 'bg-[rgb(var(--success-rgb)/0.15)] text-success border-[rgb(var(--success-rgb)/0.3)]' },
+  trip:    { label: '出差', dot: 'status-dot-trip',    badge: 'bg-[rgb(var(--primary-rgb)/0.15)] text-primary border-[rgb(var(--primary-rgb)/0.3)]' },
+  leave:   { label: '请假', dot: 'status-dot-leave',   badge: 'bg-[rgb(var(--warning-rgb)/0.15)] text-warning border-[rgb(var(--warning-rgb)/0.3)]' },
+  absent:  { label: '未到', dot: 'status-dot-absent',  badge: 'bg-[rgb(var(--destructive-rgb)/0.15)] text-destructive border-[rgb(var(--destructive-rgb)/0.3)]' },
 }
 
 export default function PersonnelPage() {
@@ -241,19 +241,19 @@ export default function PersonnelPage() {
                     <button
                       type="button"
                       title="放大查看照片"
-                      className="rounded-full cursor-zoom-in transition hover:ring-2 hover:ring-primary/40 hover:ring-offset-2 hover:ring-offset-card"
+                      className="rounded-full cursor-zoom-in transition hover:ring-2 hover:ring-[rgb(var(--primary-rgb)/0.4)] hover:ring-offset-2 hover:ring-offset-card"
                       onClick={() => setPhotoZoomPerson(selectedPerson)}
                     >
                       <Avatar className="h-14 w-14">
                         <AvatarImage src={selectedPerson.photoUrl} alt={selectedPerson.name} />
-                        <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
+                        <AvatarFallback className="bg-[rgb(var(--primary-rgb)/0.1)] text-primary text-sm font-semibold">
                           {selectedPerson.name.charAt(0)}
                         </AvatarFallback>
                       </Avatar>
                     </button>
                   ) : (
                     <Avatar className="h-14 w-14">
-                      <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
+                      <AvatarFallback className="bg-[rgb(var(--primary-rgb)/0.1)] text-primary text-sm font-semibold">
                         {selectedPerson.name.charAt(0)}
                       </AvatarFallback>
                     </Avatar>
@@ -339,7 +339,7 @@ export default function PersonnelPage() {
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-10 text-center">
-                <User className="h-8 w-8 text-muted-foreground/40 mb-3" />
+                <User className="h-8 w-8 text-[rgb(var(--muted-foreground-rgb)/0.4)] mb-3" />
                 <p className="text-sm text-muted-foreground">选择工位或人员查看详情</p>
               </div>
             )}
@@ -364,7 +364,7 @@ export default function PersonnelPage() {
                 className={cn(
                   'flex items-center gap-2 p-2 rounded-md border text-left transition-colors w-full relative overflow-hidden',
                   isSelected
-                    ? 'border-primary/50 bg-primary/5'
+                    ? 'border-[rgb(var(--primary-rgb)/0.5)] bg-[rgb(var(--primary-rgb)/0.05)]'
                     : 'border-border hover:bg-accent hover:border-border'
                 )}
               >
@@ -373,7 +373,7 @@ export default function PersonnelPage() {
                   {person.photoUrl
                     ? <AvatarImage src={person.photoUrl} alt={person.name} />
                     : null}
-                  <AvatarFallback className="bg-primary/10 text-primary text-[11px] font-semibold">
+                  <AvatarFallback className="bg-[rgb(var(--primary-rgb)/0.1)] text-primary text-[11px] font-semibold">
                     {person.name.charAt(0)}
                   </AvatarFallback>
                 </Avatar>

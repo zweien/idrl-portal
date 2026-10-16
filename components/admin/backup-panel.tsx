@@ -180,8 +180,8 @@ export function BackupPanel() {
         {msg && (
           <div className={
             msg.kind === 'ok'
-              ? 'rounded-md border border-[var(--status-present)]/30 bg-[var(--status-present)]/5 px-3 py-2 text-xs text-[var(--status-present)]'
-              : 'rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive'
+              ? 'rounded-md border border-[rgb(var(--success-rgb)/0.3)] bg-[rgb(var(--success-rgb)/0.05)] px-3 py-2 text-xs text-success'
+              : 'rounded-md border border-[rgb(var(--destructive-rgb)/0.3)] bg-[rgb(var(--destructive-rgb)/0.05)] px-3 py-2 text-xs text-destructive'
           }>
             {msg.text}
           </div>
@@ -250,12 +250,12 @@ export function BackupPanel() {
         <div className="p-2">
           {backups === null ? (
             <div className="flex flex-col items-center justify-center py-10 text-center">
-              <Database className="h-8 w-8 text-muted-foreground/40 mb-3 animate-pulse" />
+              <Database className="h-8 w-8 text-[rgb(var(--muted-foreground-rgb)/0.4)] mb-3 animate-pulse" />
               <p className="text-sm text-muted-foreground">加载中…</p>
             </div>
           ) : backups.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 text-center">
-              <Database className="h-8 w-8 text-muted-foreground/40 mb-3" />
+              <Database className="h-8 w-8 text-[rgb(var(--muted-foreground-rgb)/0.4)] mb-3" />
               <p className="text-sm text-muted-foreground">暂无备份，点击「立即备份」创建</p>
             </div>
           ) : (
@@ -272,7 +272,7 @@ export function BackupPanel() {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {backups.map(b => (
-                    <tr key={b.filename} className="hover:bg-muted/30">
+                    <tr key={b.filename} className="hover:bg-[rgb(var(--muted-rgb)/0.3)]">
                       <td className="py-2 px-3"><code className="text-xs font-mono text-muted-foreground">{b.filename}</code></td>
                       <td className="py-2 px-3 text-xs text-muted-foreground">{new Date(b.createdAt).toLocaleString('zh-CN')}</td>
                       <td className="py-2 px-3">

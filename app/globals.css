@@ -3,121 +3,157 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* 文档里记录的类名字样（DESIGN.md、plans 等）不应生成真实工具类 */
+@source not '../docs';
+@source not '../DESIGN.md';
+@source not '../README.md';
+@source not '../CHANGELOG.md';
+@source not '../.agents';
+
 /* ============================================================
    IDRL Portal — IDRL 视觉识别（VI）设计系统
    颜色 / 字体 / 圆角 / 动效取自 IDRL VI 的语义 tokens
-   （assets/brand/tokens.json，原始值备份于 public/brand/tokens.json），
+   （assets/brand/tokens.json，原始值快照于 public/brand/tokens.json），
    按品牌规则映射到 shadcn/ui 变量名。使用规则见根目录 DESIGN.md。
-   深色主题使用 VI 的独立深色语义值，不做整体颜色反转；
-   深色底 logo 一律使用专用 reverse 资产（public/brand/logo/*-reverse.svg）。
+
+   【兼容性关键】钉钉等旧 WebView 不支持 color-mix()，而 Tailwind v4 的
+   透明度修饰符（bg-primary/10 等）正是用 color-mix 实现的——旧内核里
+   10% 的色调会渲染成 100% 实色（2026-10 钉钉手机端线上实测：图标底、
+   置顶公告卡全部变成实色块）。因此本项目的透明度着色统一写
+   `bg|text|border-[rgb(var(--x-rgb)/α)]`（任意值形式，通道三元组见各
+   主题的 --x-rgb），不要用 `bg-primary/10` 这类修饰符写法。
+   新增颜色时同步补 -rgb 三元组（与实色成对维护）。
    ============================================================ */
 
 :root {
-  /* VI light 主题语义值 */
-  --background:            #f5f8fc;
-  --foreground:            #182a43;
-  --card:                  #ffffff;   /* VI surface */
-  --card-foreground:       #182a43;
-  --popover:               #ffffff;
-  --popover-foreground:    #182a43;
-
-  --primary:               #236db9;   /* VI primary（品牌 blue） */
-  --primary-foreground:    #ffffff;
-  --primary-hover:         #1c5999;   /* VI primary-hover */
-
-  --secondary:             #edf3fa;   /* VI surface-subtle */
-  --secondary-foreground:  #182a43;
-  --muted:                 #edf3fa;
-  --muted-foreground:      #52637a;
-  --accent:                #dff4fb;   /* VI accent */
-  --accent-foreground:     #203663;   /* VI accent-foreground（品牌 navy） */
-
-  --destructive:           #b5343b;
+  /* VI light 主题语义值（hex 来自 tokens.json v0.2.1） */
+  --background:  #f5f8fc;
+  --foreground:  #182a43;
+  --card:        #ffffff;        /* VI surface */
+  --card-foreground: #182a43;
+  --popover:     #ffffff;
+  --popover-foreground: #182a43;
+  --primary:     #236db9;        /* VI primary（品牌 blue） */
+  --primary-foreground: #ffffff;
+  --primary-hover: #1c5999;
+  --secondary:   #edf3fa;        /* VI surface-subtle */
+  --secondary-foreground: #182a43;
+  --muted:       #edf3fa;
+  --muted-foreground: #52637a;
+  --accent:      #dff4fb;        /* VI accent */
+  --accent-foreground: #203663;  /* VI accent-foreground（品牌 navy） */
+  --destructive: #b5343b;
   --destructive-foreground: #ffffff;
+  --border:      #dce4ef;
+  --input:       #7b8a9b;        /* VI control-border：独立辨认的控件边界 */
+  --ring:        #236db9;        /* VI focus */
+  --success:     #16734a;
+  --warning:     #8a5200;
+  --brand-navy:  #203663;
+  --brand-blue:  #236db9;
+  --brand-cyan:  #56c0e5;
+  --sidebar:     #ffffff;
+  --sidebar-foreground: #182a43;
+  --sidebar-primary: #236db9;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #edf3fa;
+  --sidebar-accent-foreground: #236db9;
+  --sidebar-border: #dce4ef;
+  --sidebar-ring: #236db9;
 
-  --border:                #dce4ef;
-  --input:                 #7b8a9b;   /* VI control-border：独立辨认的控件边界 */
-  --ring:                  #236db9;   /* VI focus */
-
-  /* VI 功能色：错误 / 警告 / 成功须配文字与图标，不能只靠颜色 */
-  --success:               #16734a;
-  --warning:               #8a5200;
-
-  /* 图表类别色：从品牌三主色 + 功能色延展（见 DESIGN.md 新增约定） */
-  --chart-1:               #236db9;
-  --chart-2:               #203663;
-  --chart-3:               #56c0e5;
-  --chart-4:               #16734a;
-  --chart-5:               #8a5200;
-
-  /* VI：控件圆角 6px、卡片 12px、弹窗 16px */
-  --radius: 0.375rem;
-
-  --sidebar:                        #ffffff;
-  --sidebar-foreground:             #182a43;
-  --sidebar-primary:                #236db9;
-  --sidebar-primary-foreground:     #ffffff;
-  --sidebar-accent:                 #edf3fa;
-  --sidebar-accent-foreground:      #236db9;
-  --sidebar-border:                 #dce4ef;
-  --sidebar-ring:                   #236db9;
-
-  /* 考勤状态 → VI 功能色映射 */
+  /* 考勤状态 → VI 功能色映射（实色别名，供 SVG/自定义 CSS 使用） */
   --status-present: var(--success);
   --status-absent:  var(--destructive);
   --status-trip:    var(--primary);
   --status-leave:   var(--warning);
+
+  /* 透明度工具类用的 RGB 通道三元组（与上方实色成对维护；
+     status 别名随功能色联动）。支持 color-mix 的浏览器可改用
+     color-mix(in srgb, var(--success) 15%, transparent) 获得相同效果。 */
+  --background-rgb: 245 248 252;
+  --foreground-rgb: 24 42 67;
+  --card-rgb:       255 255 255;
+  --primary-rgb:    35 109 185;
+  --secondary-rgb:  237 243 250;
+  --muted-rgb:      237 243 250;
+  --muted-foreground-rgb: 82 99 122;
+  --accent-rgb:     223 244 251;
+  --destructive-rgb: 181 52 59;
+  --border-rgb:     220 228 239;
+  --ring-rgb:       35 109 185;
+  --success-rgb:    22 115 74;
+  --warning-rgb:    138 82 0;
+  --chart-1-rgb:    35 109 185;
+  --chart-2-rgb:    32 54 99;
+  --chart-3-rgb:    86 192 229;
+  --chart-4-rgb:    22 115 74;
+  --chart-5-rgb:    138 82 0;
+  --brand-navy-rgb: 32 54 99;
+  --status-present-rgb: var(--success-rgb);
+  --status-absent-rgb:  var(--destructive-rgb);
+  --status-trip-rgb:    var(--primary-rgb);
+  --status-leave-rgb:   var(--warning-rgb);
 }
 
 .dark {
   /* VI dark 主题独立语义值（非整体反转） */
-  --background:            #0e1726;
-  --foreground:            #edf4ff;
-  --card:                  #162238;   /* VI surface */
-  --card-foreground:       #edf4ff;
-  --popover:               #162238;
-  --popover-foreground:    #edf4ff;
-
-  --primary:               #69b8ff;
-  --primary-foreground:    #0e1726;
-  --primary-hover:         #93ccff;
-
-  --secondary:             #1d2e47;   /* VI surface-subtle */
-  --secondary-foreground:  #edf4ff;
-  --muted:                 #1d2e47;
-  --muted-foreground:      #a8b8cf;
-  --accent:                #1b3e50;
-  --accent-foreground:     #9bdcf2;
-
-  --destructive:           #ff9298;
+  --background:  #0e1726;
+  --foreground:  #edf4ff;
+  --card:        #162238;        /* VI surface */
+  --card-foreground: #edf4ff;
+  --popover:     #162238;
+  --popover-foreground: #edf4ff;
+  --primary:     #69b8ff;
+  --primary-foreground: #0e1726;
+  --primary-hover: #93ccff;
+  --secondary:   #1d2e47;        /* VI surface-subtle */
+  --secondary-foreground: #edf4ff;
+  --muted:       #1d2e47;
+  --muted-foreground: #a8b8cf;
+  --accent:      #1b3e50;
+  --accent-foreground: #9bdcf2;
+  --destructive: #ff9298;
   --destructive-foreground: #0e1726;
+  --border:      #344764;
+  --input:       #687b94;
+  --ring:        #69b8ff;
+  --success:     #5fd1a0;
+  --warning:     #f7c66b;
+  --brand-navy:  #203663;
+  --brand-blue:  #236db9;
+  --brand-cyan:  #56c0e5;
+  --sidebar:     #162238;
+  --sidebar-foreground: #edf4ff;
+  --sidebar-primary: #69b8ff;
+  --sidebar-primary-foreground: #0e1726;
+  --sidebar-accent: #1d2e47;
+  --sidebar-accent-foreground: #69b8ff;
+  --sidebar-border: #344764;
+  --sidebar-ring: #69b8ff;
 
-  --border:                #344764;
-  --input:                 #687b94;
-  --ring:                  #69b8ff;
-
-  --success:               #5fd1a0;
-  --warning:               #f7c66b;
-
-  --chart-1:               #69b8ff;
-  --chart-2:               #8fb8dc;  /* VI reverse 资产中深 navy 的深色底适配色 */
-  --chart-3:               #9bdcf2;
-  --chart-4:               #5fd1a0;
-  --chart-5:               #f7c66b;
-
-  --sidebar:                        #162238;
-  --sidebar-foreground:             #edf4ff;
-  --sidebar-primary:                #69b8ff;
-  --sidebar-primary-foreground:     #0e1726;
-  --sidebar-accent:                 #1d2e47;
-  --sidebar-accent-foreground:      #69b8ff;
-  --sidebar-border:                 #344764;
-  --sidebar-ring:                   #69b8ff;
-
-  --status-present: var(--success);
-  --status-absent:  var(--destructive);
-  --status-trip:    var(--primary);
-  --status-leave:   var(--warning);
+  --background-rgb: 14 23 38;
+  --foreground-rgb: 237 244 255;
+  --card-rgb:       22 34 56;
+  --primary-rgb:    105 184 255;
+  --secondary-rgb:  29 46 71;
+  --muted-rgb:      29 46 71;
+  --muted-foreground-rgb: 168 184 207;
+  --accent-rgb:     27 62 80;
+  --destructive-rgb: 255 146 152;
+  --border-rgb:     52 71 100;
+  --ring-rgb:       105 184 255;
+  --success-rgb:    95 209 160;
+  --warning-rgb:    247 198 107;
+  --chart-1-rgb:    105 184 255;
+  --chart-2-rgb:    143 184 220;  /* VI reverse 资产中深 navy 的深色底适配色 */
+  --chart-3-rgb:    155 220 242;
+  --chart-4-rgb:    95 209 160;
+  --chart-5-rgb:    247 198 107;
+  --brand-navy-rgb: 32 54 99;
+  --status-present-rgb: var(--success-rgb);
+  --status-absent-rgb:  var(--destructive-rgb);
+  --status-trip-rgb:    var(--primary-rgb);
+  --status-leave-rgb:   var(--warning-rgb);
 }
 
 @theme inline {
@@ -156,9 +192,9 @@
   --color-chart-5: var(--chart-5);
 
   /* VI 品牌三主色：仅用于图形装饰与深色底适配，不作为界面语义色 */
-  --color-brand-navy: #203663;
-  --color-brand-blue: #236db9;
-  --color-brand-cyan: #56c0e5;
+  --color-brand-navy: var(--brand-navy);
+  --color-brand-blue: var(--brand-blue);
+  --color-brand-cyan: var(--brand-cyan);
 
   --radius-sm: calc(var(--radius) - 2px);
   --radius-md: var(--radius);
@@ -296,7 +332,6 @@
   color: var(--primary);
   text-decoration: underline;
   text-underline-offset: 2px;
-  text-decoration-color: color-mix(in srgb, var(--primary) 40%, transparent);
   transition: text-decoration-color var(--motion-normal);
 }
 .prose-idrl a:hover {
@@ -320,12 +355,12 @@
   margin-bottom: 0;
 }
 .prose-idrl blockquote {
-  border-left: 3px solid color-mix(in srgb, var(--primary) 60%, transparent);
+  border-left: 3px solid var(--border);
   padding: 0.5em 0 0.5em 1em;
   margin: 0.75em 0;
   color: var(--prose-muted);
   font-style: italic;
-  background: color-mix(in srgb, var(--muted) 40%, transparent);
+  background: var(--muted);
   border-radius: 0 6px 6px 0;
 }
 .prose-idrl blockquote p:last-child {
@@ -348,12 +383,6 @@
   margin: 0.75em 0;
   font-size: 0.8em;
   line-height: 1.6;
-}
-.prose-idrl pre code {
-  background: none;
-  padding: 0;
-  color: inherit;
-  font-size: inherit;
 }
 .prose-idrl table {
   width: 100%;
@@ -378,7 +407,7 @@
   border-bottom: 1px solid var(--prose-border);
 }
 .prose-idrl tbody tr:hover {
-  background: color-mix(in srgb, var(--muted) 50%, transparent);
+  background: var(--muted);
 }
 .prose-idrl tbody tr:last-child td {
   border-bottom: none;
@@ -394,6 +423,5 @@
   margin: 1.25em 0;
 }
 .dark .prose-idrl pre {
-  background: var(--surface-subtle, #1d2e47);
-  color: var(--foreground);
+  background: var(--card);
 }

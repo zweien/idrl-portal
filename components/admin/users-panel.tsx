@@ -73,7 +73,7 @@ export function UsersPanel() {
           管理登录账号的角色（管理员/成员）、关联人员与封禁状态。为防止锁死，不能修改自己的角色或封禁自己。
         </p>
       </div>
-      {error && <div className="px-4 py-2 border-b border-border bg-destructive/5 text-xs text-destructive">{error}</div>}
+      {error && <div className="px-4 py-2 border-b border-border bg-[rgb(var(--destructive-rgb)/0.05)] text-xs text-destructive">{error}</div>}
       <div className="p-2">
         {users.length === 0 ? (
           <p className="text-sm text-muted-foreground py-8 text-center">暂无用户</p>
@@ -95,7 +95,7 @@ export function UsersPanel() {
                   const isSelf = currentUser?.id === u.id
                   const disabled = !!u.disabledAt
                   return (
-                    <tr key={u.id} className={isSelf ? 'bg-primary/5' : 'hover:bg-muted/30'}>
+                    <tr key={u.id} className={isSelf ? 'bg-[rgb(var(--primary-rgb)/0.05)]' : 'hover:bg-[rgb(var(--muted-rgb)/0.3)]'}>
                       <td className="py-2 px-3">
                         <div className="flex items-center gap-1.5">
                           <Badge variant="outline" className="text-[10px] h-4 px-1 font-normal">
@@ -131,7 +131,7 @@ export function UsersPanel() {
                       </td>
                       <td className="py-2 px-3">
                         {disabled ? (
-                          <Badge className="text-[10px] h-4 px-1 font-normal bg-[var(--status-absent)]/15 text-[var(--status-absent)]">已封禁</Badge>
+                          <Badge className="text-[10px] h-4 px-1 font-normal bg-[rgb(var(--destructive-rgb)/0.15)] text-destructive">已封禁</Badge>
                         ) : (
                           <Badge variant="secondary" className="text-[10px] h-4 px-1 font-normal">正常</Badge>
                         )}
