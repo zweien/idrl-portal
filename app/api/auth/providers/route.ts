@@ -11,10 +11,10 @@ import { getRequestOrigin } from '@/lib/request-origin'
  * are set (so the login route won't 503).
  *
  * 两个必须注意的点：
- * 1. force-dynamic——无 request 参数的 GET 会被 Next 在构建期静态求值，构建机的
- *    env 为空时产物把 false/false 永久烘焙进生产响应，集成状态会永远「待配置」。
- * 2. origin 来自请求（经 nginx 的 X-Forwarded-* 头）——生产模式下不传 origin 时
- *    配置 getter 因解析不出门户地址而恒返回 null。
+ * 1. origin 来自请求（经 nginx 的 X-Forwarded-* 头）——生产模式下不传 origin 时
+ *    配置 getter 因解析不出门户地址而恒返回 null，这就是集成状态曾永远
+ *    「待配置」的根因（GET 不传 request 也不会被缓存，Next 16 默认动态）。
+ * 2. force-dynamic 兜底：显式声明本路由不做任何静态化/缓存。
  */
 export const dynamic = 'force-dynamic'
 

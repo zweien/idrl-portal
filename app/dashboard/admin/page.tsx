@@ -90,16 +90,20 @@ function DataTable<T extends { id: string }>({
                 <div className="flex items-center justify-end gap-0.5">
                   {onMove && (
                     <>
-                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
-                        title={moveDisabled?.(item, 'up') ? (moveDisabledReason?.(item, 'up') ?? '已在最前') : '上移'}
-                        disabled={moveDisabled?.(item, 'up')} onClick={() => onMove(item, 'up')}>
-                        <ChevronUp className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
-                        title={moveDisabled?.(item, 'down') ? (moveDisabledReason?.(item, 'down') ?? '已在最后') : '下移'}
-                        disabled={moveDisabled?.(item, 'down')} onClick={() => onMove(item, 'down')}>
-                        <ChevronDown className="h-3.5 w-3.5" />
-                      </Button>
+                      {/* title 放外层 span：Button disabled 时 pointer-events-none，
+                          hover 事件不会到达按钮本体（codex review P2） */}
+                      <span title={moveDisabled?.(item, 'up') ? (moveDisabledReason?.(item, 'up') ?? '已在最前') : '上移'}>
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                          disabled={moveDisabled?.(item, 'up')} onClick={() => onMove(item, 'up')}>
+                          <ChevronUp className="h-3.5 w-3.5" />
+                        </Button>
+                      </span>
+                      <span title={moveDisabled?.(item, 'down') ? (moveDisabledReason?.(item, 'down') ?? '已在最后') : '下移'}>
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                          disabled={moveDisabled?.(item, 'down')} onClick={() => onMove(item, 'down')}>
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        </Button>
+                      </span>
                     </>
                   )}
                   <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground" onClick={() => onEdit(item)}>

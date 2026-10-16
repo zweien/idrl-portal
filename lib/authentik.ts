@@ -112,8 +112,10 @@ export async function exchangeAuthentikCode(code: string, reqOrigin?: string): P
 }
 
 /** Fetch userinfo with an access token. */
-export async function fetchAuthentikUserInfo(accessToken: string): Promise<AuthentikUserInfo> {
-  const config = getAuthentikConfig()
+export async function fetchAuthentikUserInfo(accessToken: string, reqOrigin?: string): Promise<AuthentikUserInfo> {
+  // origin 必须沿用请求解析：生产模式无 NEXT_PUBLIC_BASE_URL 时不传会解析失败，
+  // 导致授权成功后 userinfo 一步报 not configured。
+  const config = getAuthentikConfig(reqOrigin)
   if (!config) throw new Error('Authentik not configured')
   const discovery = await getDiscovery(config)
   const res = await fetch(discovery.userinfo_endpoint, {
