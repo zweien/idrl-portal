@@ -53,7 +53,7 @@ function catNameOf(categories: { id: string; name: string }[], categoryId?: stri
 
 /* ── Generic table ──────────────────────────────── */
 function DataTable<T extends { id: string }>({
-  data, columns, onEdit, onDelete, onMove, moveDisabled,
+  data, columns, onEdit, onDelete, onMove, moveDisabled, moveDisabledReason,
 }: {
   data: T[]
   columns: { key: keyof T; label: string; render?: (v: T[keyof T], item: T) => React.ReactNode }[]
@@ -62,6 +62,8 @@ function DataTable<T extends { id: string }>({
   /** When provided, rows get up/down buttons for manual ordering. */
   onMove?: (item: T, dir: 'up' | 'down') => void
   moveDisabled?: (item: T, dir: 'up' | 'down') => boolean
+  /** 禁用原因（悬停提示），让"不可排序"自解释而不是像坏了。 */
+  moveDisabledReason?: (item: T, dir: 'up' | 'down') => string | undefined
 }) {
   return (
     <div className="overflow-x-auto">
@@ -88,14 +90,20 @@ function DataTable<T extends { id: string }>({
                 <div className="flex items-center justify-end gap-0.5">
                   {onMove && (
                     <>
-                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
-                        disabled={moveDisabled?.(item, 'up')} onClick={() => onMove(item, 'up')}>
-                        <ChevronUp className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
-                        disabled={moveDisabled?.(item, 'down')} onClick={() => onMove(item, 'down')}>
-                        <ChevronDown className="h-3.5 w-3.5" />
-                      </Button>
+                      {/* title 放外层 span：Button disabled 时 pointer-events-none，
+                          hover 事件不会到达按钮本体（codex review P2） */}
+                      <span title={moveDisabled?.(item, 'up') ? (moveDisabledReason?.(item, 'up') ?? '已在最前') : '上移'}>
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                          disabled={moveDisabled?.(item, 'up')} onClick={() => onMove(item, 'up')}>
+                          <ChevronUp className="h-3.5 w-3.5" />
+                        </Button>
+                      </span>
+                      <span title={moveDisabled?.(item, 'down') ? (moveDisabledReason?.(item, 'down') ?? '已在最后') : '下移'}>
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                          disabled={moveDisabled?.(item, 'down')} onClick={() => onMove(item, 'down')}>
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        </Button>
+                      </span>
                     </>
                   )}
                   <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground" onClick={() => onEdit(item)}>
@@ -371,6 +379,10 @@ export default function AdminPage() {
     const i = group.findIndex(x => x.id === item.id)
     return dir === 'up' ? i <= 0 : i === group.length - 1
   }
+  function resourceMoveDisabledReason(item: Resource, dir: 'up' | 'down') {
+    const group = sortedResources.filter(x => (x.categoryId ?? null) === (item.categoryId ?? null))
+    return group.length <= 1 ? '该分类仅此一条，无需排序' : undefined
+  }
 
   async function handleNewsMove(n: NewsItem, dir: 'up' | 'down') {
     if (!n.pinned) return
@@ -394,6 +406,9 @@ export default function AdminPage() {
     const pinned = sortedNews.filter(x => x.pinned)
     const i = pinned.findIndex(x => x.id === item.id)
     return dir === 'up' ? i <= 0 : i === pinned.length - 1
+  }
+  function newsMoveDisabledReason(item: NewsItem) {
+    return item.pinned ? undefined : '仅置顶动态可排序；未置顶按日期倒序展示（置顶后可排序）'
   }
 
   const [editingPerson, setEditingPerson]     = useState<Person | null>(null)
@@ -495,7 +510,8 @@ export default function AdminPage() {
         <div className="p-4 grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <IntegrationCard name="Authentik SSO" status={providers.authentik ? 'connected' : 'pending'} description="单点登录认证（内网 OIDC）" />
           <IntegrationCard name="钉钉扫码"     status={providers.dingtalk ? 'connected' : 'pending'} description="扫码登录（互联网 OAuth2）" />
-          <IntegrationCard name="钉钉考勤"     status="pending"   description="人员考勤数据同步" />
+          {/* 考勤同步与扫码登录共用同一组钉钉应用凭证，按同一可用性判定 */}
+          <IntegrationCard name="钉钉考勤"     status={providers.dingtalk ? 'connected' : 'pending'} description="人员考勤数据同步" />
           <IntegrationCard name="数据库"       status="connected" description="SQLite（Prisma）" />
         </div>
       </div>
@@ -680,6 +696,7 @@ export default function AdminPage() {
                 onDelete={handleResourceDelete}
                 onMove={handleResourceMove}
                 moveDisabled={resourceMoveDisabled}
+                moveDisabledReason={resourceMoveDisabledReason}
               />
             </div>
           </div>
@@ -731,6 +748,7 @@ export default function AdminPage() {
                 onDelete={handleNewsDelete}
                 onMove={handleNewsMove}
                 moveDisabled={newsMoveDisabled}
+                moveDisabledReason={newsMoveDisabledReason}
               />
             </div>
           </div>
