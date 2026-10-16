@@ -1,10 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { Person } from '@/lib/types'
+import { uploadImage } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   Dialog,
   DialogContent,
@@ -14,7 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { Plus, Pencil } from 'lucide-react'
+import { Plus, Pencil, Loader2 } from 'lucide-react'
 
 const statusOptions: { value: Person['status']; label: string }[] = [
   { value: 'present', label: '在位' },
@@ -34,8 +36,12 @@ interface PersonDialogProps {
 export function PersonDialog({ initialData, trigger, onSubmit, onCloseRequest }: PersonDialogProps) {
   const isEdit = !!initialData
   const [open, setOpen] = useState(!!initialData)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [photoUploading, setPhotoUploading] = useState(false)
+  const [photoError, setPhotoError] = useState<string | null>(null)
   const [form, setForm] = useState({
     name: initialData?.name ?? '',
+    photoUrl: initialData?.photoUrl ?? '',
     email: initialData?.email ?? '',
     role: initialData?.role ?? '',
     department: initialData?.department ?? '',
@@ -43,6 +49,21 @@ export function PersonDialog({ initialData, trigger, onSubmit, onCloseRequest }:
     status: initialData?.status ?? ('absent' as Person['status']),
     researchAreas: initialData?.researchAreas?.join(', ') ?? '',
   })
+
+  const handlePhotoChange = async (file: File | undefined) => {
+    if (!file) return
+    setPhotoError(null)
+    setPhotoUploading(true)
+    try {
+      const { url } = await uploadImage(file)
+      setForm(prev => ({ ...prev, photoUrl: url }))
+    } catch (e) {
+      setPhotoError(e instanceof Error ? e.message : '上传失败')
+    } finally {
+      setPhotoUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
 
   const handleSubmit = () => {
     if (!form.name) return
@@ -54,6 +75,7 @@ export function PersonDialog({ initialData, trigger, onSubmit, onCloseRequest }:
       // 始终提交字符串（空串也要发）：PATCH 按 {...existing, ...body} 合并，
       // 字段缺席会保留旧值，导致无法清空部门（codex review P1）。
       department: form.department,
+      photoUrl: form.photoUrl || undefined,
       phone: form.phone || undefined,
       status: form.status,
       researchAreas: form.researchAreas
@@ -76,10 +98,12 @@ export function PersonDialog({ initialData, trigger, onSubmit, onCloseRequest }:
         email: initialData.email ?? '',
         role: initialData.role,
         department: initialData.department ?? '',
+        photoUrl: initialData.photoUrl ?? '',
         phone: initialData.phone ?? '',
         status: initialData.status,
         researchAreas: initialData.researchAreas?.join(', ') ?? '',
       })
+      setPhotoError(null)
     }
   }
 
@@ -102,6 +126,41 @@ export function PersonDialog({ initialData, trigger, onSubmit, onCloseRequest }:
           <div className="space-y-1.5">
             <Label className="text-xs">姓名 *</Label>
             <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="请输入姓名" className="h-9" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">照片</Label>
+            <div className="flex items-center gap-3">
+              <Avatar className="h-14 w-14 border border-border">
+                {form.photoUrl
+                  ? <AvatarImage src={form.photoUrl} alt={form.name || '人员照片'} />
+                  : <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
+                      {form.name?.charAt(0) || '?'}
+                    </AvatarFallback>}
+              </Avatar>
+              <div className="space-y-1.5">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={e => void handlePhotoChange(e.target.files?.[0])}
+                />
+                <Button type="button" variant="outline" size="sm" className="h-7 text-xs"
+                  disabled={photoUploading}
+                  onClick={() => fileInputRef.current?.click()}>
+                  {photoUploading ? <><Loader2 className="h-3 w-3 animate-spin" />上传中…</> : (form.photoUrl ? '更换照片' : '上传照片')}
+                </Button>
+                {form.photoUrl && (
+                  <Button type="button" variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground"
+                    disabled={photoUploading}
+                    onClick={() => setForm(prev => ({ ...prev, photoUrl: '' }))}>
+                    移除
+                  </Button>
+                )}
+              </div>
+            </div>
+            {photoError && <p className="text-xs text-destructive">{photoError}</p>}
+            <p className="text-[10px] text-muted-foreground">支持 PNG / JPG / WebP，≤5MB。保存后显示在人员列表与详情。</p>
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs">邮箱</Label>

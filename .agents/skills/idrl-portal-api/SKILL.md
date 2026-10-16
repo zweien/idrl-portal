@@ -24,7 +24,7 @@ Authorization: Bearer idrl_<48 hex>     # API key，Admin UI「API 密钥」颁�
 | `news:publish` | `POST / PATCH / DELETE /api/news(/:id)`、`POST /api/news/reorder`、`POST /api/uploads` |
 | `resource:read` | `GET /api/resources` |
 | `resource:publish` | `POST / PATCH / DELETE /api/resources(/:id)`、`POST /api/resources/reorder` |
-| `admin` | 管理门户：草稿可见（`GET /api/news?includeDrafts=1`）、考勤查询（leaderboard/records/export）、人员列表、工位查询/改派（`/api/workstations`）、分类读取、同步/审计日志 |
+| `admin` | 管理门户：草稿可见（`GET /api/news?includeDrafts=1`）、考勤查询（leaderboard/records/export）、人员列表与人员照片（`POST /api/uploads` 亦可）、工位查询/改派（`/api/workstations`）、分类读取、同步/审计日志 |
 
 > `admin` scope 让 key 以**管理员身份**访问读取/审核类端点（写操作仍走各自 scope）。布局/备份/设置/用户等管理端点仍只接受 admin session（见 REFERENCE.md）。
 
@@ -111,7 +111,15 @@ curl -s "$BASE/api/attendance/export/summary?from=2026-07-01&to=2026-07-31"  -H 
 
 # 人员列表（admin；可按 status 过滤，status=present|leave|trip|absent；pageSize 上限 100，超过按 totalPages 翻页）
 # item 含 department（部门显示名，钉钉成员同步自动填充；手动添加的人员可为空串）
+# item 含 photoUrl（人员照片 URL，/api/uploads 上传后经 PATCH 写入；空串/缺省 = 无照片）
 curl -s "$BASE/api/personnel?page=1&pageSize=100&status=present" -H "Authorization: Bearer $KEY"
+
+# 人员照片（admin）：先上传图片，再把返回的 url 写到该人员的 photoUrl。
+# 上传接受 news:publish 或 admin scope；照片不会被子成员同步覆盖。
+curl -s -X POST "$BASE/api/uploads" -H "Authorization: Bearer $KEY" -F "file=@photo.jpg"
+curl -s -X PATCH "$BASE/api/personnel/<id>" -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" -d '{"photoUrl":"/api/uploads/1690000000000-a1b2c3d4.jpg"}'
+# 查询照片：GET /api/personnel 的 items[].photoUrl（或 records 端点 data.person 仅含 name/department，无照片）
 
 # 按职位（role）筛选人员状态：没有服务端 role 参数，search 也不匹配 role ——
 # 只能翻页拉全量（pageSize=100 × page=1..totalPages）后本地过滤。

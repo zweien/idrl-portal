@@ -23,6 +23,18 @@ describe('personSchema', () => {
     })
     expect(bad.success).toBe(false)
   })
+  it('accepts an optional photoUrl string', () => {
+    const ok = personSchema.safeParse({
+      id: 'p1', name: 'Alice', role: '研究员', status: 'present',
+      photoUrl: '/api/uploads/1690000000000-a1b2c3d4.jpg',
+    })
+    expect(ok.success).toBe(true)
+    if (ok.success) expect(ok.data.photoUrl).toBe('/api/uploads/1690000000000-a1b2c3d4.jpg')
+    const cleared = personSchema.safeParse({
+      id: 'p1', name: 'Alice', role: '研究员', status: 'present', photoUrl: '',
+    })
+    expect(cleared.success).toBe(true)
+  })
   it('strips unknown keys (no extra fields reach Prisma)', () => {
     const r = personSchema.safeParse({
       id: 'p1', name: 'Alice', role: '研究员', status: 'present',

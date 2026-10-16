@@ -24,6 +24,7 @@ beforeAll(async () => {
       "name" TEXT NOT NULL,
       "role" TEXT NOT NULL,
       "department" TEXT NOT NULL DEFAULT '',
+      "photoUrl" TEXT,
       "email" TEXT,
       "phone" TEXT,
       "dingUserId" TEXT,

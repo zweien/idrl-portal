@@ -109,6 +109,8 @@ export async function syncMembers(progress?: SyncProgress): Promise<{
             ...(hasTitle ? { role: title } : {}),
             // Same for the department name (人工添加的人员可能没有部门).
             ...(hasDepartment ? { department } : {}),
+            // 注意：photoUrl（人员照片，/api/uploads 上传）刻意不在这里写入——
+            // 钉钉侧没有照片数据，任何写法都会清掉管理员上传的照片。
             ...(m.email ? { email: m.email } : {}),
             ...(m.mobile ? { phone: m.mobile } : {}),
           },

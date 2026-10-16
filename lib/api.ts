@@ -76,10 +76,10 @@ export interface UploadedImage {
 }
 
 /**
- * Upload an image file for embedding in news content. Returns the public URL
- * (served by GET /api/uploads/[...path]) to splice into Markdown.
+ * Upload an image file (news 正文插图或人员照片). Returns the public URL
+ * (served by GET /api/uploads/[...path]).
  */
-export async function uploadNewsImage(file: File): Promise<UploadedImage> {
+export async function uploadImage(file: File): Promise<UploadedImage> {
   const fd = new FormData()
   fd.append('file', file)
   const r = await fetch('/api/uploads', { method: 'POST', body: fd })
@@ -89,6 +89,9 @@ export async function uploadNewsImage(file: File): Promise<UploadedImage> {
   }
   return r.json() as Promise<UploadedImage>
 }
+
+/** 兼容别名：动态正文插图上传（= uploadImage）。 */
+export const uploadNewsImage = uploadImage
 
 // ===== Single-item CRUD (Person) =====
 
