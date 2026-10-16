@@ -182,10 +182,29 @@ workflow 不是由 `master` push 触发，而是由以下两种方式触发：
 > 注意：VPS 上同时运行 scheduling，部署脚本使用 `pm2 startOrReload`
 > 而非 `pm2 kill`，避免误杀其他应用。
 
-## 钉钉回调
+## 钉钉开发者后台配置
 
-生产环境使用钉钉登录前，需在钉钉开放平台应用后台将
-`https://portal.idrl.top` 加入回调域名白名单，否则 OAuth 回调会被拒绝。
+生产环境使用钉钉登录前，需在钉钉开放平台（开发者后台 → 应用开发 →
+企业内部应用）完成以下配置。详细流程与官方文档链接见
+[docs/research/2026-10-16-dingtalk-client-free-login.md](../research/2026-10-16-dingtalk-client-free-login.md)。
+
+**扫码登录（浏览器）：**
+
+- 「开发配置 > 安全设置 > 重定向URL」加入 `https://portal.idrl.top/api/auth/callback/dingtalk`，
+  否则 OAuth 回调会被拒绝。
+- 权限管理开通「通讯录个人信息读权限」（Contact.User.Read）。
+
+**端内免登（钉钉客户端工作台打开）：**
+
+- 应用信息 > 网页应用「应用首页地址」配为 `https://portal.idrl.top/?corpid=$CORPID$`
+  （`$CORPID$` 由钉钉在工作台打开时自动替换；首页、回调、端内免登地址三者必须同域）。
+- 「开发配置 > 安全设置」确认端内免登地址与服务器出口 IP。
+- 权限管理确认基本权限 `qyapi_base`（免登码换 userid/unionid 的
+  `topapi/v2/user/getuserinfo` 接口使用）。
+- 服务端环境变量加 `NEXT_PUBLIC_DINGTALK_CLIENT_ID`（值同 `DINGTALK_CLIENT_ID`，
+  公开值可进前端，供免登 JSAPI 传 clientId）。
+- 改动后在「应用发布 > 版本管理与发布」发布新版本，**必须勾选「工作台应用」**，
+  否则应用会被默认下线。
 
 ## 回滚
 

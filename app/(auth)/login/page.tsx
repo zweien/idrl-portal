@@ -2,13 +2,18 @@
 
 import { Brand } from '@/components/brand'
 import { LoginForm } from '@/components/login-form'
+import { DingTalkFreeLogin } from '@/components/dingtalk-free-login'
 
 export default function LoginPage() {
   return (
     <div className="min-h-screen bg-background flex">
       {/* Left – form */}
       <div className="flex flex-1 items-center justify-center px-8 py-12">
-        <LoginForm />
+        <div className="w-full max-w-sm space-y-4">
+          {/* 钉钉工作台打开时自动免登；浏览器环境渲染 null */}
+          <DingTalkFreeLogin />
+          <LoginForm />
+        </div>
       </div>
 
       {/* Right – brand panel (lg+)：品牌深 navy 底，使用专用 reverse 组合 */}
