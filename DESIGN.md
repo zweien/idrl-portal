@@ -49,6 +49,19 @@
 - 动效 tokens `--motion-fast/normal/slow`（120/180/240ms），`prefers-reduced-motion` 时全局归零。
 - 弹窗（Dialog/AlertDialog）：`bg-card` + `rounded-2xl`；遮罩用品牌 navy（`bg-brand-navy/60`，深色 `black/60`）。
 
+### 页头冻结行（UI 模式）
+
+列表/管理类页面的「标题区 + 功能行（搜索/筛选/页签/操作）」使用 `components/dashboard/sticky-page-header.tsx` 冻结：内容滚动时固定在视口顶部，类似表格冻结表头。规则：
+
+- 移动端 `top-12`（停在固定导航下）、桌面 `lg:top-0`；背景 `bg-background/95 + backdrop-blur-sm + border-b`；层级 z-30（低于弹窗 z-50）。
+- 大块内容不进冻结行（如信息管理的「集成状态」卡）——冻结区超过约 1/3 视口就失去意义；信息管理只冻结标题 + 页签行（受控 Tabs 双 root 模式：冻结行内放 TabsList，内容区单独一个同 state 的 Tabs root）。
+- 更新日志等纯标题页不冻结。
+- 禁用的排序/操作按钮必须用外层 span 携带原因 tooltip（Button 有 `disabled:pointer-events-none`，title 直接放按钮上不会显示）。
+
+### 头像灯箱（UI 模式）
+
+人员照片的放大查看：详情卡头像在有 `photoUrl` 时可点击（`cursor-zoom-in` + hover 淡环），Radix Dialog 内展示大图（`max-h-[70dvh] object-contain`）与「姓名 · 部门」说明行；无照片（字母占位）不响应点击。参照 `app/dashboard/personnel/page.tsx`。
+
 ## 新增约定与例外（上游 VI 未覆盖 / 本地适配）
 
 > 本地适配清单已登记于根目录 `idrl-source.json`（.dark class 主题管理、globals.css 内嵌数值而非加载 aliases 文件、favicon 管线、中文回退栈）；上游 shadcn-aliases.css 已逐项核对等价（2026-10-15，VI 0.2.1）。

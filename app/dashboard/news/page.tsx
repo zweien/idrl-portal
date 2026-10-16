@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { StickyPageHeader } from '@/components/dashboard/sticky-page-header'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -93,26 +94,24 @@ export default function NewsPage() {
 
   return (
     <div className="space-y-4 py-2">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">最新动态</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">实验室论文发表、通知公告、活动信息</p>
+      <StickyPageHeader>
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight">最新动态</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">实验室论文发表、通知公告、活动信息</p>
+          </div>
+          {isAdmin && (
+            <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 shrink-0" asChild>
+              <Link href="/dashboard/admin?tab=news">
+                <Settings className="h-3.5 w-3.5" />管理
+              </Link>
+            </Button>
+          )}
         </div>
-        {isAdmin && (
-          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 shrink-0" asChild>
-            <Link href="/dashboard/admin?tab=news">
-              <Settings className="h-3.5 w-3.5" />管理
-            </Link>
-          </Button>
-        )}
-      </div>
-      {editError && (
-        <p className="text-xs text-destructive">编辑保存失败：{editError}</p>
-      )}
 
-      {/* Filter bar */}
-      <div className="flex flex-wrap items-center gap-2">
+        {/* Filter bar */}
+        <div className="flex flex-wrap items-center gap-2 mt-3">
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
@@ -141,6 +140,10 @@ export default function NewsPage() {
           </Button>
         ))}
       </div>
+      </StickyPageHeader>
+      {editError && (
+        <p className="text-xs text-destructive">编辑保存失败：{editError}</p>
+      )}
 
       {/* Content */}
       {selected ? (

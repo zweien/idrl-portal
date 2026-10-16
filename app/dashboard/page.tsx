@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { MarkdownContent } from '@/components/dashboard/markdown-content'
+import { StickyPageHeader } from '@/components/dashboard/sticky-page-header'
 import { useAdminData, useCategories, useNews } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import type { NewsItem, Category } from '@/lib/types'
@@ -223,14 +224,14 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6 py-2">
       {/* Page header */}
-      <div>
+      <StickyPageHeader>
         <h1 className="text-xl font-semibold tracking-tight">
           你好，{user?.name ?? '用户'}
         </h1>
         <p className="text-sm text-muted-foreground mt-0.5">
           IDRL 门户 — 查看人员在位、资源与最新动态
         </p>
-      </div>
+      </StickyPageHeader>
 
       {/* Stats row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

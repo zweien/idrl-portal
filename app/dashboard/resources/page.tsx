@@ -1,4 +1,5 @@
 'use client'
+import { StickyPageHeader } from '@/components/dashboard/sticky-page-header'
 
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
@@ -116,26 +117,24 @@ export default function ResourcesPage() {
 
   return (
     <div className="space-y-4 py-2">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">资源聚合</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">访问实验室计算资源、存储空间、代码仓库等</p>
+      <StickyPageHeader>
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight">资源聚合</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">访问实验室计算资源、存储空间、代码仓库等</p>
+          </div>
+          {isAdmin && (
+            <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 shrink-0" asChild>
+              <Link href="/dashboard/admin?tab=resources">
+                <Settings className="h-3.5 w-3.5" />管理
+              </Link>
+            </Button>
+          )}
         </div>
-        {isAdmin && (
-          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 shrink-0" asChild>
-            <Link href="/dashboard/admin?tab=resources">
-              <Settings className="h-3.5 w-3.5" />管理
-            </Link>
-          </Button>
-        )}
-      </div>
-      {editError && (
-        <p className="text-xs text-destructive">编辑保存失败：{editError}</p>
-      )}
 
-      {/* Filter bar */}
-      <div className="flex flex-wrap items-center gap-2">
+        {/* Filter bar */}
+        <div className="flex flex-wrap items-center gap-2 mt-3">
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
@@ -168,6 +167,10 @@ export default function ResourcesPage() {
           )
         })}
       </div>
+      </StickyPageHeader>
+      {editError && (
+        <p className="text-xs text-destructive">编辑保存失败：{editError}</p>
+      )}
 
       {/* Content */}
       <div className="grid lg:grid-cols-3 gap-4">
