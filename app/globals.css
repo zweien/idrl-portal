@@ -89,6 +89,10 @@
   --chart-4-rgb:    22 115 74;
   --chart-5-rgb:    138 82 0;
   --brand-navy-rgb: 32 54 99;
+  --input-rgb: 123 138 155;
+  --secondary-rgb: 237 243 250;
+  --sidebar-accent-rgb: 237 243 250;
+  --sidebar-foreground-rgb: 24 42 67;
   --status-present-rgb: var(--success-rgb);
   --status-absent-rgb:  var(--destructive-rgb);
   --status-trip-rgb:    var(--primary-rgb);
@@ -150,6 +154,10 @@
   --chart-4-rgb:    95 209 160;
   --chart-5-rgb:    247 198 107;
   --brand-navy-rgb: 32 54 99;
+  --input-rgb: 104 123 148;
+  --secondary-rgb: 29 46 71;
+  --sidebar-accent-rgb: 29 46 71;
+  --sidebar-foreground-rgb: 237 244 255;
   --status-present-rgb: var(--success-rgb);
   --status-absent-rgb:  var(--destructive-rgb);
   --status-trip-rgb:    var(--primary-rgb);
