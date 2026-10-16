@@ -277,6 +277,14 @@
   }
 }
 
+/* ── 旧 WebView 兼容说明（translate）────────────────────────
+   Tailwind v4 的 translate-* 工具类编译成 CSS 独立属性 translate:
+   （Chromium 104+），钉钉等旧 WebView 不支持 → 依赖它居中的元素会
+   失去位移（搜索图标、弹窗中心等）。弹窗居中已改用 transform
+   （components/ui/dialog.tsx）；搜索图标的居中改用 top-[calc(...)]。
+   不要用 @supports not (translate:…) 垫片——Lightning CSS 会按现代
+   浏览器目标把它整体裁剪掉（线上实测）。 */
+
 /* ── Status dots ────────────────────────────────── */
 @layer utilities {
   .status-dot {

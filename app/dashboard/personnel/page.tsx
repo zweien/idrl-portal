@@ -114,7 +114,7 @@ export default function PersonnelPage() {
 
         <div className="flex flex-wrap items-center gap-2 mt-3">
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Search className="absolute left-2.5 top-[calc(50%-7px)] h-3.5 w-3.5 text-muted-foreground" />
             <Input
               placeholder="搜索姓名、邮箱、研究方向…"
               value={search}
