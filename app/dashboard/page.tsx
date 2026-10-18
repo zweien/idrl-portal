@@ -36,11 +36,14 @@ function catConfig(cat: Category, index: number) {
   return { ...catPalette[index % catPalette.length] }
 }
 
-function StatCard({ label, value, sub, icon: Icon }: {
-  label: string; value: string; sub?: string; icon: React.ElementType
+function StatCard({ label, value, sub, icon: Icon, href }: {
+  label: string; value: string; sub?: string; icon: React.ElementType; href: string
 }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-4 flex items-center gap-3">
+    <Link
+      href={href}
+      className="rounded-lg border border-border bg-card p-4 flex items-center gap-3 transition-all hover:shadow-sm hover:border-[rgb(var(--border-rgb)/0.8)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
       <div className="w-8 h-8 rounded-md bg-[rgb(var(--primary-rgb)/0.1)] flex items-center justify-center shrink-0">
         <Icon className="h-4 w-4 text-primary" />
       </div>
@@ -48,7 +51,7 @@ function StatCard({ label, value, sub, icon: Icon }: {
         <p className="text-xl font-semibold tabular-nums">{value}</p>
         <p className="text-xs text-muted-foreground">{label}{sub && <span className="ml-1 text-[rgb(var(--muted-foreground-rgb)/0.6)]">{sub}</span>}</p>
       </div>
-    </div>
+    </Link>
   )
 }
 
@@ -235,12 +238,12 @@ export default function DashboardPage() {
         </p>
       </StickyPageHeader>
 
-      {/* Stats row */}
+      {/* Stats row — each card navigates to its detail page. */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard icon={Users}   label="在位人员" value={`${personnelStats.present}/${personnelStats.total}`} />
-        <StatCard icon={Monitor} label="工位使用" value="查看详情" sub="→ 人员工位" />
-        <StatCard icon={Server}  label="可用资源" value={`${availableCount}/${resources.length}`} />
-        <StatCard icon={Pin}     label="置顶动态" value={String(pinnedNews.length)} />
+        <StatCard icon={Users}   label="在位人员" value={`${personnelStats.present}/${personnelStats.total}`} href="/dashboard/personnel" />
+        <StatCard icon={Monitor} label="工位使用" value="查看详情" sub="→ 人员工位" href="/dashboard/personnel" />
+        <StatCard icon={Server}  label="可用资源" value={`${availableCount}/${resources.length}`} href="/dashboard/resources" />
+        <StatCard icon={Pin}     label="置顶动态" value={String(pinnedNews.length)} href="/dashboard/news" />
       </div>
 
       {/* Pinned news */}
