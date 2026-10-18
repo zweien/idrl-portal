@@ -5,6 +5,12 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v0.11.11] - 2026-10-18
+
+### 新增
+
+- feat(dashboard): 概览统计卡片可点击跳转对应页面 (#113)
+
 ## [v0.11.10] - 2026-10-18
 
 ### 修复
