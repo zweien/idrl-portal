@@ -403,7 +403,7 @@ export default function PersonnelPage() {
             <img
               src={photoZoomPerson.photoUrl}
               alt={photoZoomPerson.name}
-              className="w-full max-h-[70dvh] object-contain rounded-lg bg-muted"
+              className="w-full max-h-[70vh] object-contain rounded-lg bg-muted"
             />
           )}
           <p className="text-sm text-muted-foreground text-center">
