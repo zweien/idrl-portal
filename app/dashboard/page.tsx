@@ -100,8 +100,10 @@ function NewsExpandModal({ news, catLabel, cfg, onClose }: { news: NewsItem; cat
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
       {/* 弹窗限高：长公告时头部固定、正文区内部滚动（min-h-0 让 grid 行可收缩），
-          否则 fixed 定位的弹窗会整体超出视口且内容不可达。 */}
-      <DialogContent className="sm:max-w-2xl gap-0 p-0 max-h-[85dvh] grid-rows-[auto_minmax(0,1fr)]">
+          否则 fixed 定位的弹窗会整体超出视口且内容不可达。
+          用 vh 而非 dvh：dvh 单位（Chromium 108+）钉钉旧 WebView 不识别，
+          整条 max-height 会被丢弃，弹窗又恢复无限高。 */}
+      <DialogContent className="sm:max-w-2xl gap-0 p-0 max-h-[85vh] grid-rows-[auto_minmax(0,1fr)]">
         {/* Radix requires a DialogTitle for screen readers; the visible title
             is rendered in the body below, so this one is visually hidden. */}
         <DialogTitle className="sr-only">{news.title}</DialogTitle>
