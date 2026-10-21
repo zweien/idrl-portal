@@ -5,6 +5,12 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v0.11.12] - 2026-10-21
+
+### 新增
+
+- feat(attendance): 出差审批同行人同步标记 trip 状态 (#114)
+
 ## [v0.11.11] - 2026-10-18
 
 ### 新增
