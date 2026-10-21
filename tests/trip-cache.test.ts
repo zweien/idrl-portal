@@ -20,6 +20,7 @@ const tmpDbPath = join(tmpDir, 'db.sqlite')
       tripStart        INTEGER,
       tripEnd          INTEGER,
       reason           TEXT,
+      companions       TEXT,
       parsed           BOOLEAN NOT NULL,
       fetchedAt        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
@@ -40,6 +41,7 @@ vi.mock('@/lib/db', () => {
       tripStart: (r.tripStart as number | null) ?? null,
       tripEnd: (r.tripEnd as number | null) ?? null,
       reason: (r.reason as string | null) ?? null,
+      companions: (r.companions as string | null) ?? null,
       parsed: Boolean(r.parsed),
     }
   }
@@ -55,17 +57,18 @@ vi.mock('@/lib/db', () => {
           const exists = db.prepare('SELECT 1 FROM TripInstanceCache WHERE instanceId = ?').get(where.instanceId)
           const row = exists ? update : create
           db.prepare(`
-            INSERT INTO TripInstanceCache (instanceId, originatorUserid, tripStart, tripEnd, reason, parsed)
-            VALUES (@instanceId, @originatorUserid, @tripStart, @tripEnd, @reason, @parsed)
+            INSERT INTO TripInstanceCache (instanceId, originatorUserid, tripStart, tripEnd, reason, companions, parsed)
+            VALUES (@instanceId, @originatorUserid, @tripStart, @tripEnd, @reason, @companions, @parsed)
             ON CONFLICT(instanceId) DO UPDATE SET
               originatorUserid=@originatorUserid, tripStart=@tripStart,
-              tripEnd=@tripEnd, reason=@reason, parsed=@parsed
+              tripEnd=@tripEnd, reason=@reason, companions=@companions, parsed=@parsed
           `).run({
             instanceId: where.instanceId,
             originatorUserid: row.originatorUserid ?? null,
             tripStart: row.tripStart ?? null,
             tripEnd: row.tripEnd ?? null,
             reason: row.reason ?? null,
+            companions: row.companions ?? null,
             parsed: row.parsed ? 1 : 0,
           })
         },
@@ -78,7 +81,7 @@ const { loadTripCache, persistTripInstance } = await import('@/lib/trip-cache')
 type CachedTrip = NonNullable<Parameters<typeof loadTripCache>[0]> extends Map<string, infer E> ? E : never
 
 beforeAll(async () => {
-  persistTripInstance('inst-1', { tripStart: 1000, tripEnd: 2000, reason: '出差', parsed: true, originator: 'u1' })
+  persistTripInstance('inst-1', { tripStart: 1000, tripEnd: 2000, reason: '出差', parsed: true, originator: 'u1', companions: ['u2', 'u3'] })
   persistTripInstance('inst-2', { tripStart: 0, tripEnd: 0, parsed: false })
   // Fire-and-forget upserts — give the microtask queue a beat.
   await new Promise(r => setTimeout(r, 20))
@@ -92,9 +95,12 @@ describe('trip-cache (persistent approval-instance cache)', () => {
     await loadTripCache(mem)
     expect(mem.get('inst-1')).toMatchObject({
       tripStart: 1000, tripEnd: 2000, reason: '出差', parsed: true, originator: 'u1',
+      companions: ['u2', 'u3'],
     })
     // The not-a-trip sentinel round-trips so the detail fetch stays skipped.
     expect(mem.get('inst-2')).toMatchObject({ tripStart: 0, tripEnd: 0, parsed: false })
+    // Rows without companions load as undefined, not an empty array.
+    expect(mem.get('inst-2')?.companions).toBeUndefined()
   })
 
   it('does not overwrite live entries already in the map', async () => {
@@ -110,8 +116,10 @@ describe('trip-cache (persistent approval-instance cache)', () => {
     await new Promise(r => setTimeout(r, 20))
     // loadTripCache is once-per-process by design — read the table directly.
     const db = new Database(tmpDbPath, { readonly: true })
-    const row = db.prepare('SELECT reason FROM TripInstanceCache WHERE instanceId = ?').get('inst-1') as { reason: string }
+    const row = db.prepare('SELECT reason, companions FROM TripInstanceCache WHERE instanceId = ?').get('inst-1') as { reason: string; companions: string | null }
     db.close()
     expect(row.reason).toBe('出差改签')
+    // Companions omitted from the upsert clear the column (no stale ids).
+    expect(row.companions).toBeNull()
   })
 })

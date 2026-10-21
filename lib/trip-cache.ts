@@ -19,6 +19,8 @@ export interface CachedTrip {
   /** false = terminal but unparseable — safe to skip forever. */
   parsed: boolean
   originator?: string
+  /** 同行人 user ids (persisted as a JSON array column). */
+  companions?: string[]
 }
 
 let loaded = false
@@ -33,6 +35,13 @@ export async function loadTripCache(mem: Map<string, CachedTrip>): Promise<void>
       // Don't overwrite entries already fetched live this process — they
       // are at least as fresh as the persisted row.
       if (mem.has(r.instanceId)) continue
+      let companions: string[] | undefined
+      if (r.companions) {
+        try {
+          const parsed = JSON.parse(r.companions)
+          if (Array.isArray(parsed)) companions = parsed.filter((s): s is string => typeof s === 'string')
+        } catch { /* legacy/garbled row — treat as no companions */ }
+      }
       mem.set(r.instanceId, {
         // BigInt column -> JS epoch-ms numbers at the cache boundary.
         tripStart: r.tripStart === null ? 0 : Number(r.tripStart),
@@ -40,6 +49,7 @@ export async function loadTripCache(mem: Map<string, CachedTrip>): Promise<void>
         reason: r.reason ?? undefined,
         parsed: r.parsed,
         originator: r.originatorUserid ?? undefined,
+        companions,
       })
     }
   } catch (e) {
@@ -60,6 +70,7 @@ export function persistTripInstance(instanceId: string, entry: CachedTrip): void
     tripEnd: end,
     reason: entry.reason ?? null,
     parsed: entry.parsed,
+    companions: entry.companions?.length ? JSON.stringify(entry.companions) : null,
   }
   void prisma.tripInstanceCache
     .upsert({

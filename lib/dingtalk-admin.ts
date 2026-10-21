@@ -458,6 +458,8 @@ interface TripCacheEntry {
   // Originator userid, recorded on first fetch so a cached trip can be
   // attributed to a person without re-fetching the detail.
   originator?: string
+  // 同行人 user ids (InnerContactField "traveler"), immutable once approved.
+  companions?: string[]
   // Whether this instance was COMPLETED+agree with a parseable date range.
   // false ⇒ the instance exists but isn't a usable trip record (don't refetch
   // to re-parse; it won't change).
@@ -477,11 +479,11 @@ const tripOriginator = new Map<string, string>()
 async function getTripDetail(
   accessToken: string,
   instanceId: string,
-): Promise<{ tripStart: number; tripEnd: number; reason?: string } | null> {
+): Promise<{ tripStart: number; tripEnd: number; reason?: string; companions: string[] } | null> {
   const cached = tripDetailCache.get(instanceId)
   if (cached) {
     if (!cached.parsed) return null
-    return { tripStart: cached.tripStart, tripEnd: cached.tripEnd, reason: cached.reason }
+    return { tripStart: cached.tripStart, tripEnd: cached.tripEnd, reason: cached.reason, companions: cached.companions ?? [] }
   }
   dingtalkCalls++
   const detailRes = await fetch(`${PROCESS_DETAIL_URL}?access_token=${accessToken}`, {
@@ -523,6 +525,7 @@ async function getTripDetail(
     tripStart: parsed.tripStart,
     tripEnd: parsed.tripEnd,
     reason: parsed.reason,
+    companions: parsed.companions,
     parsed: true,
     originator: inst.originator_userid,
   }
@@ -530,7 +533,7 @@ async function getTripDetail(
   // Content of a COMPLETED+agree instance never changes — persist so restarts
   // skip the re-fetch (fire-and-forget; a failed write only costs one get).
   persistTripInstance(instanceId, entry)
-  return { tripStart: parsed.tripStart, tripEnd: parsed.tripEnd, reason: parsed.reason }
+  return { tripStart: parsed.tripStart, tripEnd: parsed.tripEnd, reason: parsed.reason, companions: parsed.companions }
 }
 
 /**
@@ -567,10 +570,44 @@ function parseTripDateTime(v: string): number | null {
   return isNaN(d.getTime()) ? null : d.getTime()
 }
 
-export function parseTripWindow(formValues: unknown[]): { tripStart: number | null; tripEnd: number | null; reason?: string } {
+/**
+ * Extract user ids from a DingTalk approval contact-field value. Three real
+ * shapes (verified against the org's 商旅出差/外出 templates):
+ *  - extValue: JSON array of {emplId, name} objects (emplId === userid)
+ *  - top-level contact component value: JSON array of userid strings
+ *  - display value: comma-separated Chinese names ("李家辉,张磊") — kept as
+ *    tokens; they never match a synced userid and are dropped downstream.
+ */
+function parseContactUserIds(raw: unknown): string[] {
+  if (raw === null || raw === undefined || raw === '') return []
+  let arr: unknown = raw
+  if (typeof raw === 'string') {
+    try { arr = JSON.parse(raw) } catch { arr = null }
+  }
+  if (Array.isArray(arr)) {
+    return arr
+      .map((item): string => {
+        if (typeof item === 'string') return item.trim()
+        if (item && typeof item === 'object') {
+          const o = item as Record<string, unknown>
+          const id = o.emplId ?? o.userid ?? o.userId ?? o.value
+          return typeof id === 'string' ? id.trim() : ''
+        }
+        return ''
+      })
+      .filter(Boolean)
+  }
+  if (typeof raw === 'string') {
+    return raw.split(/[,、;；]/).map(s => s.trim()).filter(Boolean)
+  }
+  return []
+}
+
+export function parseTripWindow(formValues: unknown[]): { tripStart: number | null; tripEnd: number | null; reason?: string; companions: string[] } {
   let tripStart: number | null = null
   let tripEnd: number | null = null
   let reason: string | undefined
+  const companions: string[] = []
 
   for (const fv of formValues) {
     const f = fv as { name?: string; value?: string }
@@ -619,8 +656,23 @@ export function parseTripWindow(formValues: unknown[]): { tripStart: number | nu
             }
           }
         }
+        // 同行人: InnerContactField nested in the 商旅出差/外出 JSON. Both
+        // templates use bizAlias "traveler"; the label differs ("出行人（同行人）"
+        // vs "同行人") so match the alias first, label as fallback. User ids
+        // live in extValue ({emplId,name} objects); value holds display names.
+        const label = item.props?.label || ''
+        if (bizAlias === 'traveler' || label.includes('同行')) {
+          if (item.extValue) companions.push(...parseContactUserIds(item.extValue))
+          else if (item.value) companions.push(...parseContactUserIds(item.value))
+        }
       }
     } catch { /* not JSON */ }
+
+    // Top-level 同行人 contact component (some template variants place it
+    // outside the DDBizSuite JSON; value is a JSON array of userids).
+    if (f.name && (f.name.includes('同行') || f.name.includes('出行人'))) {
+      companions.push(...parseContactUserIds(f.value))
+    }
   }
 
   // Format 3: 京内因公 — separate 开始时间/结束时间 (or 开始日期/结束日期)
@@ -651,14 +703,16 @@ export function parseTripWindow(formValues: unknown[]): { tripStart: number | nu
     }
   }
 
-  return { tripStart, tripEnd, reason }
+  return { tripStart, tripEnd, reason, companions }
 }
 
 /**
  * Fetch business-trip status over the queried date range. Returns
  * userid → { days: Set<dateStr>, reason } for every day each person was on a
- * trip (a trip spanning Mon–Wed marks all three days). The reason is the most
- * recently-seen active trip's reason, used for today's Person.avatar display.
+ * trip (a trip spanning Mon–Wed marks all three days). A trip instance counts
+ * for its originator AND its 同行人 (traveler contact field); the reason is
+ * the most recently-seen active trip's reason, used for today's Person.avatar
+ * display.
  *
  * API-cost shape:
  *  - Phase 1 lists instances ONCE per process code (no userid_list filter);
@@ -756,33 +810,38 @@ export async function fetchTripStatus(
       if (onDetailProgress) onDetailProgress(fetched, uncachedCount)
     }
     if (!detail) continue
-    // Attribute the trip to its originator (on the cache entry after a fresh
-    // fetch; tripOriginator for entries predating the originator field); only
-    // keep synced users. An instance from OUTSIDE the synced set (the
-    // approval template's visibility can be broader than DINGTALK_DEPT_ID)
-    // gets one detail fetch to learn its originator, then is dropped from
-    // memory AND never persisted — unrelated org data must not accumulate.
-    const owner = tripDetailCache.get(instanceId)?.originator ?? tripOriginator.get(instanceId)
-    if (!owner || !useridSet.has(owner)) {
+    // Attribute the trip to the originator AND every 同行人 (both immutable on
+    // the cache entry; tripOriginator for entries predating the originator
+    // field). Only synced users are kept. An instance with NO owner inside the
+    // synced set (the approval template's visibility can be broader than
+    // DINGTALK_DEPT_ID) gets one detail fetch to learn its originator, then is
+    // dropped from memory — unrelated org data must not accumulate.
+    const originator = tripDetailCache.get(instanceId)?.originator ?? tripOriginator.get(instanceId)
+    const owners = [...new Set([originator, ...(tripDetailCache.get(instanceId)?.companions ?? [])]
+      .filter((id): id is string => Boolean(id)))]
+    const syncedOwners = owners.filter(id => useridSet.has(id))
+    if (syncedOwners.length === 0) {
       tripDetailCache.delete(instanceId)
       continue
     }
     // For each queried day, mark it if it falls inside [tripStart, tripEnd].
-    let entry = result.get(owner)
-    if (!entry) {
-      entry = { days: new Set() }
-      result.set(owner, entry)
-    }
-    let markedAny = false
-    for (const db of dayBoundsList) {
-      if (db.startMs <= detail.tripEnd && db.endMs >= detail.tripStart) {
-        entry.days.add(db.day)
-        markedAny = true
+    for (const owner of syncedOwners) {
+      let entry = result.get(owner)
+      if (!entry) {
+        entry = { days: new Set() }
+        result.set(owner, entry)
       }
+      let markedAny = false
+      for (const db of dayBoundsList) {
+        if (db.startMs <= detail.tripEnd && db.endMs >= detail.tripStart) {
+          entry.days.add(db.day)
+          markedAny = true
+        }
+      }
+      // Keep the reason of the most recently active trip (later iterations
+      // overwrite; fine since a person rarely has 2 concurrent trips).
+      if (markedAny) entry.reason = detail.reason
     }
-    // Keep the reason of the most recently active trip (later iterations
-    // overwrite; fine since a person rarely has 2 concurrent trips).
-    if (markedAny) entry.reason = detail.reason
   }
   return result
 }
