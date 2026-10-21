@@ -49,6 +49,12 @@ vi.mock('@/lib/db', () => {
     prisma: {
       tripInstanceCache: {
         findMany: async () => db.prepare('SELECT * FROM TripInstanceCache').all().map(rowToEntry),
+        deleteMany: async ({ where }: { where: { instanceId: { in: string[] } } }) => {
+          const del = db.prepare('DELETE FROM TripInstanceCache WHERE instanceId = ?')
+          let count = 0
+          for (const id of where.instanceId.in) count += Number(del.run(id).changes)
+          return { count }
+        },
         upsert: async ({ where, update, create }: {
           where: { instanceId: string }
           update: Record<string, unknown>
@@ -81,6 +87,14 @@ const { loadTripCache, persistTripInstance } = await import('@/lib/trip-cache')
 type CachedTrip = NonNullable<Parameters<typeof loadTripCache>[0]> extends Map<string, infer E> ? E : never
 
 beforeAll(async () => {
+  // A pre-migrations legacy row: companions NULL (the column didn't exist).
+  // loadTripCache must skip AND delete it so the detail fetch upgrades it.
+  const legacy = new Database(tmpDbPath)
+  legacy.prepare(`
+    INSERT INTO TripInstanceCache (instanceId, originatorUserid, tripStart, tripEnd, reason, companions, parsed)
+    VALUES ('inst-legacy', 'u_old', 1000, 2000, '旧行', NULL, 1)
+  `).run()
+  legacy.close()
   persistTripInstance('inst-1', { tripStart: 1000, tripEnd: 2000, reason: '出差', parsed: true, originator: 'u1', companions: ['u2', 'u3'] })
   persistTripInstance('inst-2', { tripStart: 0, tripEnd: 0, parsed: false })
   // Fire-and-forget upserts — give the microtask queue a beat.
@@ -99,8 +113,19 @@ describe('trip-cache (persistent approval-instance cache)', () => {
     })
     // The not-a-trip sentinel round-trips so the detail fetch stays skipped.
     expect(mem.get('inst-2')).toMatchObject({ tripStart: 0, tripEnd: 0, parsed: false })
-    // Rows without companions load as undefined, not an empty array.
-    expect(mem.get('inst-2')?.companions).toBeUndefined()
+    // Empty companions persist as '[]' (NULL is reserved for legacy rows).
+    expect(mem.get('inst-2')?.companions).toEqual([])
+    // Legacy rows (companions NULL) are neither hydrated nor kept.
+    expect(mem.has('inst-legacy')).toBe(false)
+  })
+
+  it('deletes legacy rows so the detail fetch upgrades them once', async () => {
+    // Fire-and-forget deleteMany — give it a beat, then read the table.
+    await new Promise(r => setTimeout(r, 20))
+    const db = new Database(tmpDbPath, { readonly: true })
+    const row = db.prepare('SELECT instanceId FROM TripInstanceCache WHERE instanceId = ?').get('inst-legacy')
+    db.close()
+    expect(row).toBeUndefined()
   })
 
   it('does not overwrite live entries already in the map', async () => {
@@ -119,7 +144,8 @@ describe('trip-cache (persistent approval-instance cache)', () => {
     const row = db.prepare('SELECT reason, companions FROM TripInstanceCache WHERE instanceId = ?').get('inst-1') as { reason: string; companions: string | null }
     db.close()
     expect(row.reason).toBe('出差改签')
-    // Companions omitted from the upsert clear the column (no stale ids).
-    expect(row.companions).toBeNull()
+    // Companions omitted from the upsert persist as '[]' — no stale ids, and
+    // the row stays "fresh" (NULL would mark it legacy and re-fetch forever).
+    expect(row.companions).toBe('[]')
   })
 })

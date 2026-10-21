@@ -1,6 +1,19 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { mapStatusForDay, parseTripWindow, fetchTripStatus, type DayAttendance, type TripStatus } from '@/lib/dingtalk-admin'
 
+// Hermetic fetchTripStatus tests: the trip-detail cache must not touch the
+// real database (the default DATABASE_URL points at the dev SQLite file).
+// In-memory stand-in with the same load/persist surface.
+vi.mock('@/lib/trip-cache', () => {
+  const backing = new Map<string, unknown>()
+  return {
+    loadTripCache: async (mem: Map<string, unknown>) => {
+      for (const [k, v] of backing) if (!mem.has(k)) mem.set(k, v)
+    },
+    persistTripInstance: (id: string, entry: unknown) => { backing.set(id, entry) },
+  }
+})
+
 describe('parseTripWindow (trip form → date range + reason)', () => {
   it('parses 京内 format (开始/结束时间 JSON array field)', () => {
     const form = [
@@ -323,15 +336,20 @@ describe('fetchTripStatus — 同行人 attribution (mocked DingTalk API)', () =
     delete process.env.DINGTALK_TRIP_PROCESS_CODE
   })
 
+  // Unique instance id per test: the module-level detail cache persists
+  // across cases in this file, and a cache hit would skip the detail fetch.
+  let instanceCounter = 0
+
   function stubDingtalkApi(instanceForm: unknown[]) {
+    const instanceId = `inst-${++instanceCounter}`
     vi.stubGlobal('fetch', vi.fn(async (url: string | URL, init?: RequestInit) => {
       const u = String(url)
       const body = init?.body ? JSON.parse(String(init.body)) : {}
       if (u.includes('processinstance/listids')) {
-        return new Response(JSON.stringify({ errcode: 0, result: { list: ['inst-a'], next_cursor: undefined } }), { status: 200 })
+        return new Response(JSON.stringify({ errcode: 0, result: { list: [instanceId], next_cursor: undefined } }), { status: 200 })
       }
       if (u.includes('processinstance/get')) {
-        expect(body.process_instance_id).toBe('inst-a')
+        expect(body.process_instance_id).toBe(instanceId)
         return new Response(JSON.stringify({
           process_instance: {
             status: 'COMPLETED',
