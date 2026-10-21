@@ -267,6 +267,7 @@ model TripInstanceCache {
   tripStart        BigInt? // ms epoch — BigInt: Int is 32-bit, epoch ms overflows
   tripEnd          BigInt? // ms epoch
   reason           String?
+  companions       String? // 同行人 user ids, JSON array of strings
   parsed           Boolean
   fetchedAt        DateTime @default(now())
 }
