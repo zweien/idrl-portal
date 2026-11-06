@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { FloorPlan } from '@/components/dashboard/floor-plan'
 import { SyncTaskButton } from '@/components/dashboard/sync-task'
 import { OffboardNotice } from '@/components/dashboard/offboard-notice'
+import { Drawer, DrawerContent } from '@/components/ui/drawer'
 import { FloorTabs } from '@/components/dashboard/floor-tabs'
 import { SyncTimeBadge, useInvalidateSyncedAt } from '@/components/dashboard/sync-time'
 import { usePersonnel, useFloorLayout } from '@/lib/api'
@@ -40,6 +41,7 @@ export default function PersonnelPage() {
   const [selectedPerson, setSelectedPerson]     = useState<Person | null>(null)
   const [selectedWs, setSelectedWs]             = useState<NewWorkstation | null>(null)
   const [activeFloorId, setActiveFloorId]       = useState('')
+  const [detailDrawerOpen, setDetailDrawerOpen] = useState(false)
   const [departed, setDeparted]                 = useState<{ offboarded: DepartedMember[]; transferred: DepartedMember[] } | null>(null)
   useEffect(() => {
     if (!activeFloorId && floors.length > 0) setActiveFloorId(floors[0].id)
@@ -66,13 +68,30 @@ export default function PersonnelPage() {
     absent:  personnel.filter(p => p.status === 'absent').length,
   }), [personnel])
 
+  const reinstateLogin = async (target: Person) => {
+    await fetch(`/api/personnel/${target.id}/reinstate`, { method: 'POST' })
+    // selectedPerson is an independent copy — refresh it from the
+    // revalidated list or the panel keeps showing the stopped state.
+    const fresh = await mutatePersonnel()
+    const updated = fresh?.data?.items.find(x => x.id === target.id)
+    if (updated) setSelectedPerson(updated)
+  }
+
+  // Mobile (<lg): the detail panel stacks below the floor plan, far out of
+  // view — surface the selection in a bottom drawer instead. Desktop keeps
+  // the persistent sidebar.
+  const isDesktopViewport = () =>
+    typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
+
   const handleWsSelect = (ws: NewWorkstation, person?: Person) => {
     setSelectedWs(ws)
     setSelectedPerson(person ?? null)
+    if (!isDesktopViewport()) setDetailDrawerOpen(true)
   }
 
   const handlePersonSelect = (person: Person) => {
     setSelectedPerson(person)
+    if (!isDesktopViewport()) setDetailDrawerOpen(true)
     let found: NewWorkstation | null = null
     let foundFloorId: string | null = null
     for (const floor of floors) {
@@ -218,7 +237,7 @@ export default function PersonnelPage() {
           </div>
         </div>
 
-        <div className="rounded-lg border border-border bg-card">
+        <div className="hidden lg:block rounded-lg border border-border bg-card">
           <div className="px-4 py-3 border-b border-border">
             <p className="text-sm font-medium">人员详情</p>
             <p className="text-xs text-muted-foreground mt-0.5">
@@ -227,86 +246,7 @@ export default function PersonnelPage() {
           </div>
           <div className="p-4">
             {selectedPerson ? (
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <Avatar className="h-10 w-10">
-                    <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
-                      {selectedPerson.name.charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="font-medium">{selectedPerson.name}</p>
-                    <p className="text-xs text-muted-foreground">{selectedPerson.role || '—'}</p>
-                  </div>
-                </div>
-
-                <div className="space-y-2 text-sm">
-                  <Badge variant="outline" className={cn('text-xs font-medium gap-1.5 px-2 py-0.5 border', statusConfig[selectedPerson.status].badge)}>
-                    <span className={cn('status-dot', statusConfig[selectedPerson.status].dot)} />
-                    {statusConfig[selectedPerson.status].label}
-                  </Badge>
-                  {selectedPerson.lastSeen && selectedPerson.status !== 'absent' && (
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Clock className="h-3.5 w-3.5 shrink-0" />
-                      <span>打卡 {selectedPerson.lastSeen}</span>
-                    </div>
-                  )}
-                  {selectedPerson.status === 'trip' && selectedPerson.avatar && (
-                    <div className="flex items-start gap-2 text-muted-foreground">
-                      <Plane className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                      <span className="text-xs">{selectedPerson.avatar}</span>
-                    </div>
-                  )}
-                  {selectedPerson.email && (
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Mail className="h-3.5 w-3.5 shrink-0" />
-                      <span className="truncate">{selectedPerson.email}</span>
-                    </div>
-                  )}
-                {selectedPerson.offboarded && (
-                  <div className="flex items-center justify-between gap-2 rounded-md border border-border px-2 py-1.5">
-                    <span className="text-xs text-muted-foreground">已停用（登录已禁用）</span>
-                    {user?.role === 'admin' && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-6 text-[11px] px-2"
-                        onClick={async () => {
-                          await fetch(`/api/personnel/${selectedPerson.id}/reinstate`, { method: 'POST' })
-                          // selectedPerson is an independent copy — refresh it
-                          // from the revalidated list or the panel keeps
-                          // showing the stopped state.
-                          const fresh = await mutatePersonnel()
-                          const updated = fresh?.data?.items.find(x => x.id === selectedPerson.id)
-                          if (updated) setSelectedPerson(updated)
-                        }}
-                      >
-                        恢复登录
-                      </Button>
-                    )}
-                  </div>
-                )}
-                  {selectedWs && (
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <MapPin className="h-3.5 w-3.5 shrink-0" />
-                      <span>工位 {selectedWs.name}</span>
-                    </div>
-                  )}
-                </div>
-
-                {selectedPerson.researchAreas && selectedPerson.researchAreas.length > 0 && (
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-2">研究方向</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {selectedPerson.researchAreas.map(area => (
-                        <Badge key={area} variant="secondary" className="text-xs font-normal">
-                          {area}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <PersonDetailBody person={selectedPerson} ws={selectedWs} onReinstate={reinstateLogin} />
             ) : (
               <div className="flex flex-col items-center justify-center py-10 text-center">
                 <User className="h-8 w-8 text-muted-foreground/40 mb-3" />
@@ -316,6 +256,26 @@ export default function PersonnelPage() {
           </div>
         </div>
       </div>
+
+      {/* Mobile (<lg): the sidebar panel is hidden, so surface the current
+          selection here as a bottom drawer — desktop ignores this state. */}
+      <Drawer open={detailDrawerOpen} onOpenChange={setDetailDrawerOpen}>
+        <DrawerContent className="lg:hidden max-h-[85vh]">
+          <div className="px-4 pb-6 overflow-y-auto">
+            {selectedPerson ? (
+              <PersonDetailBody person={selectedPerson} ws={selectedWs} onReinstate={reinstateLogin} />
+            ) : selectedWs ? (
+              <div className="space-y-2 text-sm py-2">
+                <div className="flex items-center gap-3">
+                  <MapPin className="h-4 w-4 text-muted-foreground" />
+                  <p className="font-medium">工位 {selectedWs.name}</p>
+                </div>
+                <p className="text-xs text-muted-foreground">该工位当前未分配人员</p>
+              </div>
+            ) : null}
+          </div>
+        </DrawerContent>
+      </Drawer>
 
       <div className="rounded-lg border border-border bg-card">
         <div className="px-4 py-3 border-b border-border flex items-center justify-between">
@@ -361,6 +321,98 @@ export default function PersonnelPage() {
           })}
         </div>
       </div>
+    </div>
+  )
+}
+
+
+/**
+ * Shared detail content for the person/workstation selection — rendered in
+ * the desktop sidebar panel AND the mobile bottom drawer, so both surfaces
+ * stay informationally identical (grilled decision Q4).
+ */
+function PersonDetailBody({
+  person,
+  ws,
+  onReinstate,
+}: {
+  person: Person
+  ws: NewWorkstation | null
+  onReinstate: (p: Person) => Promise<void>
+}) {
+  const { user } = useAuth()
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <Avatar className="h-10 w-10">
+          <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
+            {person.name.charAt(0)}
+          </AvatarFallback>
+        </Avatar>
+        <div>
+          <p className="font-medium">{person.name}</p>
+          <p className="text-xs text-muted-foreground">{person.role || '—'}</p>
+        </div>
+      </div>
+
+      <div className="space-y-2 text-sm">
+        <Badge variant="outline" className={cn('text-xs font-medium gap-1.5 px-2 py-0.5 border', statusConfig[person.status].badge)}>
+          <span className={cn('status-dot', statusConfig[person.status].dot)} />
+          {statusConfig[person.status].label}
+        </Badge>
+        {person.lastSeen && person.status !== 'absent' && (
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Clock className="h-3.5 w-3.5 shrink-0" />
+            <span>打卡 {person.lastSeen}</span>
+          </div>
+        )}
+        {person.status === 'trip' && person.avatar && (
+          <div className="flex items-start gap-2 text-muted-foreground">
+            <Plane className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+            <span className="text-xs">{person.avatar}</span>
+          </div>
+        )}
+        {person.email && (
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Mail className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{person.email}</span>
+          </div>
+        )}
+        {person.offboarded && (
+          <div className="flex items-center justify-between gap-2 rounded-md border border-border px-2 py-1.5">
+            <span className="text-xs text-muted-foreground">已停用（登录已禁用）</span>
+            {user?.role === 'admin' && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-6 text-[11px] px-2"
+                onClick={() => onReinstate(person)}
+              >
+                恢复登录
+              </Button>
+            )}
+          </div>
+        )}
+        {ws && (
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <MapPin className="h-3.5 w-3.5 shrink-0" />
+            <span>工位 {ws.name}</span>
+          </div>
+        )}
+      </div>
+
+      {person.researchAreas && person.researchAreas.length > 0 && (
+        <div>
+          <p className="text-xs text-muted-foreground mb-2">研究方向</p>
+          <div className="flex flex-wrap gap-1.5">
+            {person.researchAreas.map(area => (
+              <Badge key={area} variant="secondary" className="text-xs font-normal">
+                {area}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
