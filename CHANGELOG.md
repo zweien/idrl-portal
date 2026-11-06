@@ -5,6 +5,12 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v0.11.15] - 2026-11-06
+
+### 修复
+
+- fix(personnel): 16px search inputs to stop iOS focus auto-zoom (#116)
+
 ## [v0.11.14] - 2026-11-06
 
 ### 新增
