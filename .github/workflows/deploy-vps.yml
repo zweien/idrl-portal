@@ -57,6 +57,11 @@ jobs:
             corepack pnpm install --frozen-lockfile
             # 先完成构建再迁移线上库：若 build 失败，set -e 中止，旧应用
             # 继续跑在旧 schema 上，不会出现"新 schema + 旧代码"的中间态。
+            # 构建前清掉 .next：Turbopack 的增量缓存（.next/cache）一旦损坏
+            # 会产出残缺的 CSS/JS chunk（实例：某次部署的 CSS 仅 123 条规则，
+            # 全部布局类缺失），且 git reset --hard 不会清理它。全量重建
+            # 慢几十秒，但保证部署产物完整。
+            rm -rf .next
             corepack pnpm run build
             # 停掉运行中的本应用，释放 SQLite 写锁，再跑迁移。否则 migrate
             # 与正在服务的旧应用争写锁，报 "database is locked"。scheduling
