@@ -5,6 +5,12 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v0.11.14] - 2026-11-06
+
+### 新增
+
+- feat(personnel): 移动端点击工位——底部抽屉显示人员信息 (#115)
+
 ## [v0.11.12] - 2026-10-21
 
 ### 新增
