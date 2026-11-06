@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { FloorPlan } from '@/components/dashboard/floor-plan'
 import { SyncTaskButton } from '@/components/dashboard/sync-task'
 import { OffboardNotice } from '@/components/dashboard/offboard-notice'
-import { Sheet, SheetContent } from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { FloorTabs } from '@/components/dashboard/floor-tabs'
 import { SyncTimeBadge, useInvalidateSyncedAt } from '@/components/dashboard/sync-time'
 import { usePersonnel, useFloorLayout } from '@/lib/api'
@@ -280,6 +280,7 @@ export default function PersonnelPage() {
           selection here as a bottom drawer — desktop ignores this state. */}
       <Sheet open={detailDrawerOpen} onOpenChange={setDetailDrawerOpen}>
         <SheetContent side="bottom" className="lg:hidden h-[85vh] max-h-[85vh] px-0">
+          <SheetTitle className="sr-only">人员与工位详情</SheetTitle>
           <div className="px-4 pb-6 overflow-y-auto max-h-[calc(85vh-2rem)]">
             {selectedPerson ? (
               <PersonDetailBody person={selectedPerson} ws={selectedWs} onReinstate={reinstateLogin} onPhotoZoom={setPhotoZoomPerson} />
