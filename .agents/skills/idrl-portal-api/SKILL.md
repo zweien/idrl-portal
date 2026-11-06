@@ -24,7 +24,7 @@ Authorization: Bearer idrl_<48 hex>     # API key，Admin UI「API 密钥」颁�
 | `news:publish` | `POST / PATCH / DELETE /api/news(/:id)`、`POST /api/news/reorder`、`POST /api/uploads` |
 | `resource:read` | `GET /api/resources` |
 | `resource:publish` | `POST / PATCH / DELETE /api/resources(/:id)`、`POST /api/resources/reorder` |
-| `admin` | 管理门户：草稿可见（`GET /api/news?includeDrafts=1`）、考勤查询（leaderboard/records/export）、人员列表、工位查询/改派（`/api/workstations`）、分类读取、同步/审计日志 |
+| `admin` | 管理门户：草稿可见（`GET /api/news?includeDrafts=1`）、考勤查询（leaderboard/records/export）、人员列表与人员照片（`POST /api/uploads` 亦可）、工位查询/改派（`/api/workstations`）、分类读取、同步/审计日志 |
 
 > `admin` scope 让 key 以**管理员身份**访问读取/审核类端点（写操作仍走各自 scope）。布局/备份/设置/用户等管理端点仍只接受 admin session（见 REFERENCE.md）。
 
@@ -95,18 +95,31 @@ curl -s -X DELETE "$BASE/api/news/<id>" -H "Authorization: Bearer $KEY"
 curl -s -X POST "$BASE/api/dingtalk/sync-attendance" -H "Authorization: Bearer $KEY"
 
 # 今日最早打卡榜单 / 本月工时排行（admin）
+# items 每项含 department（人员部门，钉钉同步；空串时字段缺省）
 curl -s "$BASE/api/attendance/leaderboard?type=today&limit=10"   -H "Authorization: Bearer $KEY"
 curl -s "$BASE/api/attendance/leaderboard?type=monthly&limit=10" -H "Authorization: Bearer $KEY"
 
 # 某人考勤明细（admin；personId 来自人员列表）
+# data.person = {id, name, department}（查询对象身份信息，无需再查人员列表）
 curl -s "$BASE/api/attendance/records?personId=<id>&from=2026-07-01&to=2026-07-31" -H "Authorization: Bearer $KEY"
 
 # CSV 导出（admin）
+# 表头含部门列：detail=姓名,部门,日期,上班,下班,工时(小时),状态
+#              summary=姓名,部门,日期范围,出勤天数,…,平均工时(小时)
 curl -s "$BASE/api/attendance/export/detail?from=2026-07-01&to=2026-07-31"   -H "Authorization: Bearer $KEY"
 curl -s "$BASE/api/attendance/export/summary?from=2026-07-01&to=2026-07-31"  -H "Authorization: Bearer $KEY"
 
 # 人员列表（admin；可按 status 过滤，status=present|leave|trip|absent；pageSize 上限 100，超过按 totalPages 翻页）
+# item 含 department（部门显示名，钉钉成员同步自动填充；手动添加的人员可为空串）
+# item 含 photoUrl（人员照片 URL，/api/uploads 上传后经 PATCH 写入；空串/缺省 = 无照片）
 curl -s "$BASE/api/personnel?page=1&pageSize=100&status=present" -H "Authorization: Bearer $KEY"
+
+# 人员照片（admin）：先上传图片，再把返回的 url 写到该人员的 photoUrl。
+# 上传接受 news:publish 或 admin scope；照片不会被子成员同步覆盖。
+curl -s -X POST "$BASE/api/uploads" -H "Authorization: Bearer $KEY" -F "file=@photo.jpg"
+curl -s -X PATCH "$BASE/api/personnel/<id>" -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" -d '{"photoUrl":"/api/uploads/1690000000000-a1b2c3d4.jpg"}'
+# 查询照片：GET /api/personnel 的 items[].photoUrl（或 records 端点 data.person 仅含 name/department，无照片）
 
 # 按职位（role）筛选人员状态：没有服务端 role 参数，search 也不匹配 role ——
 # 只能翻页拉全量（pageSize=100 × page=1..totalPages）后本地过滤。
@@ -119,7 +132,7 @@ curl -s "$BASE/api/personnel?page=$p&pageSize=100" -H "Authorization: Bearer $KE
 curl -s "$BASE/api/workstations?occupied=1" -H "Authorization: Bearer $KEY"
 # → 返回裸对象 {workstations:[{name=座位号, personId, personName, floorName, zoneName, …}]}
 #   与 personnel 按 personId 取交集得目标人群：今日 status 用 personnel 的 status 字段，
-#   打卡时段用 export/detail CSV——表头是中文（姓名/日期/上班/下班/工时/状态）且无 ID 列，
+#   打卡时段用 export/detail CSV——表头是中文（姓名/部门/日期/上班/下班/工时/状态）且无 ID 列，
 #   需按姓名关联（现库无重名；重名出现后改走逐人 records）
 
 # 同步/审计日志（admin）

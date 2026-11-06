@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import Database from 'better-sqlite3'
 import { join } from 'node:path'
-import { mkdtempSync, rmSync, readdirSync, existsSync } from 'node:fs'
+import { mkdtempSync, readdirSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
+import { removeTempDir } from './helpers/temp-dir'
 
 /**
  * Backup utilities. The filename validation/parsing is pure; the file
@@ -97,7 +98,7 @@ afterAll(() => {
       }
     }
   } catch { /* */ }
-  rmSync(tmpDir, { recursive: true, force: true })
+  removeTempDir(tmpDir)
 })
 
 describe('backup filename validation', () => {

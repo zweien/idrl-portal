@@ -76,10 +76,10 @@ export interface UploadedImage {
 }
 
 /**
- * Upload an image file for embedding in news content. Returns the public URL
- * (served by GET /api/uploads/[...path]) to splice into Markdown.
+ * Upload an image file (news 正文插图或人员照片). Returns the public URL
+ * (served by GET /api/uploads/[...path]).
  */
-export async function uploadNewsImage(file: File): Promise<UploadedImage> {
+export async function uploadImage(file: File): Promise<UploadedImage> {
   const fd = new FormData()
   fd.append('file', file)
   const r = await fetch('/api/uploads', { method: 'POST', body: fd })
@@ -89,6 +89,9 @@ export async function uploadNewsImage(file: File): Promise<UploadedImage> {
   }
   return r.json() as Promise<UploadedImage>
 }
+
+/** 兼容别名：动态正文插图上传（= uploadImage）。 */
+export const uploadNewsImage = uploadImage
 
 // ===== Single-item CRUD (Person) =====
 
@@ -371,6 +374,7 @@ export function useAuditLogs(params?: Record<string, string | number>) {
 export interface LeaderboardEntry {
   personId: string
   name: string
+  department?: string
   checkIn?: string | null
   workMinutes?: number | null
 }
@@ -391,6 +395,11 @@ export interface AttendanceRecordItem {
   workMinutes: number | null
 }
 
+/** records 响应 data：分页明细 + 查询对象的身份信息（部门来自钉钉同步）。 */
+export interface AttendanceRecordsData extends PaginatedResponse<AttendanceRecordItem> {
+  person: { id: string; name: string; department: string }
+}
+
 export function useLeaderboard(type: 'today' | 'monthly', limit = 10) {
   return useSWR<ApiResponse<LeaderboardData>>(
     `/api/attendance/leaderboard?type=${type}&limit=${limit}`,
@@ -401,7 +410,7 @@ export function useLeaderboard(type: 'today' | 'monthly', limit = 10) {
 export function useAttendanceRecords(params?: Record<string, string | number> | null) {
   // Passing null params disables the fetch (SWR conditional pattern).
   const key = params === null ? null : `/api/attendance/records${qs(params ?? undefined)}`
-  return useSWR<ApiResponse<PaginatedResponse<AttendanceRecordItem>>>(
+  return useSWR<ApiResponse<AttendanceRecordsData>>(
     key,
     fetcher,
   )

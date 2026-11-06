@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { FloorPlan } from '@/components/dashboard/floor-plan'
 import { SyncTaskButton } from '@/components/dashboard/sync-task'
 import { OffboardNotice } from '@/components/dashboard/offboard-notice'
@@ -17,15 +17,17 @@ import type { Person, NewWorkstation } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
-import { Search, MapPin, Mail, User, Settings, Clock, Plane } from 'lucide-react'
+import { Search, MapPin, Mail, User, Settings, Clock, Plane, Building2 } from 'lucide-react'
+import { StickyPageHeader } from '@/components/dashboard/sticky-page-header'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { statusBg } from '@/lib/floor-constants'
 
 const statusFilters = ['present', 'trip', 'leave', 'absent'] as const
 const statusConfig = {
-  present: { label: '在位', dot: 'status-dot-present', badge: 'bg-[var(--status-present)]/15 text-[var(--status-present)] border-[var(--status-present)]/30' },
-  trip:    { label: '出差', dot: 'status-dot-trip',    badge: 'bg-[var(--status-trip)]/15 text-[var(--status-trip)] border-[var(--status-trip)]/30' },
-  leave:   { label: '请假', dot: 'status-dot-leave',   badge: 'bg-[var(--status-leave)]/15 text-[var(--status-leave)] border-[var(--status-leave)]/30' },
-  absent:  { label: '未到', dot: 'status-dot-absent',  badge: 'bg-[var(--status-absent)]/15 text-[var(--status-absent)] border-[var(--status-absent)]/30' },
+  present: { label: '在位', dot: 'status-dot-present', badge: 'bg-[rgb(var(--success-rgb)/0.15)] text-success border-[rgb(var(--success-rgb)/0.3)]' },
+  trip:    { label: '出差', dot: 'status-dot-trip',    badge: 'bg-[rgb(var(--primary-rgb)/0.15)] text-primary border-[rgb(var(--primary-rgb)/0.3)]' },
+  leave:   { label: '请假', dot: 'status-dot-leave',   badge: 'bg-[rgb(var(--warning-rgb)/0.15)] text-warning border-[rgb(var(--warning-rgb)/0.3)]' },
+  absent:  { label: '未到', dot: 'status-dot-absent',  badge: 'bg-[rgb(var(--destructive-rgb)/0.15)] text-destructive border-[rgb(var(--destructive-rgb)/0.3)]' },
 }
 
 export default function PersonnelPage() {
@@ -39,6 +41,8 @@ export default function PersonnelPage() {
   const [search, setSearch]                     = useState('')
   const [statusFilter, setStatusFilter]         = useState<string | null>(null)
   const [selectedPerson, setSelectedPerson]     = useState<Person | null>(null)
+  /** 头像灯箱：详情卡头像点击放大（仅在有照片时启用）。 */
+  const [photoZoomPerson, setPhotoZoomPerson]   = useState<Person | null>(null)
   const [selectedWs, setSelectedWs]             = useState<NewWorkstation | null>(null)
   const [activeFloorId, setActiveFloorId]       = useState('')
   const [detailDrawerOpen, setDetailDrawerOpen] = useState(false)
@@ -130,13 +134,80 @@ export default function PersonnelPage() {
 
   return (
     <div className="space-y-4 py-2">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">人员与工位</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          查看实验室人员在位情况与工位分布
-          <SyncTimeBadge className="ml-2 align-middle" />
-        </p>
-      </div>
+      <StickyPageHeader>
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">人员与工位</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            查看实验室人员在位情况与工位分布
+            <SyncTimeBadge className="ml-2 align-middle" />
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 mt-3">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-[calc(50%-7px)] h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="搜索姓名、邮箱、研究方向…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-8 h-8 text-sm w-64"
+            />
+          </div>
+          <Button
+            variant={statusFilter === null ? 'secondary' : 'ghost'}
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => setStatusFilter(null)}
+          >
+            全部 ({personnel.length})
+          </Button>
+          {statusFilters.map(s => (
+            <Button
+              key={s}
+              variant={statusFilter === s ? 'secondary' : 'ghost'}
+              size="sm"
+              className="h-8 text-xs gap-1.5"
+              onClick={() => setStatusFilter(statusFilter === s ? null : s)}
+            >
+              <span className={cn('status-dot', statusConfig[s].dot)} />
+              {statusConfig[s].label} ({counts[s]})
+            </Button>
+          ))}
+          {user?.role === 'admin' && (
+            <>
+              <SyncTaskButton
+                kind="members"
+                label="同步钉钉成员"
+                onDone={(task) => {
+                  const s = task.result?.stats as { offboarded?: DepartedMember[]; transferred?: DepartedMember[] } | undefined
+                  setDeparted({ offboarded: s?.offboarded ?? [], transferred: s?.transferred ?? [] })
+                  // The sync just created/updated people — refresh the board now
+                  // instead of waiting for a focus revalidation.
+                  void mutatePersonnel()
+                }}
+              />
+              <SyncTaskButton
+                kind="attendance"
+                label="同步考勤"
+                runningLabel="考勤同步中…"
+                className="ml-auto"
+                onDone={() => {
+                  // Revalidate personnel SWR so cards/status update immediately,
+                  // and the sync-freshness badge so "x 分钟前" reflects this run.
+                  void mutatePersonnel()
+                  invalidateSyncedAt()
+                }}
+              />
+              <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" asChild>
+                <Link href="/dashboard/admin/floor-layout">
+                  <Settings className="h-3.5 w-3.5" />
+                  工位布局配置
+                </Link>
+              </Button>
+            </>
+          )}
+        </div>
+      </StickyPageHeader>
 
       {departed && (departed.offboarded.length > 0 || departed.transferred.length > 0) && (
         <OffboardNotice
@@ -160,70 +231,6 @@ export default function PersonnelPage() {
         />
       )}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            placeholder="搜索姓名、邮箱、研究方向…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="pl-8 h-8 text-sm w-64"
-          />
-        </div>
-        <Button
-          variant={statusFilter === null ? 'secondary' : 'ghost'}
-          size="sm"
-          className="h-8 text-xs"
-          onClick={() => setStatusFilter(null)}
-        >
-          全部 ({personnel.length})
-        </Button>
-        {statusFilters.map(s => (
-          <Button
-            key={s}
-            variant={statusFilter === s ? 'secondary' : 'ghost'}
-            size="sm"
-            className="h-8 text-xs gap-1.5"
-            onClick={() => setStatusFilter(statusFilter === s ? null : s)}
-          >
-            <span className={cn('status-dot', statusConfig[s].dot)} />
-            {statusConfig[s].label} ({counts[s]})
-          </Button>
-        ))}
-        {user?.role === 'admin' && (
-          <>
-            <SyncTaskButton
-              kind="members"
-              label="同步钉钉成员"
-              onDone={(task) => {
-                const s = task.result?.stats as { offboarded?: DepartedMember[]; transferred?: DepartedMember[] } | undefined
-                setDeparted({ offboarded: s?.offboarded ?? [], transferred: s?.transferred ?? [] })
-                // The sync just created/updated people — refresh the board now
-                // instead of waiting for a focus revalidation.
-                void mutatePersonnel()
-              }}
-            />
-            <SyncTaskButton
-              kind="attendance"
-              label="同步考勤"
-              runningLabel="考勤同步中…"
-              className="ml-auto"
-              onDone={() => {
-                // Revalidate personnel SWR so cards/status update immediately,
-                // and the sync-freshness badge so "x 分钟前" reflects this run.
-                void mutatePersonnel()
-                invalidateSyncedAt()
-              }}
-            />
-            <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" asChild>
-              <Link href="/dashboard/admin/floor-layout">
-                <Settings className="h-3.5 w-3.5" />
-                工位布局配置
-              </Link>
-            </Button>
-          </>
-        )}
-      </div>
       <div className="grid lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 rounded-lg border border-border bg-card">
           <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
@@ -258,10 +265,10 @@ export default function PersonnelPage() {
           </div>
           <div className="p-4">
             {selectedPerson ? (
-              <PersonDetailBody person={selectedPerson} ws={selectedWs} onReinstate={reinstateLogin} />
+              <PersonDetailBody person={selectedPerson} ws={selectedWs} onReinstate={reinstateLogin} onPhotoZoom={setPhotoZoomPerson} />
             ) : (
               <div className="flex flex-col items-center justify-center py-10 text-center">
-                <User className="h-8 w-8 text-muted-foreground/40 mb-3" />
+                <User className="h-8 w-8 text-[rgb(var(--muted-foreground-rgb)/0.4)] mb-3" />
                 <p className="text-sm text-muted-foreground">选择工位或人员查看详情</p>
               </div>
             )}
@@ -275,7 +282,7 @@ export default function PersonnelPage() {
         <DrawerContent className="lg:hidden max-h-[85vh]">
           <div className="px-4 pb-6 overflow-y-auto">
             {selectedPerson ? (
-              <PersonDetailBody person={selectedPerson} ws={selectedWs} onReinstate={reinstateLogin} />
+              <PersonDetailBody person={selectedPerson} ws={selectedWs} onReinstate={reinstateLogin} onPhotoZoom={setPhotoZoomPerson} />
             ) : selectedWs ? (
               <div className="space-y-2 text-sm py-2">
                 <div className="flex items-center gap-3">
@@ -306,13 +313,16 @@ export default function PersonnelPage() {
                 className={cn(
                   'flex items-center gap-2 p-2 rounded-md border text-left transition-colors w-full relative overflow-hidden',
                   isSelected
-                    ? 'border-primary/50 bg-primary/5'
+                    ? 'border-[rgb(var(--primary-rgb)/0.5)] bg-[rgb(var(--primary-rgb)/0.05)]'
                     : 'border-border hover:bg-accent hover:border-border'
                 )}
               >
                 <span className={cn('absolute left-0 top-0 bottom-0 w-1', statusBg[person.status])} />
                 <Avatar className="h-7 w-7 shrink-0">
-                  <AvatarFallback className="bg-primary/10 text-primary text-[11px] font-semibold">
+                  {person.photoUrl
+                    ? <AvatarImage src={person.photoUrl} alt={person.name} />
+                    : null}
+                  <AvatarFallback className="bg-[rgb(var(--primary-rgb)/0.1)] text-primary text-[11px] font-semibold">
                     {person.name.charAt(0)}
                   </AvatarFallback>
                 </Avatar>
@@ -333,6 +343,24 @@ export default function PersonnelPage() {
           })}
         </div>
       </div>
+
+      {/* 头像灯箱：详情卡头像点击后的大图查看 */}
+      <Dialog open={!!photoZoomPerson} onOpenChange={o => { if (!o) setPhotoZoomPerson(null) }}>
+        <DialogContent className="sm:max-w-md gap-3">
+          <DialogTitle className="sr-only">{photoZoomPerson?.name} 的照片</DialogTitle>
+          {photoZoomPerson?.photoUrl && (
+            <img
+              src={photoZoomPerson.photoUrl}
+              alt={photoZoomPerson.name}
+              className="w-full max-h-[70vh] object-contain rounded-lg bg-muted"
+            />
+          )}
+          <p className="text-sm text-muted-foreground text-center">
+            {photoZoomPerson?.name}
+            {photoZoomPerson?.department ? ` · ${photoZoomPerson.department}` : ''}
+          </p>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -347,20 +375,39 @@ function PersonDetailBody({
   person,
   ws,
   onReinstate,
+  onPhotoZoom,
 }: {
   person: Person
   ws: NewWorkstation | null
   onReinstate: (p: Person) => Promise<void>
+  onPhotoZoom: (p: Person) => void
 }) {
   const { user } = useAuth()
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <Avatar className="h-10 w-10">
-          <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
-            {person.name.charAt(0)}
-          </AvatarFallback>
-        </Avatar>
+        {person.photoUrl ? (
+          // 有照片：点击放大（灯箱）；无照片时是纯字母占位，不响应点击
+          <button
+            type="button"
+            title="放大查看照片"
+            className="rounded-full cursor-zoom-in transition hover:ring-2 hover:ring-[rgb(var(--primary-rgb)/0.4)] hover:ring-offset-2 hover:ring-offset-card"
+            onClick={() => onPhotoZoom(person)}
+          >
+            <Avatar className="h-14 w-14">
+              <AvatarImage src={person.photoUrl} alt={person.name} />
+              <AvatarFallback className="bg-[rgb(var(--primary-rgb)/0.1)] text-primary text-sm font-semibold">
+                {person.name.charAt(0)}
+              </AvatarFallback>
+            </Avatar>
+          </button>
+        ) : (
+          <Avatar className="h-14 w-14">
+            <AvatarFallback className="bg-[rgb(var(--primary-rgb)/0.1)] text-primary text-sm font-semibold">
+              {person.name.charAt(0)}
+            </AvatarFallback>
+          </Avatar>
+        )}
         <div>
           <p className="font-medium">{person.name}</p>
           <p className="text-xs text-muted-foreground">{person.role || '—'}</p>
@@ -388,6 +435,12 @@ function PersonDetailBody({
           <div className="flex items-center gap-2 text-muted-foreground">
             <Mail className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">{person.email}</span>
+          </div>
+        )}
+        {person.department && (
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Building2 className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{person.department}</span>
           </div>
         )}
         {person.offboarded && (

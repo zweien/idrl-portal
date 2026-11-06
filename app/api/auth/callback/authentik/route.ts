@@ -32,8 +32,8 @@ export async function GET(req: NextRequest) {
     const origin = getRequestOrigin(req)
     const tokens = await exchangeAuthentikCode(code, origin)
 
-    // 3. fetch userinfo
-    const info = await fetchAuthentikUserInfo(tokens.access_token)
+    // 3. fetch userinfo（origin 与换 token 保持同一来源）
+    const info = await fetchAuthentikUserInfo(tokens.access_token, origin)
 
     // 4. upsert User; auto-link to a Person with matching email
     let personId: string | undefined

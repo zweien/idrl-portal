@@ -66,6 +66,37 @@ describe('requireScope', () => {
     expect(mockUpdate).toHaveBeenCalled()
   })
 
+  it('accepts a scope array (any-of) — uploads admit news:publish or admin keys', async () => {
+    const adminOnlyKey = 'idrl_adminkey'
+    mockFindUnique.mockResolvedValue({
+      id: 'k-admin', keyHash: hashApiKey(adminOnlyKey), revokedAt: null, rateLimitPerMin: null,
+      scopes: JSON.stringify(['admin']),
+    })
+    mockUpdate.mockResolvedValue({})
+    mockExecuteRawUnsafe.mockResolvedValue(1)
+    const adminRes = await requireScope(req({ authorization: `Bearer ${adminOnlyKey}` }), ['news:publish', 'admin'])
+    expect(adminRes).not.toBeInstanceOf(Response)
+
+    const newsKey = 'idrl_newskey'
+    mockFindUnique.mockResolvedValue({
+      id: 'k-news', keyHash: hashApiKey(newsKey), revokedAt: null, rateLimitPerMin: null,
+      scopes: JSON.stringify(['news:publish']),
+    })
+    mockUpdate.mockResolvedValue({})
+    mockExecuteRawUnsafe.mockResolvedValue(1)
+    const newsRes = await requireScope(req({ authorization: `Bearer ${newsKey}` }), ['news:publish', 'admin'])
+    expect(newsRes).not.toBeInstanceOf(Response)
+
+    const neither = 'idrl_neither'
+    mockFindUnique.mockResolvedValue({
+      id: 'k-x', keyHash: hashApiKey(neither), revokedAt: null, rateLimitPerMin: null,
+      scopes: JSON.stringify(['sync:members']),
+    })
+    mockGetSession.mockResolvedValue({}) // no session → 401/403 path
+    const denied = await requireScope(req({ authorization: `Bearer ${neither}` }), ['news:publish', 'admin'])
+    expect(denied).toBeInstanceOf(Response)
+  })
+
   it('returns 429 when the API key exceeds its rate limit', async () => {
     const plain = 'idrl_limited2'
     mockFindUnique.mockResolvedValue({

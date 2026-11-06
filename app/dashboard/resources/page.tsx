@@ -1,4 +1,5 @@
 'use client'
+import { StickyPageHeader } from '@/components/dashboard/sticky-page-header'
 
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
@@ -41,8 +42,8 @@ function resolveIcon(resource: { icon?: string | null } | null): React.ElementTy
 }
 
 const statusConfig = {
-  available:   { label: '可用',   className: 'bg-[var(--status-present)]/15 text-[var(--status-present)]' },
-  maintenance: { label: '维护中', className: 'bg-[var(--status-absent)]/15 text-[var(--status-absent)]' },
+  available:   { label: '可用',   className: 'bg-[rgb(var(--success-rgb)/0.15)] text-success' },
+  maintenance: { label: '维护中', className: 'bg-[rgb(var(--destructive-rgb)/0.15)] text-destructive' },
   restricted:  { label: '受限',   className: 'bg-muted text-muted-foreground' },
 }
 
@@ -116,28 +117,26 @@ export default function ResourcesPage() {
 
   return (
     <div className="space-y-4 py-2">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">资源聚合</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">访问实验室计算资源、存储空间、代码仓库等</p>
+      <StickyPageHeader>
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight">资源聚合</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">访问实验室计算资源、存储空间、代码仓库等</p>
+          </div>
+          {isAdmin && (
+            <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 shrink-0" asChild>
+              <Link href="/dashboard/admin?tab=resources">
+                <Settings className="h-3.5 w-3.5" />管理
+              </Link>
+            </Button>
+          )}
         </div>
-        {isAdmin && (
-          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 shrink-0" asChild>
-            <Link href="/dashboard/admin?tab=resources">
-              <Settings className="h-3.5 w-3.5" />管理
-            </Link>
-          </Button>
-        )}
-      </div>
-      {editError && (
-        <p className="text-xs text-destructive">编辑保存失败：{editError}</p>
-      )}
 
-      {/* Filter bar */}
-      <div className="flex flex-wrap items-center gap-2">
+        {/* Filter bar */}
+        <div className="flex flex-wrap items-center gap-2 mt-3">
         <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Search className="absolute left-2.5 top-[calc(50%-7px)] h-3.5 w-3.5 text-muted-foreground" />
           <Input
             placeholder="搜索资源…"
             value={search}
@@ -168,6 +167,10 @@ export default function ResourcesPage() {
           )
         })}
       </div>
+      </StickyPageHeader>
+      {editError && (
+        <p className="text-xs text-destructive">编辑保存失败：{editError}</p>
+      )}
 
       {/* Content */}
       <div className="grid lg:grid-cols-3 gap-4">
@@ -175,7 +178,7 @@ export default function ResourcesPage() {
         <div className="lg:col-span-2 space-y-2">
           {filtered.length === 0 && (
             <div className="rounded-lg border border-border bg-card flex flex-col items-center justify-center py-16 text-center">
-              <Server className="h-8 w-8 text-muted-foreground/40 mb-3" />
+              <Server className="h-8 w-8 text-[rgb(var(--muted-foreground-rgb)/0.4)] mb-3" />
               <p className="text-sm text-muted-foreground">没有找到匹配的资源</p>
             </div>
           )}
@@ -190,11 +193,11 @@ export default function ResourcesPage() {
                 className={cn(
                   'w-full flex items-start gap-3 p-4 rounded-lg border text-left transition-colors',
                   isSelected
-                    ? 'border-primary/50 bg-primary/5'
+                    ? 'border-[rgb(var(--primary-rgb)/0.5)] bg-[rgb(var(--primary-rgb)/0.05)]'
                     : 'border-border bg-card hover:bg-accent',
                 )}
               >
-                <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                <div className="w-8 h-8 rounded-md bg-[rgb(var(--primary-rgb)/0.1)] flex items-center justify-center shrink-0 mt-0.5">
                   <Icon className="h-4 w-4 text-primary" />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -229,7 +232,7 @@ export default function ResourcesPage() {
                     role="button"
                     aria-label={`编辑 ${resource.name}`}
                     title="编辑"
-                    className="shrink-0 p-1 rounded text-muted-foreground/50 hover:text-foreground hover:bg-accent transition-colors"
+                    className="shrink-0 p-1 rounded text-[rgb(var(--muted-foreground-rgb)/0.5)] hover:text-foreground hover:bg-accent transition-colors"
                     onClick={e => { e.stopPropagation(); openEdit(resource) }}
                   >
                     <Pencil className="h-3.5 w-3.5" />
@@ -264,7 +267,7 @@ export default function ResourcesPage() {
               return (
                 <div className="space-y-4">
                   <div className="flex items-start gap-3">
-                    <div className="w-9 h-9 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+                    <div className="w-9 h-9 rounded-md bg-[rgb(var(--primary-rgb)/0.1)] flex items-center justify-center shrink-0">
                       <Icon className="h-5 w-5 text-primary" />
                     </div>
                     <div>
@@ -284,7 +287,7 @@ export default function ResourcesPage() {
                       <p className="text-xs font-medium mb-2">配置规格</p>
                       <div className="space-y-1.5">
                         {Object.entries(selected.specs).map(([k, v]) => (
-                          <div key={k} className="flex justify-between text-xs py-1.5 px-2.5 rounded-md bg-muted/50">
+                          <div key={k} className="flex justify-between text-xs py-1.5 px-2.5 rounded-md bg-[rgb(var(--muted-rgb)/0.5)]">
                             <span className="text-muted-foreground">{k}</span>
                             <span className="font-medium font-mono">{v}</span>
                           </div>
@@ -310,7 +313,7 @@ export default function ResourcesPage() {
               )
             })() : (
               <div className="flex flex-col items-center justify-center py-10 text-center">
-                <Server className="h-8 w-8 text-muted-foreground/40 mb-3" />
+                <Server className="h-8 w-8 text-[rgb(var(--muted-foreground-rgb)/0.4)] mb-3" />
                 <p className="text-sm text-muted-foreground">选择资源查看详情</p>
               </div>
             )}

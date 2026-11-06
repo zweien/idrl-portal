@@ -1,4 +1,4 @@
-# IDRL Portal · 智能数据研究实验室门户
+# IDRL Portal · 智能设计与鲁棒学习
 
 [![CI](https://github.com/zweien/idrl-portal/actions/workflows/ci.yml/badge.svg)](https://github.com/zweien/idrl-portal/actions/workflows/ci.yml)
 [![Tests](https://img.shields.io/badge/tests-363%20passed-brightgreen)](https://github.com/zweien/idrl-portal/blob/master/tests)
@@ -7,7 +7,7 @@
 [![Prisma](https://img.shields.io/badge/Prisma-7-2D3748)](https://www.prisma.io/)
 [![License](https://img.shields.io/badge/license-private-lightgrey)](#-许可证)
 
-> 实验室信息聚合门户——跟踪人员在位情况、资源链接与新闻公告，并提供可视化工位平面图管理；深度集成钉钉考勤与组织架构。
+> IDRL（智能设计与鲁棒学习）的实验室信息聚合门户——跟踪人员在位情况、资源链接与新闻公告，并提供可视化工位平面图管理；深度集成钉钉考勤与组织架构。
 
 IDRL Portal 是一个为科研实验室设计的内部信息看板。它把人员考勤（钉钉同步）、工位分布、常用资源、新闻公告整合到一个中文界面里；管理员可视化管理楼层 / 区域 / 工位布局、用户权限、API 密钥、数据备份与后台调度。所有功能同时暴露为 HTTP API，可供机器 agent 接入管理（见 [API 参考](#-api-参考)）。
 

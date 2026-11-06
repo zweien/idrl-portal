@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { MarkdownContent } from '@/components/dashboard/markdown-content'
+import { StickyPageHeader } from '@/components/dashboard/sticky-page-header'
 import { useAdminData, useCategories, useNews } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import type { NewsItem, Category } from '@/lib/types'
@@ -24,30 +25,33 @@ import {
 
 // Cycle through chart color tokens for each category (now dynamic).
 const catPalette = [
-  { color: 'text-[var(--chart-1)]', accent: 'bg-[var(--chart-1)]/8 border-[var(--chart-1)]/20' },
-  { color: 'text-[var(--chart-2)]', accent: 'bg-[var(--chart-2)]/8 border-[var(--chart-2)]/20' },
-  { color: 'text-[var(--chart-3)]', accent: 'bg-[var(--chart-3)]/8 border-[var(--chart-3)]/20' },
-  { color: 'text-[var(--chart-4)]', accent: 'bg-[var(--chart-4)]/8 border-[var(--chart-4)]/20' },
-  { color: 'text-[var(--chart-5)]', accent: 'bg-[var(--chart-5)]/8 border-[var(--chart-5)]/20' },
+  { color: 'text-[var(--chart-1)]', accent: 'bg-[rgb(var(--chart-1-rgb)/0.08)] border-[rgb(var(--chart-1-rgb)/0.2)]' },
+  { color: 'text-[var(--chart-2)]', accent: 'bg-[rgb(var(--chart-2-rgb)/0.08)] border-[rgb(var(--chart-2-rgb)/0.2)]' },
+  { color: 'text-[var(--chart-3)]', accent: 'bg-[rgb(var(--chart-3-rgb)/0.08)] border-[rgb(var(--chart-3-rgb)/0.2)]' },
+  { color: 'text-[var(--chart-4)]', accent: 'bg-[rgb(var(--chart-4-rgb)/0.08)] border-[rgb(var(--chart-4-rgb)/0.2)]' },
+  { color: 'text-[var(--chart-5)]', accent: 'bg-[rgb(var(--chart-5-rgb)/0.08)] border-[rgb(var(--chart-5-rgb)/0.2)]' },
 ]
 
 function catConfig(cat: Category, index: number) {
   return { ...catPalette[index % catPalette.length] }
 }
 
-function StatCard({ label, value, sub, icon: Icon }: {
-  label: string; value: string; sub?: string; icon: React.ElementType
+function StatCard({ label, value, sub, icon: Icon, href }: {
+  label: string; value: string; sub?: string; icon: React.ElementType; href: string
 }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-4 flex items-center gap-3">
-      <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+    <Link
+      href={href}
+      className="rounded-lg border border-border bg-card p-4 flex items-center gap-3 transition-all hover:shadow-sm hover:border-[rgb(var(--border-rgb)/0.8)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <div className="w-8 h-8 rounded-md bg-[rgb(var(--primary-rgb)/0.1)] flex items-center justify-center shrink-0">
         <Icon className="h-4 w-4 text-primary" />
       </div>
       <div>
         <p className="text-xl font-semibold tabular-nums">{value}</p>
-        <p className="text-xs text-muted-foreground">{label}{sub && <span className="ml-1 text-muted-foreground/60">{sub}</span>}</p>
+        <p className="text-xs text-muted-foreground">{label}{sub && <span className="ml-1 text-[rgb(var(--muted-foreground-rgb)/0.6)]">{sub}</span>}</p>
       </div>
-    </div>
+    </Link>
   )
 }
 
@@ -56,7 +60,7 @@ function NewsCard({ news, catLabel, cfg, onExpand }: { news: NewsItem; catLabel:
     <button
       onClick={() => onExpand(news)}
       className={cn(
-        'w-full text-left rounded-lg border bg-card p-4 transition-all hover:shadow-sm hover:border-border/80',
+        'w-full text-left rounded-lg border bg-card p-4 transition-all hover:shadow-sm hover:border-[rgb(var(--border-rgb)/0.8)]',
         news.pinned && cfg.accent
       )}
     >
@@ -98,7 +102,11 @@ function NewsCard({ news, catLabel, cfg, onExpand }: { news: NewsItem; catLabel:
 function NewsExpandModal({ news, catLabel, cfg, onClose }: { news: NewsItem; catLabel: string; cfg: { color: string; accent: string }; onClose: () => void }) {
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
-      <DialogContent className="sm:max-w-2xl gap-0 p-0">
+      {/* 弹窗限高：长公告时头部固定、正文区内部滚动（min-h-0 让 grid 行可收缩），
+          否则 fixed 定位的弹窗会整体超出视口且内容不可达。
+          用 vh 而非 dvh：dvh 单位（Chromium 108+）钉钉旧 WebView 不识别，
+          整条 max-height 会被丢弃，弹窗又恢复无限高。 */}
+      <DialogContent className="sm:max-w-2xl gap-0 p-0 max-h-[85vh] grid-rows-[auto_minmax(0,1fr)]">
         {/* Radix requires a DialogTitle for screen readers; the visible title
             is rendered in the body below, so this one is visually hidden. */}
         <DialogTitle className="sr-only">{news.title}</DialogTitle>
@@ -122,7 +130,7 @@ function NewsExpandModal({ news, catLabel, cfg, onClose }: { news: NewsItem; cat
           </div>
         </div>
         {/* Body. DialogContent already renders the close (X) button. */}
-        <div className="p-5 space-y-4">
+        <div className="p-5 space-y-4 overflow-y-auto min-h-0">
           <div>
             <h2 className="text-lg font-semibold leading-snug">{news.title}</h2>
             <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
@@ -221,21 +229,21 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6 py-2">
       {/* Page header */}
-      <div>
+      <StickyPageHeader>
         <h1 className="text-xl font-semibold tracking-tight">
           你好，{user?.name ?? '用户'}
         </h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          IDRL 实验室门户 — 查看人员在位、资源与最新动态
+          IDRL 门户 — 查看人员在位、资源与最新动态
         </p>
-      </div>
+      </StickyPageHeader>
 
-      {/* Stats row */}
+      {/* Stats row — each card navigates to its detail page. */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard icon={Users}   label="在位人员" value={`${personnelStats.present}/${personnelStats.total}`} />
-        <StatCard icon={Monitor} label="工位使用" value="查看详情" sub="→ 人员工位" />
-        <StatCard icon={Server}  label="可用资源" value={`${availableCount}/${resources.length}`} />
-        <StatCard icon={Pin}     label="置顶动态" value={String(pinnedNews.length)} />
+        <StatCard icon={Users}   label="在位人员" value={`${personnelStats.present}/${personnelStats.total}`} href="/dashboard/personnel" />
+        <StatCard icon={Monitor} label="工位使用" value="查看详情" sub="→ 人员工位" href="/dashboard/personnel" />
+        <StatCard icon={Server}  label="可用资源" value={`${availableCount}/${resources.length}`} href="/dashboard/resources" />
+        <StatCard icon={Pin}     label="置顶动态" value={String(pinnedNews.length)} href="/dashboard/news" />
       </div>
 
       {/* Pinned news */}
@@ -312,7 +320,7 @@ export default function DashboardPage() {
               </span>
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
                 resource.status === 'available'
-                  ? 'bg-[var(--status-present)]/15 text-[var(--status-present)]'
+                  ? 'bg-[rgb(var(--success-rgb)/0.15)] text-success'
                   : 'bg-muted text-muted-foreground'
               }`}>
                 {resource.status === 'available' ? '可用' : '维护'}

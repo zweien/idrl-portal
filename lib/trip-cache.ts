@@ -19,6 +19,8 @@ export interface CachedTrip {
   /** false = terminal but unparseable — safe to skip forever. */
   parsed: boolean
   originator?: string
+  /** 同行人 user ids (persisted as a JSON array column). */
+  companions?: string[]
 }
 
 let loaded = false
@@ -29,10 +31,27 @@ export async function loadTripCache(mem: Map<string, CachedTrip>): Promise<void>
   loaded = true
   try {
     const rows = await prisma.tripInstanceCache.findMany()
-    for (const r of rows) {
+    // companions=NULL marks rows written BEFORE the companions column existed
+    // (new code always persists '[]', even when empty). Such rows would
+    // silently keep attributing trips to the originator only, forever —
+    // skip them and delete so the detail fetch re-runs once and re-persists
+    // the row with companions (one-time upgrade cost per legacy instance).
+    const legacyIds = rows.filter(r => r.companions === null).map(r => r.instanceId)
+    const fresh = rows.filter(r => r.companions !== null)
+    if (legacyIds.length > 0) {
+      void prisma.tripInstanceCache.deleteMany({
+        where: { instanceId: { in: legacyIds } },
+      }).catch(e => console.error('trip cache legacy delete failed:', e))
+    }
+    for (const r of fresh) {
       // Don't overwrite entries already fetched live this process — they
       // are at least as fresh as the persisted row.
       if (mem.has(r.instanceId)) continue
+      let companions: string[] = []
+      try {
+        const parsed = JSON.parse(r.companions!)
+        if (Array.isArray(parsed)) companions = parsed.filter((s): s is string => typeof s === 'string')
+      } catch { /* garbled row — treat as no companions */ }
       mem.set(r.instanceId, {
         // BigInt column -> JS epoch-ms numbers at the cache boundary.
         tripStart: r.tripStart === null ? 0 : Number(r.tripStart),
@@ -40,6 +59,7 @@ export async function loadTripCache(mem: Map<string, CachedTrip>): Promise<void>
         reason: r.reason ?? undefined,
         parsed: r.parsed,
         originator: r.originatorUserid ?? undefined,
+        companions,
       })
     }
   } catch (e) {
@@ -60,6 +80,9 @@ export function persistTripInstance(instanceId: string, entry: CachedTrip): void
     tripEnd: end,
     reason: entry.reason ?? null,
     parsed: entry.parsed,
+    // Always a JSON string: NULL is reserved for pre-companions legacy rows
+    // (see loadTripCache — those are re-fetched once and upgraded).
+    companions: JSON.stringify(entry.companions ?? []),
   }
   void prisma.tripInstanceCache
     .upsert({

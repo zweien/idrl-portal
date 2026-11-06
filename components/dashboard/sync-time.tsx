@@ -33,7 +33,7 @@ export function SyncTimeBadge({ className }: { className?: string }) {
   return (
     <span
       title={absolute}
-      className={`inline-flex items-center gap-1 text-xs ${failed ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'} ${className ?? ''}`}
+      className={`inline-flex items-center gap-1 text-xs ${failed ? 'text-warning' : 'text-muted-foreground'} ${className ?? ''}`}
     >
       {failed ? '考勤同步失败' : '考勤同步于'} · {rel}
     </span>

@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { useSidebar } from '@/lib/sidebar-context'
@@ -42,6 +41,7 @@ import {
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { APP_VERSION } from '@/lib/version'
+import { Brand } from '@/components/brand'
 
 const navItems = [
   { href: '/dashboard',            label: '概览',     icon: LayoutDashboard },
@@ -113,15 +113,15 @@ export function DashboardNav() {
           collapsed ? 'justify-center px-2' : 'justify-between px-4'
         )}>
           {!collapsed && (
-            <Link href="/dashboard" className="flex items-center gap-2 group">
-              <Image src="/favicon.svg" alt="" width={20} height={20} className="w-5 h-5 shrink-0" priority />
-              <span className="text-sm font-semibold tracking-tight">IDRL Portal</span>
-              <span className="text-[10px] text-muted-foreground/70 font-mono mt-0.5">v{APP_VERSION}</span>
+            <Link href="/dashboard" className="flex items-center gap-2.5 group" aria-label="返回概览">
+              {/* 官方 IDRL 字标：深浅主题自动切换 reverse 资产 */}
+              <Brand variant="wordmark" width={88} priority />
+              <span className="text-[10px] text-[rgb(var(--muted-foreground-rgb)/0.7)] font-mono mt-0.5">v{APP_VERSION}</span>
             </Link>
           )}
           {collapsed && (
-            <Link href="/dashboard">
-              <Image src="/favicon.svg" alt="" width={20} height={20} className="w-5 h-5 shrink-0" priority />
+            <Link href="/dashboard" aria-label="返回概览">
+              <Brand variant="symbol" width={32} priority />
             </Link>
           )}
           {/* Collapse/expand toggle lives in the wordmark row so its position
@@ -161,7 +161,7 @@ export function DashboardNav() {
                         : 'gap-2.5 px-2.5 py-1.5',
                       isActive
                         ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
-                        : 'text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-foreground'
+                        : 'text-muted-foreground hover:bg-[rgb(var(--sidebar-accent-rgb)/0.6)] hover:text-sidebar-foreground'
                     )}
                   >
                     <item.icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-primary' : '')} />
@@ -188,9 +188,9 @@ export function DashboardNav() {
           {!collapsed ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-sm hover:bg-sidebar-accent/60 transition-colors">
+                <button className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-sm hover:bg-[rgb(var(--sidebar-accent-rgb)/0.6)] transition-colors">
                   <Avatar className="h-6 w-6 shrink-0">
-                    <AvatarFallback className="bg-primary/15 text-primary text-[10px] font-semibold">
+                    <AvatarFallback className="bg-[rgb(var(--primary-rgb)/0.15)] text-primary text-[10px] font-semibold">
                       {user?.name?.charAt(0) ?? 'U'}
                     </AvatarFallback>
                   </Avatar>
@@ -216,7 +216,7 @@ export function DashboardNav() {
               <TooltipTrigger asChild>
                 <button
                   onClick={handleLogout}
-                  className="flex items-center justify-center w-full py-2 rounded-md text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                  className="flex items-center justify-center w-full py-2 rounded-md text-sm text-muted-foreground hover:text-destructive hover:bg-[rgb(var(--destructive-rgb)/0.1)] transition-colors"
                 >
                   <LogOut className="h-4 w-4" />
                 </button>
@@ -230,11 +230,10 @@ export function DashboardNav() {
       </aside>
 
       {/* ── Mobile header ───────────────────────────── */}
-      <header className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-sm border-b border-border">
+      <header className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-[rgb(var(--background-rgb)/0.9)] backdrop-blur-sm border-b border-border">
         <div className="flex items-center justify-between h-12 px-4">
-          <Link href="/dashboard" className="flex items-center gap-2">
-            <Image src="/favicon.svg" alt="" width={20} height={20} className="w-5 h-5 shrink-0" priority />
-            <span className="text-sm font-semibold">IDRL Portal</span>
+          <Link href="/dashboard" className="flex items-center" aria-label="返回概览">
+            <Brand variant="wordmark" width={84} priority />
           </Link>
 
           <div className="flex items-center gap-1">
@@ -274,7 +273,7 @@ export function DashboardNav() {
                     'flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm transition-colors',
                     isActive
                       ? 'bg-accent text-accent-foreground font-medium'
-                      : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+                      : 'text-muted-foreground hover:bg-[rgb(var(--accent-rgb)/0.6)] hover:text-foreground'
                   )}
                 >
                   <item.icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-primary' : '')} />
@@ -285,7 +284,7 @@ export function DashboardNav() {
             <Separator className="my-1" />
             <button
               onClick={handleLogout}
-              className="flex items-center gap-2.5 w-full px-2.5 py-2 rounded-md text-sm text-destructive hover:bg-destructive/10 transition-colors"
+              className="flex items-center gap-2.5 w-full px-2.5 py-2 rounded-md text-sm text-destructive hover:bg-[rgb(var(--destructive-rgb)/0.1)] transition-colors"
             >
               <LogOut className="h-4 w-4 shrink-0" />
               退出登录

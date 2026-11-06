@@ -16,9 +16,9 @@ const ENDPOINTS: Record<SyncKind, string> = {
 function StageIcon({ stage }: { stage: SyncStageState }) {
   const cls = 'h-3 w-3 shrink-0'
   if (stage.status === 'running') return <Loader2 className={cn(cls, 'animate-spin text-primary')} />
-  if (stage.status === 'done') return <CheckCircle2 className={cn(cls, 'text-emerald-600')} />
+  if (stage.status === 'done') return <CheckCircle2 className={cn(cls, 'text-success')} />
   if (stage.status === 'failed') return <XCircle className={cn(cls, 'text-destructive')} />
-  return <Circle className={cn(cls, 'text-muted-foreground/40')} />
+  return <Circle className={cn(cls, 'text-[rgb(var(--muted-foreground-rgb)/0.4)]')} />
 }
 
 function formatMs(ms: number | null): string {
@@ -181,7 +181,7 @@ export function SyncTaskButton({
               {myTask.stages.map(s => (
                 <div key={s.key} className="flex items-center gap-1.5">
                   <StageIcon stage={s} />
-                  <span className={cn(s.status === 'pending' && 'text-muted-foreground/60')}>
+                  <span className={cn(s.status === 'pending' && 'text-[rgb(var(--muted-foreground-rgb)/0.6)]')}>
                     {s.label}
                   </span>
                   {s.status === 'done' && s.ms !== null && (
@@ -197,7 +197,7 @@ export function SyncTaskButton({
             </div>
           )}
           {showMyState && myTask.state === 'done' && (
-            <div className="flex items-start gap-1.5 text-emerald-600">
+            <div className="flex items-start gap-1.5 text-success">
               <CheckCircle2 className="h-3 w-3 shrink-0 mt-0.5" />
               <span>
                 {myTask.result?.summary ?? '同步完成'}
@@ -212,7 +212,7 @@ export function SyncTaskButton({
             </div>
           )}
           {interrupted && (
-            <div className="flex items-start gap-1.5 text-amber-600">
+            <div className="flex items-start gap-1.5 text-warning">
               <CircleDot className="h-3 w-3 shrink-0 mt-0.5" />
               <span>同步中断（服务重启），请重试</span>
             </div>

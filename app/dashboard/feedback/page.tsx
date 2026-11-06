@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { StickyPageHeader } from '@/components/dashboard/sticky-page-header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -49,11 +50,13 @@ const CATEGORY_LABELS: Record<FeedbackCategory, string> = {
   other: '其他',
 }
 
+// 分类徽章映射到 VI 功能色：bug→destructive、建议→primary、疑问→warning、
+// 其他→muted；深浅主题由语义变量自动适配。
 const CATEGORY_BADGE: Record<FeedbackCategory, string> = {
-  bug: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
-  suggestion: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300',
-  question: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
-  other: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+  bug: 'bg-[rgb(var(--destructive-rgb)/0.1)] text-destructive dark:bg-[rgb(var(--destructive-rgb)/0.15)]',
+  suggestion: 'bg-[rgb(var(--primary-rgb)/0.1)] text-primary dark:bg-[rgb(var(--primary-rgb)/0.15)]',
+  question: 'bg-[rgb(var(--warning-rgb)/0.1)] text-warning dark:bg-[rgb(var(--warning-rgb)/0.15)]',
+  other: 'bg-muted text-muted-foreground',
 }
 
 export default function FeedbackPage() {
@@ -128,39 +131,41 @@ export default function FeedbackPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">问题反馈</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            提交使用中遇到的问题或建议，管理员会跟进处理。
-          </p>
+      <StickyPageHeader className="pt-3 pb-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-semibold">问题反馈</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              提交使用中遇到的问题或建议，管理员会跟进处理。
+            </p>
+          </div>
+          <Button onClick={() => setComposing(true)}>
+            <MessageSquarePlus className="h-4 w-4 mr-1.5" />发起反馈
+          </Button>
         </div>
-        <Button onClick={() => setComposing(true)}>
-          <MessageSquarePlus className="h-4 w-4 mr-1.5" />发起反馈
-        </Button>
-      </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v as FeedbackStatus | 'all'); setPageSize(20) }}>
-          <SelectTrigger className="w-[120px] h-9"><SelectValue placeholder="状态" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全部状态</SelectItem>
-            <SelectItem value="open">待处理</SelectItem>
-            <SelectItem value="resolved">已处理</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={categoryFilter} onValueChange={(v) => { setCategoryFilter(v as FeedbackCategory | 'all'); setPageSize(20) }}>
-          <SelectTrigger className="w-[120px] h-9"><SelectValue placeholder="分类" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全部分类</SelectItem>
-            <SelectItem value="bug">问题反馈</SelectItem>
-            <SelectItem value="suggestion">建议</SelectItem>
-            <SelectItem value="question">疑问</SelectItem>
-            <SelectItem value="other">其他</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+        {/* Filters */}
+        <div className="flex flex-wrap items-center gap-2 mt-3">
+          <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v as FeedbackStatus | 'all'); setPageSize(20) }}>
+            <SelectTrigger className="w-[120px] h-9"><SelectValue placeholder="状态" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部状态</SelectItem>
+              <SelectItem value="open">待处理</SelectItem>
+              <SelectItem value="resolved">已处理</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={categoryFilter} onValueChange={(v) => { setCategoryFilter(v as FeedbackCategory | 'all'); setPageSize(20) }}>
+            <SelectTrigger className="w-[120px] h-9"><SelectValue placeholder="分类" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部分类</SelectItem>
+              <SelectItem value="bug">问题反馈</SelectItem>
+              <SelectItem value="suggestion">建议</SelectItem>
+              <SelectItem value="question">疑问</SelectItem>
+              <SelectItem value="other">其他</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </StickyPageHeader>
 
       {/* List */}
       {!listResp ? (
@@ -173,7 +178,7 @@ export default function FeedbackPage() {
             <button
               key={f.id}
               onClick={() => setSelectedId(f.id)}
-              className="w-full text-left rounded-lg border border-border bg-card p-4 hover:border-foreground/20 transition-colors"
+              className="w-full text-left rounded-lg border border-border bg-card p-4 hover:border-[rgb(var(--foreground-rgb)/0.2)] transition-colors"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
@@ -318,7 +323,7 @@ function FeedbackDetail(props: {
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span>{post.authorName}</span>
           <span>{formatTime(post.createdAt)}</span>
-          {post.contact && <span className="text-muted-foreground/70">联系：{post.contact}</span>}
+          {post.contact && <span className="text-[rgb(var(--muted-foreground-rgb)/0.7)]">联系：{post.contact}</span>}
         </div>
         {canDeletePost && (
           <div className="pt-2 border-t border-border">

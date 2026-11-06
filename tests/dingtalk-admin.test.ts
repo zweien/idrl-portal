@@ -1,5 +1,18 @@
-import { describe, it, expect } from 'vitest'
-import { mapStatusForDay, parseTripWindow, type DayAttendance, type TripStatus } from '@/lib/dingtalk-admin'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { mapStatusForDay, parseTripWindow, fetchTripStatus, type DayAttendance, type TripStatus } from '@/lib/dingtalk-admin'
+
+// Hermetic fetchTripStatus tests: the trip-detail cache must not touch the
+// real database (the default DATABASE_URL points at the dev SQLite file).
+// In-memory stand-in with the same load/persist surface.
+vi.mock('@/lib/trip-cache', () => {
+  const backing = new Map<string, unknown>()
+  return {
+    loadTripCache: async (mem: Map<string, unknown>) => {
+      for (const [k, v] of backing) if (!mem.has(k)) mem.set(k, v)
+    },
+    persistTripInstance: (id: string, entry: unknown) => { backing.set(id, entry) },
+  }
+})
 
 describe('parseTripWindow (trip form → date range + reason)', () => {
   it('parses 京内 format (开始/结束时间 JSON array field)', () => {
@@ -76,6 +89,86 @@ describe('parseTripWindow (trip form → date range + reason)', () => {
     const w = parseTripWindow(form)
     expect(w.tripStart).toBeNull()
     expect(w.tripEnd).toBeNull()
+  })
+})
+
+describe('parseTripWindow — 同行人 (traveler contact field)', () => {
+  // Both real templates embed the co-traveler InnerContactField inside the
+  // DDBizSuite JSON with bizAlias "traveler": 京外出差 labels it
+  // "出行人（同行人）", 京内因公 labels it "同行人". User ids live in
+  // extValue ({emplId,name}[]); value holds display names only.
+  function formWithTraveler(label: string, extValue: string | undefined, value?: string) {
+    const comp: Record<string, unknown> = {
+      componentName: 'InnerContactField',
+      componentType: 'InnerContactField',
+      props: { bizAlias: 'traveler', label },
+    }
+    if (extValue !== undefined) comp.extValue = extValue
+    if (value !== undefined) comp.value = value
+    return [{
+      name: '商旅出差',
+      value: JSON.stringify([
+        { props: { bizAlias: 'reason' }, value: '技术交流' },
+        { props: { bizAlias: 'itinerary' }, value: JSON.stringify([{ rowValue: [
+          { bizAlias: 'startTime', value: '2026-10-20 上午' },
+          { bizAlias: 'endTime', value: '2026-10-22 下午' },
+        ]}]) },
+        comp,
+      ]),
+    }]
+  }
+
+  it('extracts emplIds from the 京外出差 出行人（同行人）extValue', () => {
+    const extValue = JSON.stringify([
+      { emplId: '03683751325720980786', name: '刘怡君' },
+      { emplId: '015325646052785834', name: '张磊' },
+    ])
+    const w = parseTripWindow(formWithTraveler('出行人（同行人）', extValue, '刘怡君,张磊'))
+    expect(w.companions).toEqual(['03683751325720980786', '015325646052785834'])
+    expect(w.tripStart).not.toBeNull()
+  })
+
+  it('matches the 京内因公 同行人 label via the label fallback', () => {
+    const extValue = JSON.stringify([{ emplId: '633958412526187225', name: '李帅杰' }])
+    const form = [{
+      name: '外出',
+      value: JSON.stringify([
+        { props: { bizAlias: 'type' } },
+        { props: { bizAlias: 'traveler', label: '同行人' }, extValue },
+      ]),
+    }]
+    const w = parseTripWindow(form)
+    expect(w.companions).toEqual(['633958412526187225'])
+  })
+
+  it('falls back to the display-name value when extValue is absent', () => {
+    const w = parseTripWindow(formWithTraveler('同行人', undefined, '李家辉,张磊'))
+    // Names can't resolve to userids here — the caller filters against the
+    // synced userid set, where name tokens never match.
+    expect(w.companions).toEqual(['李家辉', '张磊'])
+  })
+
+  it('yields no companions when the field was left empty', () => {
+    // Empty fields appear WITHOUT value/extValue keys (real 外出 forms).
+    const w = parseTripWindow(formWithTraveler('同行人', undefined))
+    expect(w.companions).toEqual([])
+  })
+
+  it('parses a top-level 同行人 contact component (JSON userid array)', () => {
+    const form = [
+      { name: '开始时间,结束时间', value: JSON.stringify(['2026-07-18 09:00', '2026-07-18 18:00']) },
+      { name: '同行人', value: JSON.stringify(['u_companion_1', 'u_companion_2']) },
+    ]
+    const w = parseTripWindow(form)
+    expect(w.companions).toEqual(['u_companion_1', 'u_companion_2'])
+  })
+
+  it('originator self-listing is deduped at the attribution layer, not here', () => {
+    // A traveler list that includes the originator must not break parsing;
+    // fetchTripStatus dedupes via Set when building the owner list.
+    const extValue = JSON.stringify([{ emplId: 'u_originator', name: '刘帅' }])
+    const w = parseTripWindow(formWithTraveler('出行人（同行人）', extValue, '刘帅'))
+    expect(w.companions).toEqual(['u_originator'])
   })
 })
 
@@ -234,5 +327,87 @@ describe('parseTripWindow — 京外 商旅出差 (yyyy-MM-dd 上午/下午)', (
   it('returns null window for unparseable values (no crash)', () => {
     const w = parseTripWindow(tripForm('not-a-date', '2026-08-06 下午'))
     expect(w.tripStart).toBeNull()
+  })
+})
+
+describe('fetchTripStatus — 同行人 attribution (mocked DingTalk API)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    delete process.env.DINGTALK_TRIP_PROCESS_CODE
+  })
+
+  // Unique instance id per test: the module-level detail cache persists
+  // across cases in this file, and a cache hit would skip the detail fetch.
+  let instanceCounter = 0
+
+  function stubDingtalkApi(instanceForm: unknown[]) {
+    const instanceId = `inst-${++instanceCounter}`
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const u = String(url)
+      const body = init?.body ? JSON.parse(String(init.body)) : {}
+      if (u.includes('processinstance/listids')) {
+        return new Response(JSON.stringify({ errcode: 0, result: { list: [instanceId], next_cursor: undefined } }), { status: 200 })
+      }
+      if (u.includes('processinstance/get')) {
+        expect(body.process_instance_id).toBe(instanceId)
+        return new Response(JSON.stringify({
+          process_instance: {
+            status: 'COMPLETED',
+            result: 'agree',
+            originator_userid: 'u_originator',
+            form_component_values: instanceForm,
+          },
+        }), { status: 200 })
+      }
+      throw new Error(`unexpected fetch ${u}`)
+    }))
+  }
+
+  const tripFormWithCompanions = [{
+    name: '商旅出差',
+    value: JSON.stringify([
+      { props: { bizAlias: 'reason' }, value: '学术会议' },
+      { props: { bizAlias: 'itinerary' }, value: JSON.stringify([{ rowValue: [
+        { bizAlias: 'startTime', value: '2026-10-20 上午' },
+        { bizAlias: 'endTime', value: '2026-10-22 下午' },
+      ]}]) },
+      {
+        componentName: 'InnerContactField',
+        props: { bizAlias: 'traveler', label: '出行人（同行人）' },
+        extValue: JSON.stringify([
+          { emplId: 'u_originator', name: '发起人本人' },
+          { emplId: 'u_companion', name: '同行人甲' },
+          { emplId: 'u_outsider', name: '不在同步范围' },
+        ]),
+        value: '发起人本人,同行人甲,不在同步范围',
+      },
+    ]),
+  }]
+
+  it('marks trip days for the originator AND synced companions (deduped)', async () => {
+    process.env.DINGTALK_TRIP_PROCESS_CODE = 'PROC-TEST'
+    stubDingtalkApi(tripFormWithCompanions)
+    const byDay = await fetchTripStatus('token', ['u_originator', 'u_companion'], ['2026-10-21'])
+    // Originator + companion both marked; u_outsider (not synced) dropped; the
+    // originator self-listing in the traveler field must not double-count.
+    expect([...byDay.keys()].sort()).toEqual(['u_companion', 'u_originator'])
+    expect(byDay.get('u_originator')!.days.has('2026-10-21')).toBe(true)
+    expect(byDay.get('u_companion')!.days.has('2026-10-21')).toBe(true)
+    expect(byDay.get('u_companion')!.reason).toBe('学术会议')
+  })
+
+  it('keeps the instance when only a companion is in the synced set', async () => {
+    process.env.DINGTALK_TRIP_PROCESS_CODE = 'PROC-TEST'
+    stubDingtalkApi(tripFormWithCompanions)
+    const byDay = await fetchTripStatus('token', ['u_companion'], ['2026-10-21'])
+    expect(byDay.get('u_companion')?.days.has('2026-10-21')).toBe(true)
+    expect(byDay.has('u_originator')).toBe(false)
+  })
+
+  it('marks nothing when neither originator nor companions are synced', async () => {
+    process.env.DINGTALK_TRIP_PROCESS_CODE = 'PROC-TEST'
+    stubDingtalkApi(tripFormWithCompanions)
+    const byDay = await fetchTripStatus('token', ['u_unrelated'], ['2026-10-21'])
+    expect(byDay.size).toBe(0)
   })
 })

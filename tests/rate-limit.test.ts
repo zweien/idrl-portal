@@ -5,6 +5,7 @@ import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3'
 import { join } from 'node:path'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
+import { removeTempDir } from './helpers/temp-dir'
 
 /**
  * DB-backed rate limiter. The ApiKey row carries rlWindowStart + rlCount +
@@ -57,7 +58,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await prisma?.$disconnect()
-  rmSync(tmpDir, { recursive: true, force: true })
+  removeTempDir(tmpDir)
 })
 
 const { checkRateLimit, RATE_LIMIT_DEFAULT } = await import('@/lib/rate-limit')

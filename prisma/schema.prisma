@@ -52,6 +52,11 @@ model Person {
   id                String              @id
   name              String
   role              String
+  // 钉钉部门名（syncMembers 从成员所在部门的子树解析）；手动添加的人员可为空。
+  department        String              @default("")
+  // 人员照片（/api/uploads 的 URL）。注意：avatar 字段被考勤同步征用为
+  // 「今日出差原因」，照片存这里，两者互不干扰。
+  photoUrl          String?
   email             String?
   phone             String?
   dingUserId        String?
@@ -262,6 +267,7 @@ model TripInstanceCache {
   tripStart        BigInt? // ms epoch — BigInt: Int is 32-bit, epoch ms overflows
   tripEnd          BigInt? // ms epoch
   reason           String?
+  companions       String? // 同行人 user ids, JSON array of strings
   parsed           Boolean
   fetchedAt        DateTime @default(now())
 }

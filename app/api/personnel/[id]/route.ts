@@ -2,15 +2,20 @@ import { assertSameOrigin } from '@/lib/csrf'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { toPerson, fromPerson } from '@/lib/db/serialize'
-import { requireAdmin } from '@/lib/auth-api'
+import { requireScope, requireAdmin } from '@/lib/auth-api'
 import { logAction, actorFromAuth } from '@/lib/audit'
 import type { Person } from '@/lib/types'
 
-/** PATCH /api/personnel/:id — update a single person. */
+/**
+ * PATCH /api/personnel/:id — update a single person.
+ *
+ * authz：admin session 或带 `admin` scope 的 API key（人员照片的机器流程：
+ * POST /api/uploads → 本端点写 photoUrl，见 idrl-portal-api skill）。
+ */
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const __csrf = assertSameOrigin(req)
   if (__csrf) return __csrf
-  const auth = await requireAdmin()
+  const auth = await requireScope(req, 'admin')
   if (auth instanceof NextResponse) return auth
 
   const { id } = await params

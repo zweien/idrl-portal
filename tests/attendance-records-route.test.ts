@@ -10,9 +10,11 @@ vi.mock('@/lib/auth-api', () => ({
 const mockUserFindUnique = vi.fn()
 const mockAttendanceCount = vi.fn()
 const mockAttendanceFindMany = vi.fn()
+const mockPersonFindUnique = vi.fn()
 vi.mock('@/lib/db', () => ({
   prisma: {
     user: { findUnique: (...a: unknown[]) => mockUserFindUnique(...a) },
+    person: { findUnique: (...a: unknown[]) => mockPersonFindUnique(...a) },
     attendanceRecord: {
       count: (...a: unknown[]) => mockAttendanceCount(...a),
       findMany: (...a: unknown[]) => mockAttendanceFindMany(...a),
@@ -32,11 +34,37 @@ beforeEach(() => {
   vi.clearAllMocks()
   mockAttendanceCount.mockResolvedValue(0)
   mockAttendanceFindMany.mockResolvedValue([])
+  mockPersonFindUnique.mockResolvedValue({ name: '陈思', department: '算法组' })
 })
 
 function callApi(params: string = '') {
   return GET(new Request(`http://localhost/api/attendance/records${params}`))
 }
+
+describe('GET /api/attendance/records — person block', () => {
+  it('returns the queried person with department for labelling', async () => {
+    mockSession({ userId: 'apikey:k1', provider: 'apikey', role: 'admin' })
+    mockAttendanceCount.mockResolvedValue(1)
+    mockAttendanceFindMany.mockResolvedValue([
+      { id: 'r1', date: '2026-10-15', checkIn: '08:50', checkOut: '18:00', status: 'present' },
+    ])
+
+    const res = await callApi('?personId=p-target')
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.data.person).toEqual({ id: 'p-target', name: '陈思', department: '算法组' })
+  })
+
+  it('still resolves when the person row is missing (empty labels)', async () => {
+    mockSession({ userId: 'apikey:k1', provider: 'apikey', role: 'admin' })
+    mockPersonFindUnique.mockResolvedValue(null)
+
+    const res = await callApi('?personId=p-gone')
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.data.person).toEqual({ id: 'p-gone', name: '', department: '' })
+  })
+})
 
 describe('GET /api/attendance/records — self-service resolution', () => {
   it('admin WITHOUT personId falls back to their own linked person (我的考勤)', async () => {

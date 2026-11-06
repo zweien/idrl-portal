@@ -19,6 +19,8 @@ export const personSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   role: personRole,
+  department: z.string().nullable().optional(),
+  photoUrl: z.string().nullable().optional(),
   email: z.string().nullable().optional(),
   phone: z.string().nullable().optional(),
   dingUserId: z.string().nullable().optional(),

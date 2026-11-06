@@ -3,104 +3,173 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* ============================================
-   IDRL Portal – Linear-style Design System
-   ============================================ */
+/* 文档里记录的类名字样（DESIGN.md、plans 等）不应生成真实工具类 */
+@source not '../docs';
+@source not '../DESIGN.md';
+@source not '../README.md';
+@source not '../CHANGELOG.md';
+@source not '../.agents';
+
+/* ============================================================
+   IDRL Portal — IDRL 视觉识别（VI）设计系统
+   颜色 / 字体 / 圆角 / 动效取自 IDRL VI 的语义 tokens
+   （assets/brand/tokens.json，原始值快照于 public/brand/tokens.json），
+   按品牌规则映射到 shadcn/ui 变量名。使用规则见根目录 DESIGN.md。
+
+   【兼容性关键】钉钉等旧 WebView 不支持 color-mix()，而 Tailwind v4 的
+   透明度修饰符（bg-primary/10 等）正是用 color-mix 实现的——旧内核里
+   10% 的色调会渲染成 100% 实色（2026-10 钉钉手机端线上实测：图标底、
+   置顶公告卡全部变成实色块）。因此本项目的透明度着色统一写
+   `bg|text|border-[rgb(var(--x-rgb)/α)]`（任意值形式，通道三元组见各
+   主题的 --x-rgb），不要用 `bg-primary/10` 这类修饰符写法。
+   新增颜色时同步补 -rgb 三元组（与实色成对维护）。
+   ============================================================ */
 
 :root {
-  /* Light theme */
-  --background:        oklch(0.99 0 0);
-  --foreground:        oklch(0.13 0.01 260);
-  --card:              oklch(1 0 0);
-  --card-foreground:   oklch(0.13 0.01 260);
-  --popover:           oklch(1 0 0);
-  --popover-foreground: oklch(0.13 0.01 260);
+  /* VI light 主题语义值（hex 来自 tokens.json v0.2.1） */
+  --background:  #f5f8fc;
+  --foreground:  #182a43;
+  --card:        #ffffff;        /* VI surface */
+  --card-foreground: #182a43;
+  --popover:     #ffffff;
+  --popover-foreground: #182a43;
+  --primary:     #236db9;        /* VI primary（品牌 blue） */
+  --primary-foreground: #ffffff;
+  --primary-hover: #1c5999;
+  --secondary:   #edf3fa;        /* VI surface-subtle */
+  --secondary-foreground: #182a43;
+  --muted:       #edf3fa;
+  --muted-foreground: #52637a;
+  --accent:      #dff4fb;        /* VI accent */
+  --accent-foreground: #203663;  /* VI accent-foreground（品牌 navy） */
+  --destructive: #b5343b;
+  --destructive-foreground: #ffffff;
+  --border:      #dce4ef;
+  --input:       #7b8a9b;        /* VI control-border：独立辨认的控件边界 */
+  --ring:        #236db9;        /* VI focus */
+  --success:     #16734a;
+  --warning:     #8a5200;
+  --brand-navy:  #203663;
+  --brand-blue:  #236db9;
+  --brand-cyan:  #56c0e5;
+  --sidebar:     #ffffff;
+  --sidebar-foreground: #182a43;
+  --sidebar-primary: #236db9;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #edf3fa;
+  --sidebar-accent-foreground: #236db9;
+  --sidebar-border: #dce4ef;
+  --sidebar-ring: #236db9;
 
-  --primary:           oklch(0.47 0.18 264);
-  --primary-foreground: oklch(0.99 0 0);
-  --secondary:         oklch(0.95 0.005 260);
-  --secondary-foreground: oklch(0.35 0.01 260);
-  --muted:             oklch(0.96 0.003 260);
-  --muted-foreground:  oklch(0.55 0.01 260);
-  --accent:            oklch(0.95 0.005 260);
-  --accent-foreground: oklch(0.13 0.01 260);
-  --destructive:       oklch(0.55 0.22 25);
-  --destructive-foreground: oklch(0.99 0 0);
-  --border:            oklch(0.91 0.005 260);
-  --input:             oklch(0.95 0.005 260);
-  --ring:              oklch(0.47 0.18 264);
+  /* 考勤状态 → VI 功能色映射（实色别名，供 SVG/自定义 CSS 使用） */
+  --status-present: var(--success);
+  --status-absent:  var(--destructive);
+  --status-trip:    var(--primary);
+  --status-leave:   var(--warning);
 
-  --chart-1: oklch(0.47 0.18 264);
-  --chart-2: oklch(0.58 0.18 220);
-  --chart-3: oklch(0.62 0.17 170);
-  --chart-4: oklch(0.65 0.15 45);
-  --chart-5: oklch(0.55 0.18 300);
-
-  --radius: 0.375rem;
-
-  --sidebar:                oklch(0.97 0.003 260);
-  --sidebar-foreground:     oklch(0.13 0.01 260);
-  --sidebar-primary:        oklch(0.47 0.18 264);
-  --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent:         oklch(0.93 0.005 260);
-  --sidebar-accent-foreground: oklch(0.13 0.01 260);
-  --sidebar-border:         oklch(0.91 0.005 260);
-  --sidebar-ring:           oklch(0.47 0.18 264);
-
-  /* Status tokens — red/amber/green/blue, max hue separation */
-  --status-present: oklch(0.62 0.17 145);
-  --status-absent:  oklch(0.58 0.20 25);
-  --status-trip:    oklch(0.55 0.18 255);
-  --status-leave:   oklch(0.72 0.15 65);
+  /* 透明度工具类用的 RGB 通道三元组（与上方实色成对维护；
+     status 别名随功能色联动）。支持 color-mix 的浏览器可改用
+     color-mix(in srgb, var(--success) 15%, transparent) 获得相同效果。 */
+  --background-rgb: 245 248 252;
+  --foreground-rgb: 24 42 67;
+  --card-rgb:       255 255 255;
+  --primary-rgb:    35 109 185;
+  --secondary-rgb:  237 243 250;
+  --muted-rgb:      237 243 250;
+  --muted-foreground-rgb: 82 99 122;
+  --accent-rgb:     223 244 251;
+  --destructive-rgb: 181 52 59;
+  --border-rgb:     220 228 239;
+  --ring-rgb:       35 109 185;
+  --success-rgb:    22 115 74;
+  --warning-rgb:    138 82 0;
+  --chart-1-rgb:    35 109 185;
+  --chart-2-rgb:    32 54 99;
+  --chart-3-rgb:    86 192 229;
+  --chart-4-rgb:    22 115 74;
+  --chart-5-rgb:    138 82 0;
+  --brand-navy-rgb: 32 54 99;
+  --input-rgb: 123 138 155;
+  --secondary-rgb: 237 243 250;
+  --sidebar-accent-rgb: 237 243 250;
+  --sidebar-foreground-rgb: 24 42 67;
+  --status-present-rgb: var(--success-rgb);
+  --status-absent-rgb:  var(--destructive-rgb);
+  --status-trip-rgb:    var(--primary-rgb);
+  --status-leave-rgb:   var(--warning-rgb);
 }
 
 .dark {
-  --background:        oklch(0.115 0.012 260);
-  --foreground:        oklch(0.93 0.008 260);
-  --card:              oklch(0.145 0.012 260);
-  --card-foreground:   oklch(0.93 0.008 260);
-  --popover:           oklch(0.14 0.012 260);
-  --popover-foreground: oklch(0.93 0.008 260);
+  /* VI dark 主题独立语义值（非整体反转） */
+  --background:  #0e1726;
+  --foreground:  #edf4ff;
+  --card:        #162238;        /* VI surface */
+  --card-foreground: #edf4ff;
+  --popover:     #162238;
+  --popover-foreground: #edf4ff;
+  --primary:     #69b8ff;
+  --primary-foreground: #0e1726;
+  --primary-hover: #93ccff;
+  --secondary:   #1d2e47;        /* VI surface-subtle */
+  --secondary-foreground: #edf4ff;
+  --muted:       #1d2e47;
+  --muted-foreground: #a8b8cf;
+  --accent:      #1b3e50;
+  --accent-foreground: #9bdcf2;
+  --destructive: #ff9298;
+  --destructive-foreground: #0e1726;
+  --border:      #344764;
+  --input:       #687b94;
+  --ring:        #69b8ff;
+  --success:     #5fd1a0;
+  --warning:     #f7c66b;
+  --brand-navy:  #203663;
+  --brand-blue:  #236db9;
+  --brand-cyan:  #56c0e5;
+  --sidebar:     #162238;
+  --sidebar-foreground: #edf4ff;
+  --sidebar-primary: #69b8ff;
+  --sidebar-primary-foreground: #0e1726;
+  --sidebar-accent: #1d2e47;
+  --sidebar-accent-foreground: #69b8ff;
+  --sidebar-border: #344764;
+  --sidebar-ring: #69b8ff;
 
-  --primary:           oklch(0.62 0.2 264);
-  --primary-foreground: oklch(0.99 0 0);
-  --secondary:         oklch(0.2 0.012 260);
-  --secondary-foreground: oklch(0.82 0.008 260);
-  --muted:             oklch(0.19 0.01 260);
-  --muted-foreground:  oklch(0.55 0.01 260);
-  --accent:            oklch(0.22 0.012 260);
-  --accent-foreground: oklch(0.93 0.008 260);
-  --destructive:       oklch(0.52 0.22 25);
-  --destructive-foreground: oklch(0.99 0 0);
-  --border:            oklch(0.22 0.012 260);
-  --input:             oklch(0.19 0.012 260);
-  --ring:              oklch(0.62 0.2 264);
-
-  --chart-1: oklch(0.62 0.2 264);
-  --chart-2: oklch(0.62 0.18 220);
-  --chart-3: oklch(0.65 0.17 170);
-  --chart-4: oklch(0.65 0.15 45);
-  --chart-5: oklch(0.58 0.18 300);
-
-  --sidebar:                oklch(0.10 0.012 260);
-  --sidebar-foreground:     oklch(0.93 0.008 260);
-  --sidebar-primary:        oklch(0.62 0.2 264);
-  --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent:         oklch(0.18 0.012 260);
-  --sidebar-accent-foreground: oklch(0.93 0.008 260);
-  --sidebar-border:         oklch(0.19 0.012 260);
-  --sidebar-ring:           oklch(0.62 0.2 264);
-
-  /* Status tokens — red/amber/green/blue (dark mode, brightened) */
-  --status-present: oklch(0.70 0.18 145);
-  --status-absent:  oklch(0.65 0.21 25);
-  --status-trip:    oklch(0.68 0.17 255);
-  --status-leave:   oklch(0.80 0.15 65);
+  --background-rgb: 14 23 38;
+  --foreground-rgb: 237 244 255;
+  --card-rgb:       22 34 56;
+  --primary-rgb:    105 184 255;
+  --secondary-rgb:  29 46 71;
+  --muted-rgb:      29 46 71;
+  --muted-foreground-rgb: 168 184 207;
+  --accent-rgb:     27 62 80;
+  --destructive-rgb: 255 146 152;
+  --border-rgb:     52 71 100;
+  --ring-rgb:       105 184 255;
+  --success-rgb:    95 209 160;
+  --warning-rgb:    247 198 107;
+  --chart-1-rgb:    105 184 255;
+  --chart-2-rgb:    143 184 220;  /* VI reverse 资产中深 navy 的深色底适配色 */
+  --chart-3-rgb:    155 220 242;
+  --chart-4-rgb:    95 209 160;
+  --chart-5-rgb:    247 198 107;
+  --brand-navy-rgb: 32 54 99;
+  --input-rgb: 104 123 148;
+  --secondary-rgb: 29 46 71;
+  --sidebar-accent-rgb: 29 46 71;
+  --sidebar-foreground-rgb: 237 244 255;
+  --status-present-rgb: var(--success-rgb);
+  --status-absent-rgb:  var(--destructive-rgb);
+  --status-trip-rgb:    var(--primary-rgb);
+  --status-leave-rgb:   var(--warning-rgb);
 }
 
 @theme inline {
-  --font-sans: var(--font-inter), 'Inter', system-ui, sans-serif;
-  --font-mono: var(--font-jetbrains-mono), 'JetBrains Mono', monospace;
+  /* VI 字体：英文/数字 Inter，中文 Noto Sans CJK SC（本地未安装时回退
+     系统黑体，见 DESIGN.md「字体」约定）；代码用平台等宽字体。 */
+  --font-sans: var(--font-inter), 'Inter', 'Noto Sans CJK SC', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Consolas, 'Courier New', monospace;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -110,6 +179,7 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
@@ -118,6 +188,8 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -127,10 +199,16 @@
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
 
+  /* VI 品牌三主色：仅用于图形装饰与深色底适配，不作为界面语义色 */
+  --color-brand-navy: var(--brand-navy);
+  --color-brand-blue: var(--brand-blue);
+  --color-brand-cyan: var(--brand-cyan);
+
   --radius-sm: calc(var(--radius) - 2px);
   --radius-md: var(--radius);
   --radius-lg: calc(var(--radius) + 2px);
-  --radius-xl: calc(var(--radius) + 6px);
+  --radius-xl: 0.75rem;   /* VI 卡片圆角 12px（Card = rounded-xl） */
+  /* 弹窗 16px = Tailwind 默认 rounded-2xl（1rem） */
 
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
@@ -142,19 +220,70 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+:root {
+  /* VI 动效 tokens（prefers-reduced-motion 时归零） */
+  --motion-fast: 120ms;
+  --motion-normal: 180ms;
+  --motion-slow: 240ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion-normal: 0ms;
+    --motion-slow: 0ms;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
   html {
-    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   }
   body {
     @apply bg-background text-foreground;
+    line-height: 1.6; /* VI 正文行高 */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
+  /* 数字指标与表格使用 tabular-nums（VI 规则） */
+  table {
+    font-variant-numeric: tabular-nums;
+  }
 }
+
+/* ── 品牌 logo：深浅主题使用不同官方资产，禁止滤镜整体变白 ── */
+@layer utilities {
+  .brand-light {
+    display: block;
+  }
+  .brand-dark {
+    display: none;
+  }
+  .dark .brand-light {
+    display: none;
+  }
+  .dark .brand-dark {
+    display: block;
+  }
+}
+
+/* ── 旧 WebView 兼容说明（translate）────────────────────────
+   Tailwind v4 的 translate-* 工具类编译成 CSS 独立属性 translate:
+   （Chromium 104+），钉钉等旧 WebView 不支持 → 依赖它居中的元素会
+   失去位移（搜索图标、弹窗中心等）。弹窗居中已改用 transform
+   （components/ui/dialog.tsx）；搜索图标的居中改用 top-[calc(...)]。
+   不要用 @supports not (translate:…) 垫片——Lightning CSS 会按现代
+   浏览器目标把它整体裁剪掉（线上实测）。 */
 
 /* ── Status dots ────────────────────────────────── */
 @layer utilities {
@@ -219,8 +348,7 @@
   color: var(--primary);
   text-decoration: underline;
   text-underline-offset: 2px;
-  text-decoration-color: var(--primary) / 40%;
-  transition: text-decoration-color 0.15s;
+  transition: text-decoration-color var(--motion-normal);
 }
 .prose-idrl a:hover {
   text-decoration-color: var(--primary);
@@ -243,12 +371,12 @@
   margin-bottom: 0;
 }
 .prose-idrl blockquote {
-  border-left: 3px solid var(--primary) / 60%;
+  border-left: 3px solid var(--border);
   padding: 0.5em 0 0.5em 1em;
   margin: 0.75em 0;
   color: var(--prose-muted);
   font-style: italic;
-  background: var(--muted) / 40%;
+  background: var(--muted);
   border-radius: 0 6px 6px 0;
 }
 .prose-idrl blockquote p:last-child {
@@ -263,20 +391,14 @@
   color: var(--foreground);
 }
 .prose-idrl pre {
-  background: oklch(0.13 0.01 260);
-  color: oklch(0.88 0.01 260);
+  background: #182a43;
+  color: #edf4ff;
   padding: 1em;
   border-radius: 8px;
   overflow-x: auto;
   margin: 0.75em 0;
   font-size: 0.8em;
   line-height: 1.6;
-}
-.prose-idrl pre code {
-  background: none;
-  padding: 0;
-  color: inherit;
-  font-size: inherit;
 }
 .prose-idrl table {
   width: 100%;
@@ -301,7 +423,7 @@
   border-bottom: 1px solid var(--prose-border);
 }
 .prose-idrl tbody tr:hover {
-  background: var(--muted) / 50%;
+  background: var(--muted);
 }
 .prose-idrl tbody tr:last-child td {
   border-bottom: none;
@@ -317,5 +439,5 @@
   margin: 1.25em 0;
 }
 .dark .prose-idrl pre {
-  background: oklch(0.16 0.015 260);
+  background: var(--card);
 }

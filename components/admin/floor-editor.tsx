@@ -10,6 +10,7 @@ import { Plus, Trash2, ChevronUp, ChevronDown, Lock } from 'lucide-react'
 import { ZoneFreeCanvas } from './zone-free-canvas'
 import { WorkstationAssigner } from './workstation-assigner'
 import { makeIdGen } from '@/lib/floor-layout'
+import { ZONE_COLOR_PALETTE } from '@/lib/floor-constants'
 import {
   Select,
   SelectContent,
@@ -100,7 +101,7 @@ export function FloorEditor({ floors, onChange, selectedFloorId, onSelectedFloor
       id,
       name: newZoneName.trim(),
       floorId: selectedFloor.id,
-      color: `oklch(0.65 0.15 ${Math.floor(Math.random() * 360)})`,
+      color: ZONE_COLOR_PALETTE[selectedFloor.zones.length % ZONE_COLOR_PALETTE.length],
       order: selectedFloor.zones.reduce((max, z) => Math.max(max, z.order), -1) + 1,
       mode: 'grid' as const,
       rows: 2,
@@ -268,7 +269,7 @@ export function FloorEditor({ floors, onChange, selectedFloorId, onSelectedFloor
               className={cn(
                 'flex items-center gap-2 p-2 rounded-md border text-sm cursor-pointer transition-colors',
                 selectedFloorId === floor.id
-                  ? 'border-primary/50 bg-primary/5'
+                  ? 'border-[rgb(var(--primary-rgb)/0.5)] bg-[rgb(var(--primary-rgb)/0.05)]'
                   : 'border-border hover:bg-accent',
               )}
               onClick={() => { onSelectedFloorIdChange(floor.id); setSelectedZoneId('') }}
@@ -310,7 +311,7 @@ export function FloorEditor({ floors, onChange, selectedFloorId, onSelectedFloor
                 className={cn(
                   'flex items-center gap-2 p-2 rounded-md border text-sm cursor-pointer transition-colors',
                   selectedZoneId === zone.id
-                    ? 'border-primary/50 bg-primary/5'
+                    ? 'border-[rgb(var(--primary-rgb)/0.5)] bg-[rgb(var(--primary-rgb)/0.05)]'
                     : 'border-border hover:bg-accent',
                 )}
                 onClick={() => setSelectedZoneId(zone.id)}

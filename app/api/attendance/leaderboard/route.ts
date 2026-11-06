@@ -7,6 +7,8 @@ import type { ApiResponse } from '@/lib/types'
 export interface LeaderboardEntry {
   personId: string
   name: string
+  /** 部门显示名（钉钉同步；手动添加的人员可能为空串）。 */
+  department?: string
   /** "today" view: earliest OnDuty punch "HH:mm". */
   checkIn?: string | null
   /** "monthly" view: total work minutes this month (null days excluded). */
@@ -35,11 +37,12 @@ export async function GET(request: Request) {
       where: { date: today, checkIn: { not: null } },
       orderBy: { checkIn: 'asc' },
       take: limit,
-      include: { person: { select: { name: true } } },
+      include: { person: { select: { name: true, department: true } } },
     })
     const items: LeaderboardEntry[] = rows.map(r => ({
       personId: r.personId,
       name: r.person.name,
+      department: r.person.department || undefined,
       checkIn: r.checkIn,
     }))
     const res: ApiResponse<{ type: 'today'; date: string; items: LeaderboardEntry[] }> = {
@@ -59,26 +62,31 @@ export async function GET(request: Request) {
       checkIn: true,
       checkOut: true,
       status: true,
-      person: { select: { name: true } },
+      person: { select: { name: true, department: true } },
     },
   })
 
   // Aggregate per person. Only present days with a computable work span count.
-  const totals = new Map<string, { name: string; workMinutes: number; countedDays: number }>()
+  const totals = new Map<string, { name: string; department: string; workMinutes: number; countedDays: number }>()
   for (const r of rows) {
     if (r.status !== 'present') continue
     const m = computeWorkMinutes(r.checkIn, r.checkOut)
     if (m === null) continue
     let entry = totals.get(r.personId)
     if (!entry) {
-      entry = { name: r.person.name, workMinutes: 0, countedDays: 0 }
+      entry = { name: r.person.name, department: r.person.department, workMinutes: 0, countedDays: 0 }
       totals.set(r.personId, entry)
     }
     entry.workMinutes += m
     entry.countedDays += 1
   }
   const items: LeaderboardEntry[] = [...totals.entries()]
-    .map(([personId, e]) => ({ personId, name: e.name, workMinutes: e.workMinutes }))
+    .map(([personId, e]) => ({
+      personId,
+      name: e.name,
+      department: e.department || undefined,
+      workMinutes: e.workMinutes,
+    }))
     .sort((a, b) => (b.workMinutes ?? 0) - (a.workMinutes ?? 0))
     .slice(0, limit)
 

@@ -148,10 +148,11 @@ async function resolveApiKey(req: Request, scopes: ApiScope[]): Promise<ApiKeyRe
  */
 export async function requireScope(
   req: Request,
-  scope: ApiScope,
+  scope: ApiScope | ApiScope[],
 ): Promise<SessionData | NextResponse> {
-  // Try API key first (machine-to-machine).
-  const apiKey = await resolveApiKey(req, [scope])
+  // Try API key first (machine-to-machine). 传入数组 = 任一 scope 即可通过
+  //（如上传接口同时接受 news:publish 与 admin）。
+  const apiKey = await resolveApiKey(req, Array.isArray(scope) ? scope : [scope])
   if (apiKey) {
     if ('rateLimited' in apiKey) {
       return NextResponse.json(

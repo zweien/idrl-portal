@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-IDRL Portal (智能数据研究实验室门户) — a lab information aggregation portal for tracking personnel attendance, resource links, and news/announcements. Built as a Chinese-language application (zh-CN).
+IDRL Portal — the lab information aggregation portal for IDRL (智能设计与鲁棒学习 / Intelligent Design and Robust Learning) for tracking personnel attendance, resource links, and news/announcements. Built as a Chinese-language application (zh-CN).
 
 ## Tech Stack
 
 - **Framework**: Next.js 16 (App Router) with React 19
 - **Language**: TypeScript (strict mode), `@/*` path alias maps to project root
-- **Styling**: Tailwind CSS v4 with `@tailwindcss/postcss`, custom oklch-based design tokens in `app/globals.css`
+- **Styling**: Tailwind CSS v4 with `@tailwindcss/postcss`; IDRL VI brand tokens mapped to shadcn variables in `app/globals.css` (see root `DESIGN.md` — brand rules, logo usage, color mapping, and local conventions)
 - **UI Components**: shadcn/ui (new-york style, RSC-enabled) — components in `components/ui/`
 - **Icons**: lucide-react
 - **Charts**: recharts

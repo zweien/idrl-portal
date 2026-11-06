@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { StickyPageHeader } from '@/components/dashboard/sticky-page-header'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -23,12 +24,27 @@ import { AuditLogPanel } from '@/components/admin/audit-log-panel'
 import {
   Users, Server, Newspaper, Pencil, Trash2, ChevronUp, ChevronDown,
   Database, AlertTriangle, CheckCircle, Info,
-  ShieldAlert, MapPin, Search, Upload, Key, Clock, Folder, UserCog, DatabaseBackup,
+  ShieldAlert, MapPin, Search, Upload, Key, Clock, Folder, UserCog, DatabaseBackup, Pin,
   ScrollText,
 } from 'lucide-react'
 
 /* ── Labels ─────────────────────────────────────── */
 const statusLabels = { present: '在位', trip: '出差', leave: '请假', absent: '未到' }
+
+/** 与人员页 / 考勤页同一套 --status-* 功能色徽章（VI：同一状态全篇同色）。 */
+const statusBadgeClass: Record<string, string> = {
+  present: 'bg-[rgb(var(--success-rgb)/0.15)] text-success border-[rgb(var(--success-rgb)/0.3)]',
+  absent: 'bg-[rgb(var(--destructive-rgb)/0.15)] text-destructive border-[rgb(var(--destructive-rgb)/0.3)]',
+  trip: 'bg-[rgb(var(--primary-rgb)/0.15)] text-primary border-[rgb(var(--primary-rgb)/0.3)]',
+  leave: 'bg-[rgb(var(--warning-rgb)/0.15)] text-warning border-[rgb(var(--warning-rgb)/0.3)]',
+}
+
+/** 与资源聚合页一致的状态徽章色。 */
+const resourceStatusBadge: Record<string, string> = {
+  available: 'bg-[rgb(var(--success-rgb)/0.15)] text-success border-[rgb(var(--success-rgb)/0.3)]',
+  maintenance: 'bg-[rgb(var(--destructive-rgb)/0.15)] text-destructive border-[rgb(var(--destructive-rgb)/0.3)]',
+  restricted: 'bg-muted text-muted-foreground',
+}
 
 /** Map a categoryId to a display name using the supplied category list. */
 function catNameOf(categories: { id: string; name: string }[], categoryId?: string | null): string {
@@ -38,7 +54,7 @@ function catNameOf(categories: { id: string; name: string }[], categoryId?: stri
 
 /* ── Generic table ──────────────────────────────── */
 function DataTable<T extends { id: string }>({
-  data, columns, onEdit, onDelete, onMove, moveDisabled,
+  data, columns, onEdit, onDelete, onMove, moveDisabled, moveDisabledReason,
 }: {
   data: T[]
   columns: { key: keyof T; label: string; render?: (v: T[keyof T], item: T) => React.ReactNode }[]
@@ -47,6 +63,8 @@ function DataTable<T extends { id: string }>({
   /** When provided, rows get up/down buttons for manual ordering. */
   onMove?: (item: T, dir: 'up' | 'down') => void
   moveDisabled?: (item: T, dir: 'up' | 'down') => boolean
+  /** 禁用原因（悬停提示），让"不可排序"自解释而不是像坏了。 */
+  moveDisabledReason?: (item: T, dir: 'up' | 'down') => string | undefined
 }) {
   return (
     <div className="overflow-x-auto">
@@ -63,7 +81,7 @@ function DataTable<T extends { id: string }>({
         </thead>
         <tbody className="divide-y divide-border">
           {data.map(item => (
-            <tr key={item.id} className="hover:bg-muted/30 transition-colors">
+            <tr key={item.id} className="hover:bg-[rgb(var(--muted-rgb)/0.3)] transition-colors">
               {columns.map(col => (
                 <td key={String(col.key)} className="py-2.5 px-3 text-sm">
                   {col.render ? col.render(item[col.key], item) : String(item[col.key] ?? '-')}
@@ -73,14 +91,20 @@ function DataTable<T extends { id: string }>({
                 <div className="flex items-center justify-end gap-0.5">
                   {onMove && (
                     <>
-                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
-                        disabled={moveDisabled?.(item, 'up')} onClick={() => onMove(item, 'up')}>
-                        <ChevronUp className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
-                        disabled={moveDisabled?.(item, 'down')} onClick={() => onMove(item, 'down')}>
-                        <ChevronDown className="h-3.5 w-3.5" />
-                      </Button>
+                      {/* title 放外层 span：Button disabled 时 pointer-events-none，
+                          hover 事件不会到达按钮本体（codex review P2） */}
+                      <span title={moveDisabled?.(item, 'up') ? (moveDisabledReason?.(item, 'up') ?? '已在最前') : '上移'}>
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                          disabled={moveDisabled?.(item, 'up')} onClick={() => onMove(item, 'up')}>
+                          <ChevronUp className="h-3.5 w-3.5" />
+                        </Button>
+                      </span>
+                      <span title={moveDisabled?.(item, 'down') ? (moveDisabledReason?.(item, 'down') ?? '已在最后') : '下移'}>
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                          disabled={moveDisabled?.(item, 'down')} onClick={() => onMove(item, 'down')}>
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        </Button>
+                      </span>
                     </>
                   )}
                   <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground" onClick={() => onEdit(item)}>
@@ -109,7 +133,7 @@ function IntegrationCard({ name, status, description }: {
   description: string
 }) {
   const cfg = {
-    connected: { icon: CheckCircle, color: 'text-[var(--status-present)]', label: '已连接' },
+    connected: { icon: CheckCircle, color: 'text-success', label: '已连接' },
     pending:   { icon: Info,         color: 'text-muted-foreground',        label: '待配置' },
     error:     { icon: AlertTriangle,color: 'text-destructive',             label: '连接失败' },
     mock:      { icon: Database,     color: 'text-primary',                 label: '模拟数据' },
@@ -356,6 +380,10 @@ export default function AdminPage() {
     const i = group.findIndex(x => x.id === item.id)
     return dir === 'up' ? i <= 0 : i === group.length - 1
   }
+  function resourceMoveDisabledReason(item: Resource, dir: 'up' | 'down') {
+    const group = sortedResources.filter(x => (x.categoryId ?? null) === (item.categoryId ?? null))
+    return group.length <= 1 ? '该分类仅此一条，无需排序' : undefined
+  }
 
   async function handleNewsMove(n: NewsItem, dir: 'up' | 'down') {
     if (!n.pinned) return
@@ -379,6 +407,9 @@ export default function AdminPage() {
     const pinned = sortedNews.filter(x => x.pinned)
     const i = pinned.findIndex(x => x.id === item.id)
     return dir === 'up' ? i <= 0 : i === pinned.length - 1
+  }
+  function newsMoveDisabledReason(item: NewsItem) {
+    return item.pinned ? undefined : '仅置顶动态可排序；未置顶按日期倒序展示（置顶后可排序）'
   }
 
   const [editingPerson, setEditingPerson]     = useState<Person | null>(null)
@@ -426,6 +457,7 @@ export default function AdminPage() {
     return rows.filter(p =>
       p.name.toLowerCase().includes(q) ||
       (p.role ?? '').toLowerCase().includes(q) ||
+      (p.department ?? '').toLowerCase().includes(q) ||
       (p.seatName ?? '').toLowerCase().includes(q),
     )
   }, [personSearch, personnelData])
@@ -438,7 +470,7 @@ export default function AdminPage() {
           <p className="text-sm text-muted-foreground mt-0.5">管理实验室数据</p>
         </div>
         <div className="rounded-lg border border-border bg-card flex flex-col items-center justify-center py-16 text-center gap-3">
-          <ShieldAlert className="h-8 w-8 text-muted-foreground/50" />
+          <ShieldAlert className="h-8 w-8 text-[rgb(var(--muted-foreground-rgb)/0.5)]" />
           <div>
             <p className="font-medium">访问受限</p>
             <p className="text-sm text-muted-foreground mt-0.5">您需要管理员权限才能访问此页面</p>
@@ -459,16 +491,54 @@ export default function AdminPage() {
 
   return (
     <div className="space-y-4 py-2">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">信息管理</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">管理人员、资源和动态信息</p>
+      {/* 冻结行：标题 + 页签（「集成状态」卡较大，随内容滚动——冻结大卡片会吃掉半屏） */}
+      <StickyPageHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight">信息管理</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">管理人员、资源和动态信息</p>
+          </div>
+          {saveError && (
+            <span className="text-xs text-destructive">操作失败：{saveError}</span>
+          )}
         </div>
-        {saveError && (
-          <span className="text-xs text-destructive">操作失败：{saveError}</span>
-        )}
-      </div>
+
+        {/* 冻结行内只放 TabsList（受控 Tabs 的两个 root 共享同一 state） */}
+        <Tabs value={activeTab} onValueChange={v => setActiveTab(v as (typeof ADMIN_TABS)[number])} className="mt-3 w-full">
+          <TabsList className="h-auto p-1 flex-wrap">
+            <TabsTrigger value="personnel" className="text-xs gap-1.5 h-7">
+              <Users className="h-3.5 w-3.5" />人员管理
+            </TabsTrigger>
+            <TabsTrigger value="users" className="text-xs gap-1.5 h-7">
+              <UserCog className="h-3.5 w-3.5" />用户
+            </TabsTrigger>
+            <TabsTrigger value="resources" className="text-xs gap-1.5 h-7">
+              <Server className="h-3.5 w-3.5" />资源管理
+            </TabsTrigger>
+            <TabsTrigger value="news" className="text-xs gap-1.5 h-7">
+              <Newspaper className="h-3.5 w-3.5" />动态管理
+            </TabsTrigger>
+            <TabsTrigger value="categories" className="text-xs gap-1.5 h-7">
+              <Folder className="h-3.5 w-3.5" />分类管理
+            </TabsTrigger>
+            <TabsTrigger value="scheduling" className="text-xs gap-1.5 h-7">
+              <Clock className="h-3.5 w-3.5" />调度设置
+            </TabsTrigger>
+            <TabsTrigger value="api-keys" className="text-xs gap-1.5 h-7">
+              <Key className="h-3.5 w-3.5" />API 密钥
+            </TabsTrigger>
+            <TabsTrigger value="backup" className="text-xs gap-1.5 h-7">
+              <DatabaseBackup className="h-3.5 w-3.5" />备份
+            </TabsTrigger>
+            <TabsTrigger value="audit" className="text-xs gap-1.5 h-7">
+              <ScrollText className="h-3.5 w-3.5" />操作日志
+            </TabsTrigger>
+            <TabsTrigger value="floor-layout" className="text-xs gap-1.5 h-7">
+              <MapPin className="h-3.5 w-3.5" />工位布局
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </StickyPageHeader>
 
       {/* Integration status */}
       <div className="rounded-lg border border-border bg-card">
@@ -479,45 +549,14 @@ export default function AdminPage() {
         <div className="p-4 grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <IntegrationCard name="Authentik SSO" status={providers.authentik ? 'connected' : 'pending'} description="单点登录认证（内网 OIDC）" />
           <IntegrationCard name="钉钉扫码"     status={providers.dingtalk ? 'connected' : 'pending'} description="扫码登录（互联网 OAuth2）" />
-          <IntegrationCard name="钉钉考勤"     status="pending"   description="人员考勤数据同步" />
+          {/* 考勤同步与扫码登录共用同一组钉钉应用凭证，按同一可用性判定 */}
+          <IntegrationCard name="钉钉考勤"     status={providers.dingtalk ? 'connected' : 'pending'} description="人员考勤数据同步" />
           <IntegrationCard name="数据库"       status="connected" description="SQLite（Prisma）" />
         </div>
       </div>
 
       {/* Data management tabs */}
       <Tabs value={activeTab} onValueChange={v => setActiveTab(v as (typeof ADMIN_TABS)[number])}>
-        <TabsList className="h-9 p-1 flex-wrap">
-          <TabsTrigger value="personnel" className="text-xs gap-1.5 h-7">
-            <Users className="h-3.5 w-3.5" />人员管理
-          </TabsTrigger>
-          <TabsTrigger value="users" className="text-xs gap-1.5 h-7">
-            <UserCog className="h-3.5 w-3.5" />用户
-          </TabsTrigger>
-          <TabsTrigger value="resources" className="text-xs gap-1.5 h-7">
-            <Server className="h-3.5 w-3.5" />资源管理
-          </TabsTrigger>
-          <TabsTrigger value="news" className="text-xs gap-1.5 h-7">
-            <Newspaper className="h-3.5 w-3.5" />动态管理
-          </TabsTrigger>
-          <TabsTrigger value="categories" className="text-xs gap-1.5 h-7">
-            <Folder className="h-3.5 w-3.5" />分类管理
-          </TabsTrigger>
-          <TabsTrigger value="scheduling" className="text-xs gap-1.5 h-7">
-            <Clock className="h-3.5 w-3.5" />调度设置
-          </TabsTrigger>
-          <TabsTrigger value="api-keys" className="text-xs gap-1.5 h-7">
-            <Key className="h-3.5 w-3.5" />API 密钥
-          </TabsTrigger>
-          <TabsTrigger value="backup" className="text-xs gap-1.5 h-7">
-            <DatabaseBackup className="h-3.5 w-3.5" />备份
-          </TabsTrigger>
-          <TabsTrigger value="audit" className="text-xs gap-1.5 h-7">
-            <ScrollText className="h-3.5 w-3.5" />操作日志
-          </TabsTrigger>
-          <TabsTrigger value="floor-layout" className="text-xs gap-1.5 h-7">
-            <MapPin className="h-3.5 w-3.5" />工位布局
-          </TabsTrigger>
-        </TabsList>
 
         <TabsContent value="personnel" className="mt-3">
           <div className="rounded-lg border border-border bg-card">
@@ -555,9 +594,9 @@ export default function AdminPage() {
             </div>
             <div className="px-4 py-3 border-b border-border">
               <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Search className="absolute left-2.5 top-[calc(50%-7px)] h-3.5 w-3.5 text-muted-foreground" />
                 <Input
-                  placeholder="搜索姓名、职位、座位编号…"
+                  placeholder="搜索姓名、职位、部门、座位编号…"
                   value={personSearch}
                   onChange={e => setPersonSearch(e.target.value)}
                   className="pl-8 h-8 text-sm w-72"
@@ -570,11 +609,14 @@ export default function AdminPage() {
                 columns={[
                   { key: 'name',   label: '姓名' },
                   { key: 'role',   label: '职位',  render: v => v ? String(v) : <span className="text-muted-foreground">—</span> },
+                  { key: 'department', label: '部门', render: (v: unknown) =>
+                    typeof v === 'string' && v ? String(v) : <span className="text-muted-foreground">—</span> },
                   { key: 'seatName', label: '座位编号', render: (v: unknown) =>
                     typeof v === 'string' && v ? String(v) : <span className="text-muted-foreground">—</span> },
                   { key: 'status', label: '状态',  render: (v, item) => (
                     <span className="flex items-center gap-1.5">
-                      <Badge variant={v === 'present' ? 'default' : 'secondary'} className="text-[10px] font-normal">
+                      {/* 与人员页/考勤页一致：状态用 --status-* 功能色徽章（VI：同状态全篇同色） */}
+                      <Badge variant="outline" className={cn('text-[10px] font-normal border', statusBadgeClass[v as keyof typeof statusBadgeClass])}>
                         {statusLabels[v as keyof typeof statusLabels]}
                       </Badge>
                       {item.offboarded && (
@@ -647,7 +689,7 @@ export default function AdminPage() {
                     </Badge>
                   )},
                   { key: 'status', label: '状态', render: v => (
-                    <Badge variant={v === 'available' ? 'default' : 'secondary'} className="text-[10px] font-normal">
+                    <Badge variant="outline" className={cn('text-[10px] font-normal border', resourceStatusBadge[String(v)])}>
                       {v === 'available' ? '可用' : v === 'maintenance' ? '维护中' : '受限'}
                     </Badge>
                   )},
@@ -661,6 +703,7 @@ export default function AdminPage() {
                 onDelete={handleResourceDelete}
                 onMove={handleResourceMove}
                 moveDisabled={resourceMoveDisabled}
+                moveDisabledReason={resourceMoveDisabledReason}
               />
             </div>
           </div>
@@ -704,7 +747,7 @@ export default function AdminPage() {
                   }},
                   { key: 'date',   label: '日期' },
                   { key: 'pinned', label: '置顶', render: v => v
-                    ? <Badge className="text-[10px] font-normal">置顶</Badge>
+                    ? <Badge variant="secondary" className="text-[10px] font-normal gap-0.5"><Pin className="h-2.5 w-2.5" />置顶</Badge>
                     : <span className="text-muted-foreground">—</span>
                   },
                 ]}
@@ -712,6 +755,7 @@ export default function AdminPage() {
                 onDelete={handleNewsDelete}
                 onMove={handleNewsMove}
                 moveDisabled={newsMoveDisabled}
+                moveDisabledReason={newsMoveDisabledReason}
               />
             </div>
           </div>
@@ -779,15 +823,15 @@ export default function AdminPage() {
                 />
               </div>
               {importResult && (
-                <div className="rounded-md border border-border bg-primary/5 px-3 py-2 text-xs text-primary">
+                <div className="rounded-md border border-border bg-[rgb(var(--primary-rgb)/0.05)] px-3 py-2 text-xs text-primary">
                   {importResult}
                 </div>
               )}
               {importWarnings.length > 0 && (
-                <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs space-y-0.5">
-                  <p className="font-medium text-amber-600">警告详情：</p>
+                <div className="rounded-md border border-[rgb(var(--warning-rgb)/0.3)] bg-[rgb(var(--warning-rgb)/0.05)] px-3 py-2 text-xs space-y-0.5">
+                  <p className="font-medium text-warning">警告详情：</p>
                   {importWarnings.map((w, i) => (
-                    <p key={i} className="text-amber-600/80">• {w}</p>
+                    <p key={i} className="text-[rgb(var(--warning-rgb)/0.8)]">• {w}</p>
                   ))}
                 </div>
               )}

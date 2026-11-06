@@ -49,3 +49,12 @@ prisma/backups/
 prisma/ci-migrate-check.sqlite
 prisma/db.sqlite-wal
 prisma/db.sqlite-shm
+
+# Local before/after refactor screenshots
+.screenshots/
+
+# Other-session working artifacts (research notes etc.)
+managed-agents/
+
+# local session cookie seals (never commit)
+.cookie-*.txt

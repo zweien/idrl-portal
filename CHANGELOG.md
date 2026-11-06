@@ -5,6 +5,92 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v0.11.12] - 2026-10-21
+
+### 新增
+
+- feat(attendance): 出差审批同行人同步标记 trip 状态 (#114)
+
+## [v0.11.11] - 2026-10-18
+
+### 新增
+
+- feat(dashboard): 概览统计卡片可点击跳转对应页面 (#113)
+
+## [v0.11.10] - 2026-10-18
+
+### 修复
+
+- fix(ui): use vh instead of dvh for modal height (old WebView support) (#112)
+
+## [v0.11.9] - 2026-10-16
+
+### 修复
+
+- fix(ui): dialog centering via transform for old WebViews (DingTalk mobile) (#111)
+
+## [v0.11.8] - 2026-10-16
+
+### 修复
+
+- fix(ui): replace color-mix alpha tints with rgb(var()) for old WebViews (#110)
+
+## [v0.11.7] - 2026-10-16
+
+### 新增
+
+- feat(auth): dingtalk workbench in-client free-login
+
+## [v0.11.6] - 2026-10-16
+
+### 新增
+
+- feat(ui): sticky page headers on all pages; avatar lightbox on personnel (#109)
+
+## [v0.11.5] - 2026-10-16
+
+### 新增
+
+- feat(personnel): photo upload, shown on the personnel page (#108)
+
+## [v0.11.4] - 2026-10-16
+
+### 修复
+
+- fix(admin): integration status read runtime env; explain reorder restrictions (#107)
+
+## [v0.11.3] - 2026-10-16
+
+### 新增
+
+- feat(attendance): expose person department across attendance APIs (#106)
+
+## [v0.11.2] - 2026-10-15
+
+### 修复
+
+- fix(dashboard): constrain news modal height and scroll the body (#104)
+
+## [v0.11.1] - 2026-10-15
+
+### 新增
+
+- feat(personnel): add department field, filled from DingTalk member sync (#103)
+
+### 其他
+
+- chore: ignore managed-agents/ working artifacts
+
+## [v0.11.0] - 2026-10-13
+
+### 新增
+
+- feat(brand): adopt IDRL visual identity (VI v0.1) across the portal (#102)
+
+### 修复
+
+- fix(test): best-effort temp dir cleanup so the suite passes on Windows
+
 ## [v0.10.3] - 2026-10-12
 
 ### 新增

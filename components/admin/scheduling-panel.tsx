@@ -160,8 +160,8 @@ export function SchedulingPanel() {
           ) : logs.map(l => (
             <div key={l.id} className="flex items-center gap-2 text-[11px] py-1 px-1.5">
               {l.status === 'success'
-                ? <CheckCircle className="h-3 w-3 text-[var(--status-present)] shrink-0" />
-                : <XCircle className="h-3 w-3 text-[var(--status-absent)] shrink-0" />}
+                ? <CheckCircle className="h-3 w-3 text-success shrink-0" />
+                : <XCircle className="h-3 w-3 text-destructive shrink-0" />}
               <Badge variant="outline" className="text-[10px] h-4 px-1 font-normal">{l.job}</Badge>
               <span className="text-muted-foreground">{l.source}</span>
               <span className="text-muted-foreground ml-auto">{new Date(l.createdAt).toLocaleString('zh-CN')}</span>

@@ -114,7 +114,7 @@ export function FloorPlan({ floor, personnel, onSelectWorkstation, selectedWorks
   return (
     <TooltipProvider delayDuration={200}>
       <div className="relative">
-        <div className="absolute top-2 right-2 z-10 flex items-center gap-1 bg-card/80 backdrop-blur-sm border border-border rounded-md p-0.5">
+        <div className="absolute top-2 right-2 z-10 flex items-center gap-1 bg-[rgb(var(--card-rgb)/0.8)] backdrop-blur-sm border border-border rounded-md p-0.5">
           <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={handleZoomOut}>
             <ZoomOut className="h-3.5 w-3.5" />
           </Button>
@@ -124,7 +124,7 @@ export function FloorPlan({ floor, personnel, onSelectWorkstation, selectedWorks
           </Button>
         </div>
 
-        <div className="absolute top-12 right-2 z-10 bg-card/80 backdrop-blur-sm border border-border rounded-md px-2.5 py-1.5 space-y-1 pointer-events-none">
+        <div className="absolute top-12 right-2 z-10 bg-[rgb(var(--card-rgb)/0.8)] backdrop-blur-sm border border-border rounded-md px-2.5 py-1.5 space-y-1 pointer-events-none">
           <p className="text-[10px] font-medium text-muted-foreground">状态图例</p>
           <ul className="space-y-0.5">
             {Object.entries(statusLabels).map(([status, label]) => (
@@ -146,7 +146,7 @@ export function FloorPlan({ floor, personnel, onSelectWorkstation, selectedWorks
             >
               <defs>
                 <pattern id="grid-floor" width="20" height="20" patternUnits="userSpaceOnUse">
-                  <path d="M 20 0 L 0 0 0 20" fill="none" stroke="currentColor" strokeWidth="0.5" className="text-border/30" />
+                  <path d="M 20 0 L 0 0 0 20" fill="none" stroke="currentColor" strokeWidth="0.5" className="text-[rgb(var(--border-rgb)/0.3)]" />
                 </pattern>
               </defs>
               <rect width="100%" height="100%" fill="url(#grid-floor)" />
@@ -179,7 +179,7 @@ export function FloorPlan({ floor, personnel, onSelectWorkstation, selectedWorks
                             height={CELL_H}
                             rx="6"
                             fill="none"
-                            className="stroke-muted-foreground/15"
+                            className="stroke-[rgb(var(--muted-foreground-rgb)/0.15)]"
                             strokeWidth="1"
                             strokeDasharray="3 3"
                           />,
@@ -220,9 +220,9 @@ export function FloorPlan({ floor, personnel, onSelectWorkstation, selectedWorks
                               rx="6"
                               className={cn(
                                 'transition-all duration-200',
-                                isOccupied ? 'fill-card' : 'fill-muted/30',
+                                isOccupied ? 'fill-card' : 'fill-[rgb(var(--muted-rgb)/0.3)]',
                                 isSelected && 'stroke-primary stroke-2',
-                                isHovered && !isSelected && 'stroke-primary/50 stroke-1',
+                                isHovered && !isSelected && 'stroke-[rgb(var(--primary-rgb)/0.5)] stroke-1',
                               )}
                             />
 
@@ -234,7 +234,7 @@ export function FloorPlan({ floor, personnel, onSelectWorkstation, selectedWorks
                                 height={CELL_H - 2}
                                 rx="5"
                                 fill="none"
-                                className="stroke-muted-foreground/30"
+                                className="stroke-[rgb(var(--muted-foreground-rgb)/0.3)]"
                                 strokeWidth="1"
                                 strokeDasharray="4 3"
                               />
@@ -255,7 +255,7 @@ export function FloorPlan({ floor, personnel, onSelectWorkstation, selectedWorks
                               textAnchor="middle"
                               className={cn(
                                 'text-[11px] font-medium pointer-events-none',
-                                isOccupied ? 'fill-foreground' : 'fill-muted-foreground/60',
+                                isOccupied ? 'fill-foreground' : 'fill-[rgb(var(--muted-foreground-rgb)/0.6)]',
                               )}
                             >
                               {ws.name}
@@ -283,10 +283,10 @@ export function FloorPlan({ floor, personnel, onSelectWorkstation, selectedWorks
                                   variant="outline"
                                   className={cn(
                                     'text-xs border-transparent',
-                                    person.status === 'present' && 'bg-[var(--status-present)]/15 text-[var(--status-present)]',
-                                    person.status === 'trip' && 'bg-[var(--status-trip)]/15 text-[var(--status-trip)]',
-                                    person.status === 'leave' && 'bg-[var(--status-leave)]/15 text-[var(--status-leave)]',
-                                    person.status === 'absent' && 'bg-[var(--status-absent)]/15 text-[var(--status-absent)]',
+                                    person.status === 'present' && 'bg-[rgb(var(--success-rgb)/0.15)] text-success',
+                                    person.status === 'trip' && 'bg-[rgb(var(--primary-rgb)/0.15)] text-primary',
+                                    person.status === 'leave' && 'bg-[rgb(var(--warning-rgb)/0.15)] text-warning',
+                                    person.status === 'absent' && 'bg-[rgb(var(--destructive-rgb)/0.15)] text-destructive',
                                   )}
                                 >
                                   {statusLabels[person.status] ?? '未知'}

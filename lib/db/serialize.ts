@@ -24,6 +24,8 @@ export function toPerson(p: DBPerson): Person {
     id: p.id,
     name: p.name,
     role: p.role as Person['role'],
+    department: p.department ?? undefined,
+    photoUrl: p.photoUrl ?? undefined,
     email: p.email ?? undefined,
     phone: p.phone ?? undefined,
     dingUserId: p.dingUserId ?? undefined,
@@ -198,6 +200,9 @@ export function fromPerson(p: Person) {
     id: p.id,
     name: p.name,
     role: p.role,
+    // 列为非空（默认 ''），Prisma 输入不接受 null。
+    department: p.department ?? '',
+    photoUrl: p.photoUrl ?? null,
     email: p.email ?? null,
     phone: p.phone ?? null,
     dingUserId: p.dingUserId ?? null,

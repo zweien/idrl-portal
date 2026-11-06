@@ -78,7 +78,7 @@ export function CategoriesPanel() {
     <div className="rounded-lg border border-border bg-card">
       <div className="px-4 py-3 border-b border-border">
         <p className="text-sm font-medium">分类管理</p>
-        <p className="text-xs text-muted-foreground mt-0.5">统一管理动态与资源的分类，删除分类后关联内容变为"未分类"。</p>
+        <p className="text-xs text-muted-foreground mt-0.5">统一管理动态与资源的分类，删除分类后关联内容变为「未分类」。</p>
       </div>
       <div className="p-4">
         <Tabs defaultValue="news">
