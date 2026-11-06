@@ -150,7 +150,7 @@ export default function PersonnelPage() {
               placeholder="搜索姓名、邮箱、研究方向…"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="pl-8 h-8 text-sm w-64"
+              className="pl-8 h-8 text-base w-64"
             />
           </div>
           <Button

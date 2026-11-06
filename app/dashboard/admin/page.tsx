@@ -599,7 +599,7 @@ export default function AdminPage() {
                   placeholder="搜索姓名、职位、部门、座位编号…"
                   value={personSearch}
                   onChange={e => setPersonSearch(e.target.value)}
-                  className="pl-8 h-8 text-sm w-72"
+                  className="pl-8 h-8 text-base w-72"
                 />
               </div>
             </div>
