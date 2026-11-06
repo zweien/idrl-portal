@@ -68,6 +68,18 @@ export default function PersonnelPage() {
     absent:  personnel.filter(p => p.status === 'absent').length,
   }), [personnel])
 
+  // Crossing into the desktop breakpoint while the drawer is open would
+  // leave lg:hidden content gone but the vaul overlay mounted — dimming and
+  // blocking the desktop page. Close it on breakpoint entry.
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)')
+    const onChange = (e: MediaQueryListEvent) => {
+      if (e.matches) setDetailDrawerOpen(false)
+    }
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+
   const reinstateLogin = async (target: Person) => {
     await fetch(`/api/personnel/${target.id}/reinstate`, { method: 'POST' })
     // selectedPerson is an independent copy — refresh it from the
