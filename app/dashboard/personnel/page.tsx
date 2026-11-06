@@ -124,7 +124,7 @@ export default function PersonnelPage() {
 
   if (!personnelResp || !floorData) {
     return (
-      <div className="space-y-4 py-2">
+      <div className="space-y-4 py-2 overflow-x-clip">
         <h1 className="text-xl font-semibold tracking-tight">人员与工位</h1>
         <p className="text-sm text-muted-foreground">加载中...</p>
       </div>
@@ -132,7 +132,7 @@ export default function PersonnelPage() {
   }
 
   return (
-    <div className="space-y-4 py-2">
+    <div className="space-y-4 py-2 overflow-x-clip">
       <StickyPageHeader>
         <div>
           <h1 className="text-xl font-semibold tracking-tight">人员与工位</h1>
@@ -231,7 +231,7 @@ export default function PersonnelPage() {
       )}
 
       <div className="grid lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 rounded-lg border border-border bg-card">
+        <div className="lg:col-span-2 rounded-lg border border-border bg-card overflow-x-clip">
           <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
             <MapPin className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm font-medium">工位平面图</span>
@@ -243,7 +243,7 @@ export default function PersonnelPage() {
               />
             </div>
           </div>
-          <div className="p-4">
+          <div className="p-4 overflow-x-auto">
             {activeFloor && (
               <FloorPlan
                 floor={activeFloor}
