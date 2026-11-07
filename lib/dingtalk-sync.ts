@@ -22,8 +22,10 @@ const LAST_FINALIZED_KEY = 'attendance.lastFinalizedDate'
 const BUKAO_SWEEP_KEY = 'attendance.lastBuKaoSweep'
 
 /** Union-merge a fetchTripStatus result into a destination map. Existing
- * entries keep their shape; incoming days union in and the reason is the
- * incoming one (last-write-wins, matching fetchTripStatus's own semantics). */
+ * entries keep their shape; incoming days union in and the reason is
+ * replaced wholesale (even when undefined — a fetch scoped to today is the
+ * freshest authority on today's trips, and keeping a stale reason from an
+ * older fetch would let yesterday's trip hijack today's avatar display). */
 function mergeTripStatus(dst: Map<string, TripStatus>, src: Map<string, TripStatus>): void {
   for (const [uid, st] of src) {
     const d = dst.get(uid)
@@ -31,7 +33,7 @@ function mergeTripStatus(dst: Map<string, TripStatus>, src: Map<string, TripStat
       dst.set(uid, { days: new Set(st.days), reason: st.reason })
     } else {
       for (const day of st.days) d.days.add(day)
-      if (st.reason) d.reason = st.reason
+      d.reason = st.reason
     }
   }
 }
@@ -391,14 +393,19 @@ export async function syncAttendance(progress?: SyncProgress): Promise<{
     corrTrip.set(uid, { days: new Set(base?.days ?? []), reason: base?.reason })
   }
   if (extraDays.length > 0) {
-    const extraUids = [...new Set(buKaoFixes.filter(f => extraDays.includes(f.day)).map(f => f.userid))]
+    // Fetch with the FULL synced userid set: fetchTripStatus prunes cache
+    // entries whose owners are all outside the passed set, so passing a
+    // subset (only the corrected users) would evict everyone else's cached
+    // trips and force re-fetches on later syncs. Attribution scope is really
+    // queryDays — the userid set only bounds cache pruning and local
+    // filtering, and the full set is what the main trip fetch uses.
     // Historical corrected days: upgrade corrTrip only — never the live map.
     // fetchTripStatus returns ONE reason per user (last-write-wins across the
     // queried days), so merging a historical day's fetch into tripByDay could
     // let a historical trip's reason hijack today's Person.avatar.
     const historicalDays = extraDays.filter(d => d !== today)
     if (historicalDays.length > 0) {
-      mergeTripStatus(corrTrip, await fetchTripStatus(token, extraUids, historicalDays))
+      mergeTripStatus(corrTrip, await fetchTripStatus(token, userids, historicalDays))
     }
     // Today (when a 补卡 targets it): a separate fetch scoped to [today] makes
     // the returned reason unambiguously a today-trip's — safe to reconcile
@@ -407,7 +414,7 @@ export async function syncAttendance(progress?: SyncProgress): Promise<{
     // without the reconcile Person would say absent while today's
     // AttendanceRecord says trip).
     if (extraDays.includes(today)) {
-      const todayTrip = await fetchTripStatus(token, extraUids, [today])
+      const todayTrip = await fetchTripStatus(token, userids, [today])
       mergeTripStatus(corrTrip, todayTrip)
       mergeTripStatus(tripByDay, todayTrip)
     }

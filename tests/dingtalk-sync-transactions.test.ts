@@ -219,6 +219,45 @@ describe('syncAttendance transaction boundary', () => {
     const liveData = personUpdateArgs[0]?.data as Record<string, unknown> | undefined
     expect(liveData?.avatar).toBe('今日出差')
   })
+
+  it('补卡 correction: a reasonless today trip clears a stale avatar reason', async () => {
+    // The live map may already carry yesterday's trip (with its reason) for a
+    // user. When the today-scoped fetch discovers a today trip WITHOUT a
+    // parseable reason, merging must replace the reason wholesale — keeping
+    // the truthy old value would display yesterday's trip description on
+    // today's personnel board.
+    const { todayDateStr, shiftDate } = await import('@/lib/attendance')
+    const todayStr = todayDateStr()
+    const yesterdayStr = shiftDate(todayStr, -1)
+    ;(txClient.person as { findMany?: unknown }).findMany = vi.fn(async () => [{ id: 'dt-u1' }])
+    ;(txClient.attendanceRecord as { findUnique?: unknown }).findUnique = vi.fn(async () => ({ status: 'absent' }))
+    const { fetchBuKaoApprovals, fetchTripStatus } = await import('@/lib/dingtalk-admin')
+    vi.mocked(fetchBuKaoApprovals).mockResolvedValueOnce({
+      daysByUser: new Map([['u1', new Set([todayStr])]]),
+      nextSinceMs: 0,
+      seen: 1,
+      approved: 1,
+    })
+    // Call order: main window fetch (yesterday's trip, with reason), then the
+    // today-scoped fetch (today's trip, reason unparseable).
+    vi.mocked(fetchTripStatus)
+      .mockImplementationOnce(async (_token, _uids, days: string[]) =>
+        days.includes(yesterdayStr)
+          ? new Map([['u1', { days: new Set([yesterdayStr]), reason: '昨日出差' }]])
+          : new Map())
+      .mockImplementationOnce(async (_token, _uids, days: string[]) =>
+        days.length === 1 && days[0] === todayStr
+          ? new Map([['u1', { days: new Set([todayStr]), reason: undefined }]])
+          : new Map())
+    const res = await syncAttendance()
+    expect(res.bukaoRows).toBe(1)
+    expect(personUpdateArgs.length).toBe(1)
+    const liveData = personUpdateArgs[0]?.data as Record<string, unknown> | undefined
+    // Today's trip with no reason → avatar cleared, NOT yesterday's reason.
+    // (Status itself flows through the static mapStatusForDay mock above, so
+    // only the avatar — read straight off tripByDay — is asserted here.)
+    expect(liveData?.avatar).toBeNull()
+  })
 })
 
 describe('backfillDay transaction boundary', () => {
