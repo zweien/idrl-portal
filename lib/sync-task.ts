@@ -51,6 +51,7 @@ export const SYNC_STAGES: Record<SyncKind, Array<{ key: string; label: string }>
     { key: 'attendance', label: '拉取考勤打卡' },
     { key: 'leave', label: '拉取请假' },
     { key: 'trip', label: '拉取出差审批' },
+    { key: 'bukao', label: '同步补卡审批' },
     { key: 'write', label: '写入数据库' },
   ],
   members: [

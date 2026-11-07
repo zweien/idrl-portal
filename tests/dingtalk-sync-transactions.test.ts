@@ -76,6 +76,7 @@ vi.mock('@/lib/dingtalk-admin', () => ({
   fetchAttendance: vi.fn(async () => new Map()),
   fetchLeaveStatus: vi.fn(async () => new Map()),
   fetchTripStatus: vi.fn(async () => new Map()),
+  fetchBuKaoApprovals: vi.fn(async () => ({ daysByUser: new Map(), nextSinceMs: 0, seen: 0, approved: 0 })),
   mapStatusForDay: vi.fn(() => ({ status: 'absent' as const, onDuty: null, offDuty: null })),
   getDingtalkCallCount: vi.fn(() => 0),
   resetDingtalkCallCount: vi.fn(),

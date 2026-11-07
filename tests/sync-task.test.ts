@@ -52,6 +52,7 @@ describe('runSyncTask (global sync mutex + stage tracking)', () => {
       p.stage('attendance')
       p.stage('leave')
       p.stage('trip')
+      p.stage('bukao')
       p.counter('拉取出差审批详情', 34, 84)
       p.stage('write')
       return { summary: 'done', stats: { total: 94 } }
@@ -61,7 +62,7 @@ describe('runSyncTask (global sync mutex + stage tracking)', () => {
     // module singleton and other tests' tasks may be the "latest".
     const task = (res as { task: SyncTaskState }).task
     expect(task.state).toBe('done')
-    expect(task.stages.map(s => s.status)).toEqual(['done', 'done', 'done', 'done'])
+    expect(task.stages.map(s => s.status)).toEqual(['done', 'done', 'done', 'done', 'done'])
     expect(task.stages.every(s => s.ms !== null)).toBe(true)
     expect(task.counter).toEqual({ label: '拉取出差审批详情', done: 34, total: 84 })
     // Inline results ride the return value; task.result is the background
