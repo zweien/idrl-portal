@@ -147,9 +147,14 @@ describe('syncAttendance transaction boundary', () => {
     const res = await syncAttendance()
     expect(res.bukaoRows).toBe(1)
     expect(writeCalls.some(c => c === 'attendanceRecord.update')).toBe(true)
-    // The preservation branch must not carry a status overwrite.
+    // The preservation branch must not carry a status overwrite — inspect the
+    // actual Prisma payload (fields ride under `data`, not `update`).
     expect(attUpdateArgs.length).toBe(1)
-    expect('status' in (attUpdateArgs[0]?.update ?? {})).toBe(false)
+    const data = attUpdateArgs[0]?.data as Record<string, unknown> | undefined
+    expect(data).toBeDefined()
+    expect(data && 'status' in data).toBe(false)
+    expect('checkIn' in data!).toBe(true)
+    expect('checkOut' in data!).toBe(true)
   })
 
   it('补卡 correction: non-trip rows are fully re-mapped via upsert', async () => {

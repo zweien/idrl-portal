@@ -379,12 +379,30 @@ export async function syncAttendance(progress?: SyncProgress): Promise<{
     const extraUids = [...new Set(buKaoFixes.filter(f => extraDays.includes(f.day)).map(f => f.userid))]
     const extraTrip = await fetchTripStatus(token, extraUids, extraDays)
     for (const [uid, st] of extraTrip) {
+      // Correction map gets every discovered day (its pass never re-maps
+      // frozen trip rows, so this only ever upgrades absent/present rows).
       const dst = corrTrip.get(uid)
       if (!dst) {
         corrTrip.set(uid, { days: new Set(st.days), reason: st.reason })
-        continue
+      } else {
+        for (const d of st.days) dst.days.add(d)
       }
-      for (const d of st.days) dst.days.add(d)
+      // TODAY's trips also reconcile back into the live map: an approval can
+      // complete between the trip fetch and this targeted fetch, and the live
+      // pass already ran with pre-completion data — without this, Person rows
+      // would say absent while today's AttendanceRecord says trip. Only
+      // today's day moves (with its reason); historical days/reasons stay
+      // isolated from Person.avatar (that's why corrTrip exists).
+      const todayDays = [...st.days].filter(d => d === today)
+      if (todayDays.length > 0) {
+        const live = tripByDay.get(uid)
+        if (live) {
+          for (const d of todayDays) live.days.add(d)
+          if (st.reason) live.reason = st.reason
+        } else {
+          tripByDay.set(uid, { days: new Set(todayDays), reason: st.reason })
+        }
+      }
     }
   }
 

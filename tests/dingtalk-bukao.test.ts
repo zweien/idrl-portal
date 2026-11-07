@@ -231,11 +231,14 @@ describe('fetchBuKaoApprovals (mocked DingTalk API)', () => {
     // DingTalk returns create_time as "yyyy-MM-dd HH:mm:ss" (Asia/Shanghai).
     // A pending instance whose creation falls outside the 24h lookback must
     // still pin the sweep — a numeric-only check silently dropped the pin and
-    // the approval flip was lost forever.
+    // the approval flip was lost forever. The fixture is derived from the
+    // test clock (6 days back) so the 30-day listing cap can never clamp it.
     process.env.DINGTALK_BUKAO_PROCESS_CODE = 'PROC-TEST'
-    // "2026-11-01 08:40:07" Shanghai — 6+ days back, far outside lookback.
-    const wallClock = '2026-11-01 08:40:07'
-    const expectedMs = new Date('2026-11-01T08:40:07+08:00').getTime()
+    const expectedMs = Math.floor((Date.now() - 6 * 24 * 60 * 60 * 1000) / 1000) * 1000
+    // Shanghai wall clock of expectedMs: shift by +08:00, take the ISO
+    // timestamp part, swap the T for a space.
+    const wallClock = new Date(expectedMs + 8 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ')
+    expect(wallClock).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)
     stubBuKaoApi({ [`inst-bk-${++instanceCounter}`]: { status: 'RUNNING', create_time: wallClock, originator: 'u_worker', form: [] } })
     const r = await fetchBuKaoApprovals('token', ['u_worker'], Date.now() - 24 * 60 * 60 * 1000)
     expect(r.daysByUser.size).toBe(0)
