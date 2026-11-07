@@ -7,6 +7,7 @@ import {
   fetchTripStatus,
   fetchBuKaoApprovals,
   mapStatusForDay,
+  type TripStatus,
 } from '@/lib/dingtalk-admin'
 import { todayDateStr, shiftDate, dateRangeDays } from '@/lib/attendance'
 import { resetDingtalkCallCount, getDingtalkCallCount } from '@/lib/dingtalk-admin'
@@ -335,13 +336,12 @@ export async function syncAttendance(progress?: SyncProgress): Promise<{
     for (const day of days) buKaoFixes.push({ userid, personId, day })
   }
 
-  // Days outside the fetched window need their own pulls. All three sources
-  // are fetched (attendance + leave + trip): a 补卡 can land on a trip/leave
-  // day, and re-mapping the status without those sources would wrongly flip
-  // the day to present. (Days inside queryDays reuse the window data above —
-  // DingTalk already reflects the correction there.)
-  const windowDays = new Set(queryDays)
-  const extraDays = [...new Set(buKaoFixes.map(f => f.day))].filter(d => !windowDays.has(d)).sort()
+  // Every affected day gets its own pull (attendance + leave): the approval
+  // may have flipped to agree AFTER the window attendance fetch above ran, so
+  // reusing window data could write pre-correction punches and then advance
+  // the sweep marker past the approval — permanently wrong. Affected days are
+  // few (typically 0-3), so the extra calls are negligible.
+  const extraDays = [...new Set(buKaoFixes.map(f => f.day))].sort()
   for (const day of extraDays) {
     const uids = [...new Set(buKaoFixes.filter(f => f.day === day).map(f => f.userid))]
     const extraAtt = await fetchAttendance(token, uids, day, day)
@@ -360,17 +360,31 @@ export async function syncAttendance(progress?: SyncProgress): Promise<{
       else leaveByDay.set(uid, set)
     }
   }
+
+  // Trip data for the correction pass, in its OWN map. Two reasons not to
+  // touch the shared tripByDay: (1) fetchTripStatus only lists approvals
+  // created in the last 30 days — older trips covering a corrected day are
+  // invisible to it, so the correction pass must never re-map status on its
+  // authority alone (frozen trip rows are preserved below instead); (2) the
+  // live pass reads Person.avatar's reason from tripByDay — merging a
+  // historical trip's reason there would overwrite TODAY's trip description
+  // on the personnel board. Seeded from tripByDay so in-window trips still
+  // count for non-frozen rows, plus the extra fetch above.
+  const corrTrip = new Map<string, TripStatus>()
+  for (const uid of new Set(buKaoFixes.map(f => f.userid))) {
+    const base = tripByDay.get(uid)
+    corrTrip.set(uid, { days: new Set(base?.days ?? []), reason: base?.reason })
+  }
   if (extraDays.length > 0) {
     const extraUids = [...new Set(buKaoFixes.filter(f => extraDays.includes(f.day)).map(f => f.userid))]
     const extraTrip = await fetchTripStatus(token, extraUids, extraDays)
     for (const [uid, st] of extraTrip) {
-      const dst = tripByDay.get(uid)
+      const dst = corrTrip.get(uid)
       if (!dst) {
-        tripByDay.set(uid, st)
+        corrTrip.set(uid, { days: new Set(st.days), reason: st.reason })
         continue
       }
       for (const d of st.days) dst.days.add(d)
-      if (st.reason) dst.reason = st.reason
     }
   }
 
@@ -464,24 +478,44 @@ export async function syncAttendance(progress?: SyncProgress): Promise<{
     // DingTalk retroactively corrected the day. Person rows stay untouched
     // (they carry TODAY's live state only) and the finalize water mark does
     // not move; the sweep marker below is this pass's own state.
+    //
+    // Frozen TRIP rows are the exception: status is only refreshed, never
+    // re-mapped. fetchTripStatus lists approvals created within 30 days, so a
+    // trip approved earlier (covering this day) is invisible to the correction
+    // pass — re-mapping would downgrade a legitimate trip day to present. A
+    // trip row is only ever written from real approval data, so the status is
+    // authoritative; the 补卡 still lands via the punch refresh. Leave is safe
+    // to re-map (getleavestatus queries by time range, and affected days are
+    // fetched above), as are absent/present rows.
     for (const fix of buKaoFixes) {
       if (!activeIds.has(fix.personId)) continue
-      const { status, onDuty, offDuty } = mapStatusForDay(fix.userid, fix.day, tripByDay, leaveByDay, attByDay)
-      await tx.attendanceRecord.upsert({
+      const existing = await tx.attendanceRecord.findUnique({
         where: { personId_date: { personId: fix.personId, date: fix.day } },
-        create: {
-          personId: fix.personId,
-          date: fix.day,
-          status,
-          checkIn: onDuty?.checkTime ?? null,
-          checkOut: offDuty?.checkTime ?? null,
-        },
-        update: {
-          status,
-          checkIn: onDuty?.checkTime ?? null,
-          checkOut: offDuty?.checkTime ?? null,
-        },
+        select: { status: true },
       })
+      const { status, onDuty, offDuty } = mapStatusForDay(fix.userid, fix.day, corrTrip, leaveByDay, attByDay)
+      if (existing?.status === 'trip') {
+        await tx.attendanceRecord.update({
+          where: { personId_date: { personId: fix.personId, date: fix.day } },
+          data: { checkIn: onDuty?.checkTime ?? null, checkOut: offDuty?.checkTime ?? null },
+        })
+      } else {
+        await tx.attendanceRecord.upsert({
+          where: { personId_date: { personId: fix.personId, date: fix.day } },
+          create: {
+            personId: fix.personId,
+            date: fix.day,
+            status,
+            checkIn: onDuty?.checkTime ?? null,
+            checkOut: offDuty?.checkTime ?? null,
+          },
+          update: {
+            status,
+            checkIn: onDuty?.checkTime ?? null,
+            checkOut: offDuty?.checkTime ?? null,
+          },
+        })
+      }
       buKaoRows++
     }
 

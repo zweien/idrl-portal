@@ -15,6 +15,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // Track whether writes happened inside a $transaction callback.
 let inTransaction = false
 const writeCalls: string[] = []
+// Captured args of attendanceRecord.update (the 补卡 trip-preservation branch).
+const attUpdateArgs: Array<Record<string, unknown> | undefined> = []
 const txUsed = vi.fn()
 
 const makeTxClient = () => ({
@@ -29,6 +31,11 @@ const makeTxClient = () => ({
     count: vi.fn(async () => 0),
   },
   attendanceRecord: {
+    findUnique: vi.fn(async () => null),
+    update: vi.fn(async (args?: Record<string, unknown>) => {
+      if (inTransaction) { writeCalls.push('attendanceRecord.update'); attUpdateArgs.push(args) }
+      return {}
+    }),
     upsert: vi.fn(async () => { if (inTransaction) writeCalls.push('attendanceRecord.upsert'); return {} }),
   },
   setting: {
@@ -87,6 +94,7 @@ const { syncMembers, syncAttendance, backfillDay } = await import('@/lib/dingtal
 beforeEach(() => {
   inTransaction = false
   writeCalls.length = 0
+  attUpdateArgs.length = 0
   txUsed.mockClear()
 })
 
@@ -120,6 +128,43 @@ describe('syncAttendance transaction boundary', () => {
     expect(writeCalls.some(c => c === 'attendanceRecord.upsert')).toBe(true)
     expect(writeCalls.some(c => c === 'person.update')).toBe(true)
     expect(writeCalls.some(c => c === 'setting.upsert')).toBe(true)
+  })
+
+  it('补卡 correction: a frozen trip row keeps its status (punch refresh only)', async () => {
+    // fetchTripStatus only lists approvals created in the last 30 days, so the
+    // correction pass cannot re-derive trip status for older trips covering a
+    // corrected day — re-mapping would downgrade a legitimate trip row to
+    // present. The frozen status must be preserved; only punches refresh.
+    ;(txClient.person as { findMany?: unknown }).findMany = vi.fn(async () => [{ id: 'dt-u1' }])
+    ;(txClient.attendanceRecord as { findUnique?: unknown }).findUnique = vi.fn(async () => ({ status: 'trip' }))
+    const { fetchBuKaoApprovals } = await import('@/lib/dingtalk-admin')
+    vi.mocked(fetchBuKaoApprovals).mockResolvedValueOnce({
+      daysByUser: new Map([['u1', new Set(['2026-10-20'])]]),
+      nextSinceMs: 0,
+      seen: 1,
+      approved: 1,
+    })
+    const res = await syncAttendance()
+    expect(res.bukaoRows).toBe(1)
+    expect(writeCalls.some(c => c === 'attendanceRecord.update')).toBe(true)
+    // The preservation branch must not carry a status overwrite.
+    expect(attUpdateArgs.length).toBe(1)
+    expect('status' in (attUpdateArgs[0]?.update ?? {})).toBe(false)
+  })
+
+  it('补卡 correction: non-trip rows are fully re-mapped via upsert', async () => {
+    ;(txClient.person as { findMany?: unknown }).findMany = vi.fn(async () => [{ id: 'dt-u1' }])
+    ;(txClient.attendanceRecord as { findUnique?: unknown }).findUnique = vi.fn(async () => ({ status: 'absent' }))
+    const { fetchBuKaoApprovals } = await import('@/lib/dingtalk-admin')
+    vi.mocked(fetchBuKaoApprovals).mockResolvedValueOnce({
+      daysByUser: new Map([['u1', new Set(['2026-10-20'])]]),
+      nextSinceMs: 0,
+      seen: 1,
+      approved: 1,
+    })
+    const res = await syncAttendance()
+    expect(res.bukaoRows).toBe(1)
+    expect(writeCalls.some(c => c === 'attendanceRecord.upsert')).toBe(true)
   })
 })
 

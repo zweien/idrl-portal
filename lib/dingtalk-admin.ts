@@ -899,6 +899,30 @@ export function buKaoNextSince(minNonTerminalCreateTime: number | null, now: num
 }
 
 /**
+ * Parse an instance's create_time. DingTalk returns it as a NUMBER (ms epoch)
+ * or a STRING — either epoch digits or a "yyyy-MM-dd HH:mm:ss" wall clock in
+ * Asia/Shanghai (verified against the org's 补卡 instances). Parsing the wall
+ * clock with bare new Date() would silently depend on the host timezone, so
+ * anchor it at +08:00 explicitly. Returns null when unparseable.
+ */
+export function parseDingTalkCreateTime(v: unknown): number | null {
+  if (typeof v === 'number') return isFinite(v) && v > 0 ? v : null
+  if (typeof v !== 'string') return null
+  const s = v.trim()
+  if (/^\d+$/.test(s)) {
+    const n = Number(s)
+    return isFinite(n) && n > 0 ? n : null
+  }
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/)
+  if (m) {
+    const [, y, mo, d, h, mi, se] = m
+    const t = new Date(`${y}-${mo}-${d}T${h}:${mi}:${se ?? '00'}+08:00`).getTime()
+    return isFinite(t) && t > 0 ? t : null
+  }
+  return null
+}
+
+/**
  * Extract the 补卡 target day ("yyyy-MM-dd") from an instance's form. Two real
  * field shapes (verified against the org's "补卡" template):
  *  - repairCheckTime: ms epoch of the approved punch — its Shanghai calendar
@@ -990,8 +1014,15 @@ export async function fetchBuKaoApprovals(
   result.seen = allIds.length
 
   // Fetch details (cache-first), tracking the oldest non-terminal instance so
-  // its later approval flip stays inside the next sweep.
+  // its later approval flip stays inside the next sweep. A FAILED detail fetch
+  // must not advance the marker past that instance: it would be permanently
+  // lost once outside the 24h lookback. Instead the whole sweep pins its
+  // marker to the window start — the next sync re-lists the same window
+  // (cached instances cost nothing; only the failed detail re-fetches). A
+  // permanently-broken instance ages out with the 30-day cap instead of
+  // wedging every sync (which throwing would do).
   let minNonTerminal: number | null = null
+  let detailFailed = false
   const uncached = allIds.filter(id => !buKaoDetailCache.has(id)).length
   let fetched = 0
   if (uncached > 0 && onDetailProgress) onDetailProgress(0, uncached)
@@ -1005,21 +1036,26 @@ export async function fetchBuKaoApprovals(
         body: JSON.stringify({ process_instance_id: instanceId }),
         cache: 'no-store',
       })
-      if (!detailRes.ok) continue
-      const detailData = (await detailRes.json()) as {
-        process_instance?: {
-          status?: string
-          result?: string
-          create_time?: number
-          originator_userid?: string
-          form_component_values?: Array<{ name?: string; value?: string }>
-        }
+      const detailData = detailRes.ok
+        ? ((await detailRes.json().catch(() => ({}))) as {
+            errcode?: number
+            process_instance?: {
+              status?: string
+              result?: string
+              create_time?: number | string
+              originator_userid?: string
+              form_component_values?: Array<{ name?: string; value?: string }>
+            }
+          })
+        : null
+      const inst = detailData?.errcode ? undefined : detailData?.process_instance
+      if (!inst) {
+        detailFailed = true
+        continue
       }
-      const inst = detailData.process_instance
-      if (!inst) continue
       fetched++
       if (onDetailProgress) onDetailProgress(fetched, uncached)
-      const createTime = typeof inst.create_time === 'number' ? inst.create_time : null
+      const createTime = parseDingTalkCreateTime(inst.create_time)
       const terminal = inst.status === 'COMPLETED' || inst.status === 'TERMINATED'
       // Non-terminal instances (NEW/RUNNING/TERMINATING) may flip later —
       // re-list them on the next sweep until they land.
@@ -1048,7 +1084,9 @@ export async function fetchBuKaoApprovals(
     for (const d of entry.days) set.add(d)
   }
 
-  result.nextSinceMs = buKaoNextSince(minNonTerminal, now)
+  result.nextSinceMs = detailFailed
+    ? Math.max(startTime - 1000, now - BUKAO_LIST_WINDOW_MS)
+    : buKaoNextSince(minNonTerminal, now)
   return result
 }
 

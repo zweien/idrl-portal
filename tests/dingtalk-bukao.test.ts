@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { parseBuKaoDays, fetchBuKaoApprovals, buKaoNextSince } from '@/lib/dingtalk-admin'
+import { parseBuKaoDays, fetchBuKaoApprovals, buKaoNextSince, parseDingTalkCreateTime } from '@/lib/dingtalk-admin'
 
 // 补卡 (attendance correction) sweep: parse the corrected day from an
 // instance's form, sweep approvals created since a moving marker, and compute
@@ -104,6 +104,38 @@ describe('buKaoNextSince (next sweep marker)', () => {
   })
 })
 
+describe('parseDingTalkCreateTime (number / epoch string / Shanghai wall clock)', () => {
+  it('passes through finite positive numbers', () => {
+    const ms = new Date('2026-11-06T00:40:07Z').getTime()
+    expect(parseDingTalkCreateTime(ms)).toBe(ms)
+    expect(parseDingTalkCreateTime(0)).toBeNull()
+    expect(parseDingTalkCreateTime(-5)).toBeNull()
+    expect(parseDingTalkCreateTime(Number.NaN)).toBeNull()
+  })
+
+  it('parses epoch-digit strings', () => {
+    const ms = new Date('2026-11-06T00:40:07Z').getTime()
+    expect(parseDingTalkCreateTime(String(ms))).toBe(ms)
+    expect(parseDingTalkCreateTime('  ' + ms + ' ')).toBe(ms)
+  })
+
+  it('anchors "yyyy-MM-dd HH:mm:ss" wall clocks at Asia/Shanghai (real API shape)', () => {
+    // DingTalk returns create_time as "2026-11-07 11:22:37" Shanghai wall
+    // clock — must NOT depend on the host timezone.
+    expect(parseDingTalkCreateTime('2026-11-07 11:22:37')).toBe(new Date('2026-11-07T11:22:37+08:00').getTime())
+    expect(parseDingTalkCreateTime('2026-11-07 11:22')).toBe(new Date('2026-11-07T11:22:00+08:00').getTime())
+    expect(parseDingTalkCreateTime('2026-11-07T11:22:37')).toBe(new Date('2026-11-07T11:22:37+08:00').getTime())
+  })
+
+  it('returns null for garbage', () => {
+    expect(parseDingTalkCreateTime('not a date')).toBeNull()
+    expect(parseDingTalkCreateTime('')).toBeNull()
+    expect(parseDingTalkCreateTime(null)).toBeNull()
+    expect(parseDingTalkCreateTime(undefined)).toBeNull()
+    expect(parseDingTalkCreateTime({})).toBeNull()
+  })
+})
+
 describe('fetchBuKaoApprovals (mocked DingTalk API)', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
@@ -136,7 +168,7 @@ describe('fetchBuKaoApprovals (mocked DingTalk API)', () => {
     ]
   }
 
-  function stubBuKaoApi(instances: Record<string, InstSpec>) {
+  function stubBuKaoApi(instances: Record<string, InstSpec>, detailMode: 'ok' | 'http500' | 'errcode' = 'ok') {
     const captured: Array<Record<string, unknown>> = []
     vi.stubGlobal('fetch', vi.fn(async (url: string | URL, init?: RequestInit) => {
       const u = String(url)
@@ -148,6 +180,10 @@ describe('fetchBuKaoApprovals (mocked DingTalk API)', () => {
       if (u.includes('processinstance/get')) {
         const spec = instances[String(body.process_instance_id)]
         if (!spec) throw new Error(`unexpected instance ${String(body.process_instance_id)}`)
+        if (detailMode === 'http500') return new Response('server error', { status: 500 })
+        if (detailMode === 'errcode') {
+          return new Response(JSON.stringify({ errcode: 90018, errmsg: 'instance gone' }), { status: 200 })
+        }
         return new Response(JSON.stringify({
           process_instance: {
             status: spec.status ?? 'COMPLETED',
@@ -189,6 +225,39 @@ describe('fetchBuKaoApprovals (mocked DingTalk API)', () => {
     const r = await fetchBuKaoApprovals('token', ['u_worker'], Date.now() - 24 * 60 * 60 * 1000)
     expect(r.daysByUser.size).toBe(0)
     expect(Math.abs(r.nextSinceMs - (createTime - 1000))).toBeLessThan(3000)
+  })
+
+  it('REGRESSION: a wall-clock-string create_time still pins the marker', async () => {
+    // DingTalk returns create_time as "yyyy-MM-dd HH:mm:ss" (Asia/Shanghai).
+    // A pending instance whose creation falls outside the 24h lookback must
+    // still pin the sweep — a numeric-only check silently dropped the pin and
+    // the approval flip was lost forever.
+    process.env.DINGTALK_BUKAO_PROCESS_CODE = 'PROC-TEST'
+    // "2026-11-01 08:40:07" Shanghai — 6+ days back, far outside lookback.
+    const wallClock = '2026-11-01 08:40:07'
+    const expectedMs = new Date('2026-11-01T08:40:07+08:00').getTime()
+    stubBuKaoApi({ [`inst-bk-${++instanceCounter}`]: { status: 'RUNNING', create_time: wallClock, originator: 'u_worker', form: [] } })
+    const r = await fetchBuKaoApprovals('token', ['u_worker'], Date.now() - 24 * 60 * 60 * 1000)
+    expect(r.daysByUser.size).toBe(0)
+    expect(Math.abs(r.nextSinceMs - (expectedMs - 1000))).toBeLessThan(3000)
+  })
+
+  it('a failed detail fetch (HTTP 500) pins the marker to the window start', async () => {
+    process.env.DINGTALK_BUKAO_PROCESS_CODE = 'PROC-TEST'
+    const since = Date.now() - 24 * 60 * 60 * 1000
+    stubBuKaoApi({ [`inst-bk-${++instanceCounter}`]: { originator: 'u_worker', form: [] } }, 'http500')
+    const r = await fetchBuKaoApprovals('token', ['u_worker'], since)
+    // Not the plain lookback: retrying the same window next sync must
+    // re-fetch the failed instance instead of advancing past it.
+    expect(Math.abs(r.nextSinceMs - (since - 1000))).toBeLessThan(3000)
+  })
+
+  it('a failed detail fetch (HTTP 200 + errcode) pins the marker too', async () => {
+    process.env.DINGTALK_BUKAO_PROCESS_CODE = 'PROC-TEST'
+    const since = Date.now() - 12 * 60 * 60 * 1000
+    stubBuKaoApi({ [`inst-bk-${++instanceCounter}`]: { originator: 'u_worker', form: [] } }, 'errcode')
+    const r = await fetchBuKaoApprovals('token', ['u_worker'], since)
+    expect(Math.abs(r.nextSinceMs - (since - 1000))).toBeLessThan(3000)
   })
 
   it('a REJECTED instance is terminal: no days, lookback marker', async () => {
