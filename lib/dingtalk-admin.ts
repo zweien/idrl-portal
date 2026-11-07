@@ -847,6 +847,249 @@ export async function fetchTripStatus(
 }
 
 
+// ── 补卡 (attendance correction) approvals ────────────
+// A missed punch is fixed in DingTalk via the 补卡 approval (template "补卡").
+// Once COMPLETED+agree, DingTalk rewrites that day's attendance/list result
+// (sourceType=APPROVE, timeResult=Normal) — but a day already finalized in our
+// DB never gets re-pulled (the finalize water mark), so the portal would keep
+// showing absent forever. The sweep lists recently-created 补卡 instances,
+// parses the corrected day from each form, and lets syncAttendance re-pull
+// exactly those days (see the correction pass in dingtalk-sync.ts).
+
+export interface BuKaoSweep {
+  /** userid → days ("yyyy-MM-dd") corrected by approved 补卡 instances. */
+  daysByUser: Map<string, Set<string>>
+  /** Next sweep start (ms epoch). Persist only after a successful sync. */
+  nextSinceMs: number
+  /** Instances listed in the sweep window (all terminalities). */
+  seen: number
+  /** Approved instances that contributed ≥1 day for a synced person. */
+  approved: number
+}
+
+/** listids query window is capped at 30 days of instance creations. */
+const BUKAO_LIST_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
+/** Lookback when no non-terminal instance exists: covers instances created
+ * during the last sweep (after its listids call) and detail-fetch failures. */
+const BUKAO_LOOKBACK_MS = 24 * 60 * 60 * 1000
+
+// In-memory detail cache for usable (COMPLETED+agree, day parsed) instances.
+// The sweep window is a MOVING since-marker, so a usable instance never
+// re-appears in later sweeps — the cache only pays off when a sweep window
+// overlaps the previous one (the non-terminal lookback). No persistence: the
+// steady-state window lists 0-3 instances, so a restart re-fetches almost
+// nothing.
+interface BuKaoCacheEntry {
+  originator?: string
+  days: string[]
+}
+const buKaoDetailCache = new Map<string, BuKaoCacheEntry>()
+
+/**
+ * Next sweep start: re-list from the oldest still-pending instance (so a
+ * RUNNING→agree flip is caught on a later sweep), else a 24h lookback. Never
+ * older than the 30-day listing cap.
+ */
+export function buKaoNextSince(minNonTerminalCreateTime: number | null, now: number): number {
+  const floor = now - BUKAO_LIST_WINDOW_MS
+  const candidate = minNonTerminalCreateTime !== null
+    ? minNonTerminalCreateTime - 1000
+    : now - BUKAO_LOOKBACK_MS
+  return Math.max(floor, candidate)
+}
+
+/**
+ * Parse an instance's create_time. DingTalk returns it as a NUMBER (ms epoch)
+ * or a STRING — either epoch digits or a "yyyy-MM-dd HH:mm:ss" wall clock in
+ * Asia/Shanghai (verified against the org's 补卡 instances). Parsing the wall
+ * clock with bare new Date() would silently depend on the host timezone, so
+ * anchor it at +08:00 explicitly. Returns null when unparseable.
+ */
+export function parseDingTalkCreateTime(v: unknown): number | null {
+  if (typeof v === 'number') return isFinite(v) && v > 0 ? v : null
+  if (typeof v !== 'string') return null
+  const s = v.trim()
+  if (/^\d+$/.test(s)) {
+    const n = Number(s)
+    return isFinite(n) && n > 0 ? n : null
+  }
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/)
+  if (m) {
+    const [, y, mo, d, h, mi, se] = m
+    const t = new Date(`${y}-${mo}-${d}T${h}:${mi}:${se ?? '00'}+08:00`).getTime()
+    return isFinite(t) && t > 0 ? t : null
+  }
+  return null
+}
+
+/**
+ * Extract the 补卡 target day ("yyyy-MM-dd") from an instance's form. Two real
+ * field shapes (verified against the org's "补卡" template):
+ *  - repairCheckTime: ms epoch of the approved punch — its Shanghai calendar
+ *    day is the target day.
+ *  - a DDDateField component whose value is a JSON array carrying
+ *    props.bizAlias "userCheckTime" and an extValue JSON with workDate (ms)
+ *    — the shift's calendar day.
+ * Both normally agree; the union (deduped) is returned and the caller can
+ * re-pull that day once.
+ */
+export function parseBuKaoDays(formValues: unknown[]): string[] {
+  const days = new Set<string>()
+  for (const fv of formValues as Array<{ name?: string; value?: string }>) {
+    if (!fv || fv.value === null || fv.value === undefined) continue
+    const raw = String(fv.value)
+    // repairCheckTime: plain numeric ms epoch
+    if (fv.name === 'repairCheckTime' && /^\d+$/.test(raw.trim())) {
+      days.add(shanghaiDateStr(Number(raw.trim())))
+      continue
+    }
+    // DDDateField component JSON
+    try {
+      const arr = JSON.parse(raw)
+      if (!Array.isArray(arr)) continue
+      for (const item of arr) {
+        const alias = item?.props?.bizAlias
+        if (alias !== 'userCheckTime' || !item.extValue) continue
+        try {
+          const ext = JSON.parse(String(item.extValue))
+          const wd = ext?.workDate
+          if (typeof wd === 'number') days.add(shanghaiDateStr(wd))
+          else if (typeof wd === 'string' && /^\d+$/.test(wd)) days.add(shanghaiDateStr(Number(wd)))
+        } catch { /* extValue not JSON */ }
+      }
+    } catch { /* not JSON */ }
+  }
+  return [...days]
+}
+
+/**
+ * Sweep 补卡 approvals created since `sinceMs` (ms epoch). Returns the days
+ * each synced person got a correction for, plus the next sweep marker.
+ * Unconfigured (no DINGTALK_BUKAO_PROCESS_CODE) → empty result, marker
+ * unchanged. Throws on DingTalk API failure.
+ */
+export async function fetchBuKaoApprovals(
+  accessToken: string,
+  userids: string[],
+  sinceMs: number,
+  onDetailProgress?: (done: number, total: number) => void,
+): Promise<BuKaoSweep> {
+  const result: BuKaoSweep = { daysByUser: new Map(), nextSinceMs: sinceMs, seen: 0, approved: 0 }
+  const rawCodes = process.env.DINGTALK_BUKAO_PROCESS_CODE
+  if (!rawCodes || userids.length === 0) return result
+  const processCodes = rawCodes.split(',').map(s => s.trim()).filter(Boolean)
+  if (processCodes.length === 0) return result
+
+  const useridSet = new Set(userids)
+  const now = Date.now()
+  const startTime = Math.max(sinceMs, now - BUKAO_LIST_WINDOW_MS)
+  const endTime = now
+
+  // List instances per process code (paginated), like the trip sweep.
+  const allIds: string[] = []
+  for (const processCode of processCodes) {
+    let cursor = 0
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      dingtalkCalls++
+      const listRes = await fetch(`${PROCESS_INSTANCE_URL}?access_token=${accessToken}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ process_code: processCode, start_time: startTime, end_time: endTime, cursor, size: 20 }),
+        cache: 'no-store',
+      })
+      if (!listRes.ok) throw new Error(`processinstance/listids HTTP ${listRes.status} for ${processCode}`)
+      const listData = (await listRes.json()) as {
+        errcode?: number
+        errmsg?: string
+        result?: { list?: string[]; next_cursor?: number }
+      }
+      if (listData.errcode) throw new Error(`processinstance/listids error ${listData.errcode}: ${listData.errmsg}`)
+      allIds.push(...(listData.result?.list ?? []))
+      const next = listData.result?.next_cursor
+      if (next === undefined || next === null || next === 0) break
+      cursor = next
+    }
+  }
+  result.seen = allIds.length
+
+  // Fetch details (cache-first), tracking the oldest non-terminal instance so
+  // its later approval flip stays inside the next sweep. A FAILED detail fetch
+  // must not advance the marker past that instance: it would be permanently
+  // lost once outside the 24h lookback. Instead the whole sweep pins its
+  // marker to the window start — the next sync re-lists the same window
+  // (cached instances cost nothing; only the failed detail re-fetches). A
+  // permanently-broken instance ages out with the 30-day cap instead of
+  // wedging every sync (which throwing would do).
+  let minNonTerminal: number | null = null
+  let detailFailed = false
+  const uncached = allIds.filter(id => !buKaoDetailCache.has(id)).length
+  let fetched = 0
+  if (uncached > 0 && onDetailProgress) onDetailProgress(0, uncached)
+  for (const instanceId of allIds) {
+    let entry = buKaoDetailCache.get(instanceId)
+    if (!entry) {
+      dingtalkCalls++
+      const detailRes = await fetch(`${PROCESS_DETAIL_URL}?access_token=${accessToken}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ process_instance_id: instanceId }),
+        cache: 'no-store',
+      })
+      const detailData = detailRes.ok
+        ? ((await detailRes.json().catch(() => ({}))) as {
+            errcode?: number
+            process_instance?: {
+              status?: string
+              result?: string
+              create_time?: number | string
+              originator_userid?: string
+              form_component_values?: Array<{ name?: string; value?: string }>
+            }
+          })
+        : null
+      const inst = detailData?.errcode ? undefined : detailData?.process_instance
+      if (!inst) {
+        detailFailed = true
+        continue
+      }
+      fetched++
+      if (onDetailProgress) onDetailProgress(fetched, uncached)
+      const createTime = parseDingTalkCreateTime(inst.create_time)
+      const terminal = inst.status === 'COMPLETED' || inst.status === 'TERMINATED'
+      // Non-terminal instances (NEW/RUNNING/TERMINATING) may flip later —
+      // re-list them on the next sweep until they land.
+      if (!terminal && createTime !== null && (minNonTerminal === null || createTime < minNonTerminal)) {
+        minNonTerminal = createTime
+      }
+      if (inst.status !== 'COMPLETED' || inst.result !== 'agree') continue
+      const days = parseBuKaoDays(inst.form_component_values ?? [])
+        // Corrections never target a future day.
+        .filter(d => d <= shanghaiDateStr(now))
+      if (days.length === 0) continue
+      entry = { originator: inst.originator_userid, days }
+      buKaoDetailCache.set(instanceId, entry)
+    }
+    // Attribution runs for BOTH cached and freshly-fetched entries: a cached
+    // instance re-appearing inside the lookback overlap re-pulls its day once
+    // more — idempotent (the upsert writes the same corrected values).
+    result.approved++
+    const originator = entry.originator
+    if (!originator || !useridSet.has(originator)) continue
+    let set = result.daysByUser.get(originator)
+    if (!set) {
+      set = new Set()
+      result.daysByUser.set(originator, set)
+    }
+    for (const d of entry.days) set.add(d)
+  }
+
+  result.nextSinceMs = detailFailed
+    ? Math.max(startTime - 1000, now - BUKAO_LIST_WINDOW_MS)
+    : buKaoNextSince(minNonTerminal, now)
+  return result
+}
+
 /**
  * Map attendance data for a single day to Person.status using the priority:
  * trip > leave > attendance punch > absent.
