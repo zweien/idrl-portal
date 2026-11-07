@@ -17,12 +17,17 @@ let inTransaction = false
 const writeCalls: string[] = []
 // Captured args of attendanceRecord.update (the 补卡 trip-preservation branch).
 const attUpdateArgs: Array<Record<string, unknown> | undefined> = []
+// Captured args of person.update (the live pass — today's status/avatar).
+const personUpdateArgs: Array<Record<string, unknown> | undefined> = []
 const txUsed = vi.fn()
 
 const makeTxClient = () => ({
   person: {
     findFirst: vi.fn(async () => null),
-    update: vi.fn(async () => { if (inTransaction) writeCalls.push('person.update'); return {} }),
+    update: vi.fn(async (args?: Record<string, unknown>) => {
+      if (inTransaction) { writeCalls.push('person.update'); personUpdateArgs.push(args) }
+      return {}
+    }),
     create: vi.fn(async () => { if (inTransaction) writeCalls.push('person.create'); return {} }),
   },
   user: {
@@ -95,6 +100,7 @@ beforeEach(() => {
   inTransaction = false
   writeCalls.length = 0
   attUpdateArgs.length = 0
+  personUpdateArgs.length = 0
   txUsed.mockClear()
 })
 
@@ -170,6 +176,48 @@ describe('syncAttendance transaction boundary', () => {
     const res = await syncAttendance()
     expect(res.bukaoRows).toBe(1)
     expect(writeCalls.some(c => c === 'attendanceRecord.upsert')).toBe(true)
+  })
+
+  it('补卡 correction: today’s Person.avatar reason comes only from the today-scoped trip fetch', async () => {
+    // fetchTripStatus returns ONE reason per user, last-write-wins across the
+    // queried days. When a sweep covers today AND a historical day, merging
+    // that single fetch into the live map would let the historical trip's
+    // reason hijack today's Person.avatar — the today fetch must be scoped to
+    // [today] so its reason is unambiguously today's.
+    const { todayDateStr } = await import('@/lib/attendance')
+    const todayStr = todayDateStr()
+    const historicalDay = '2020-01-02'
+    ;(txClient.person as { findMany?: unknown }).findMany = vi.fn(async () => [{ id: 'dt-u1' }])
+    ;(txClient.attendanceRecord as { findUnique?: unknown }).findUnique = vi.fn(async () => ({ status: 'absent' }))
+    const { fetchBuKaoApprovals, fetchTripStatus } = await import('@/lib/dingtalk-admin')
+    vi.mocked(fetchBuKaoApprovals).mockResolvedValueOnce({
+      daysByUser: new Map([['u1', new Set([todayStr, historicalDay])]]),
+      nextSinceMs: 0,
+      seen: 1,
+      approved: 1,
+    })
+    // Call order inside syncAttendance: main window fetch, historical fetch,
+    // today-scoped fetch. Each returns its own trip set, emulating the real
+    // per-user last-write-wins reason semantics.
+    vi.mocked(fetchTripStatus)
+      .mockImplementationOnce(async (_token, _uids, days: string[]) =>
+        days.includes(todayStr)
+          ? new Map([['u1', { days: new Set([todayStr]), reason: '今日出差' }]])
+          : new Map())
+      .mockImplementationOnce(async (_token, _uids, days: string[]) =>
+        days.includes(historicalDay)
+          ? new Map([['u1', { days: new Set([historicalDay]), reason: '历史出差' }]])
+          : new Map())
+      .mockImplementationOnce(async (_token, _uids, days: string[]) =>
+        days.length === 1 && days[0] === todayStr
+          ? new Map([['u1', { days: new Set([todayStr]), reason: '今日出差' }]])
+          : new Map())
+    const res = await syncAttendance()
+    expect(res.bukaoRows).toBe(2)
+    expect(personUpdateArgs.length).toBe(1)
+    // The live pass must carry TODAY's trip reason, not the historical one.
+    const liveData = personUpdateArgs[0]?.data as Record<string, unknown> | undefined
+    expect(liveData?.avatar).toBe('今日出差')
   })
 })
 

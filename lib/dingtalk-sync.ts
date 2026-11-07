@@ -21,6 +21,21 @@ const LAST_FINALIZED_KEY = 'attendance.lastFinalizedDate'
  * instances created after this marker still need their target day re-pulled. */
 const BUKAO_SWEEP_KEY = 'attendance.lastBuKaoSweep'
 
+/** Union-merge a fetchTripStatus result into a destination map. Existing
+ * entries keep their shape; incoming days union in and the reason is the
+ * incoming one (last-write-wins, matching fetchTripStatus's own semantics). */
+function mergeTripStatus(dst: Map<string, TripStatus>, src: Map<string, TripStatus>): void {
+  for (const [uid, st] of src) {
+    const d = dst.get(uid)
+    if (!d) {
+      dst.set(uid, { days: new Set(st.days), reason: st.reason })
+    } else {
+      for (const day of st.days) d.days.add(day)
+      if (st.reason) d.reason = st.reason
+    }
+  }
+}
+
 async function readLastFinalized(): Promise<string> {
   // Default to yesterday on first run so the very first sync does nothing for
   // history (no data exists yet) and just refreshes today's live state. The
@@ -377,32 +392,24 @@ export async function syncAttendance(progress?: SyncProgress): Promise<{
   }
   if (extraDays.length > 0) {
     const extraUids = [...new Set(buKaoFixes.filter(f => extraDays.includes(f.day)).map(f => f.userid))]
-    const extraTrip = await fetchTripStatus(token, extraUids, extraDays)
-    for (const [uid, st] of extraTrip) {
-      // Correction map gets every discovered day (its pass never re-maps
-      // frozen trip rows, so this only ever upgrades absent/present rows).
-      const dst = corrTrip.get(uid)
-      if (!dst) {
-        corrTrip.set(uid, { days: new Set(st.days), reason: st.reason })
-      } else {
-        for (const d of st.days) dst.days.add(d)
-      }
-      // TODAY's trips also reconcile back into the live map: an approval can
-      // complete between the trip fetch and this targeted fetch, and the live
-      // pass already ran with pre-completion data — without this, Person rows
-      // would say absent while today's AttendanceRecord says trip. Only
-      // today's day moves (with its reason); historical days/reasons stay
-      // isolated from Person.avatar (that's why corrTrip exists).
-      const todayDays = [...st.days].filter(d => d === today)
-      if (todayDays.length > 0) {
-        const live = tripByDay.get(uid)
-        if (live) {
-          for (const d of todayDays) live.days.add(d)
-          if (st.reason) live.reason = st.reason
-        } else {
-          tripByDay.set(uid, { days: new Set(todayDays), reason: st.reason })
-        }
-      }
+    // Historical corrected days: upgrade corrTrip only — never the live map.
+    // fetchTripStatus returns ONE reason per user (last-write-wins across the
+    // queried days), so merging a historical day's fetch into tripByDay could
+    // let a historical trip's reason hijack today's Person.avatar.
+    const historicalDays = extraDays.filter(d => d !== today)
+    if (historicalDays.length > 0) {
+      mergeTripStatus(corrTrip, await fetchTripStatus(token, extraUids, historicalDays))
+    }
+    // Today (when a 补卡 targets it): a separate fetch scoped to [today] makes
+    // the returned reason unambiguously a today-trip's — safe to reconcile
+    // into the live map (an approval can complete between the main trip fetch
+    // and this point, and the live pass already ran with pre-completion data;
+    // without the reconcile Person would say absent while today's
+    // AttendanceRecord says trip).
+    if (extraDays.includes(today)) {
+      const todayTrip = await fetchTripStatus(token, extraUids, [today])
+      mergeTripStatus(corrTrip, todayTrip)
+      mergeTripStatus(tripByDay, todayTrip)
     }
   }
 
