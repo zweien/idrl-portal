@@ -5,6 +5,12 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v0.11.19] - 2026-11-08
+
+### 新增
+
+- feat(attendance): 同步补卡审批——通过的补卡自动修正该日考勤 (#120)
+
 ## [v0.11.18] - 2026-11-06
 
 ### 修复
