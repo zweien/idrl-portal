@@ -5,7 +5,9 @@ import {
   fetchAttendance,
   fetchLeaveStatus,
   fetchTripStatus,
+  fetchBuKaoApprovals,
   mapStatusForDay,
+  type TripStatus,
 } from '@/lib/dingtalk-admin'
 import { todayDateStr, shiftDate, dateRangeDays } from '@/lib/attendance'
 import { resetDingtalkCallCount, getDingtalkCallCount } from '@/lib/dingtalk-admin'
@@ -14,6 +16,27 @@ import type { SyncProgress } from '@/lib/sync-task'
 /** Setting key for the last finalized day ("yyyy-MM-dd"). Days up to and
  * including this value are considered stable and won't be re-finalized. */
 const LAST_FINALIZED_KEY = 'attendance.lastFinalizedDate'
+
+/** Setting key for the 补卡 approval sweep marker (ms epoch). Approved 补卡
+ * instances created after this marker still need their target day re-pulled. */
+const BUKAO_SWEEP_KEY = 'attendance.lastBuKaoSweep'
+
+/** Union-merge a fetchTripStatus result into a destination map. Existing
+ * entries keep their shape; incoming days union in and the reason is
+ * replaced wholesale (even when undefined — a fetch scoped to today is the
+ * freshest authority on today's trips, and keeping a stale reason from an
+ * older fetch would let yesterday's trip hijack today's avatar display). */
+function mergeTripStatus(dst: Map<string, TripStatus>, src: Map<string, TripStatus>): void {
+  for (const [uid, st] of src) {
+    const d = dst.get(uid)
+    if (!d) {
+      dst.set(uid, { days: new Set(st.days), reason: st.reason })
+    } else {
+      for (const day of st.days) d.days.add(day)
+      d.reason = st.reason
+    }
+  }
+}
 
 async function readLastFinalized(): Promise<string> {
   // Default to yesterday on first run so the very first sync does nothing for
@@ -223,9 +246,11 @@ export async function syncAttendance(progress?: SyncProgress): Promise<{
   total: number
   stats: { present: number; leave: number; trip: number; absent: number }
   finalizedDays: number
+  /** AttendanceRecord rows re-upserted by the 补卡 correction pass. */
+  bukaoRows: number
   message?: string
   /** Per-stage wall time (ms) + DingTalk call count, for SyncLog stats. */
-  timings?: { attendanceMs: number; leaveMs: number; tripMs: number; writeMs: number; dingtalkCalls: number }
+  timings?: { attendanceMs: number; leaveMs: number; tripMs: number; buKaoMs: number; writeMs: number; dingtalkCalls: number }
   /** People offboarded while the fetches were in flight — skipped at write time. */
   lateOffboarded?: number
 }> {
@@ -252,6 +277,7 @@ export async function syncAttendance(progress?: SyncProgress): Promise<{
       total: 0,
       stats: { present: 0, leave: 0, trip: 0, absent: 0 },
       finalizedDays: 0,
+      bukaoRows: 0,
       message: '没有同步的钉钉成员，请先执行成员同步',
     }
   }
@@ -259,6 +285,14 @@ export async function syncAttendance(progress?: SyncProgress): Promise<{
   const today = todayDateStr()
   const yesterday = shiftDate(today, -1)
   const lastFinalized = await readLastFinalized()
+
+  // 补卡 sweep marker: approved instances created after this still need their
+  // target day re-pulled. Missing ⇒ sweep the whole 30-day listing window
+  // (one-time historical correction on a fresh deploy).
+  const sweepRow = await prisma.setting.findUnique({ where: { key: BUKAO_SWEEP_KEY } })
+  const buKaoSince = sweepRow?.value
+    ? Math.max(Number(sweepRow.value) || 0, 0)
+    : Date.now() - 30 * 24 * 60 * 60 * 1000
 
   // Days to finalize = (lastFinalized, yesterday]. Empty on first run or if
   // already up to date. Cap to the days actually covered by the fetch window
@@ -302,6 +336,90 @@ export async function syncAttendance(progress?: SyncProgress): Promise<{
   )
   const tripMs = Date.now() - tTrip
 
+  progress?.stage('bukao')
+  const tBukao = Date.now()
+  const buKao = await fetchBuKaoApprovals(token, userids, buKaoSince, (done, total) =>
+    progress?.counter('拉取补卡审批详情', done, total),
+  )
+  const buKaoMs = Date.now() - tBukao
+
+  // Approved-补卡 (person, day) pairs. The correction pass re-upserts these
+  // rows even when the day is already past the finalize water mark — that's
+  // the whole point: DingTalk retroactively changed a day we had frozen.
+  const buKaoFixes: Array<{ userid: string; personId: string; day: string }> = []
+  for (const [userid, days] of buKao.daysByUser) {
+    const personId = useridToPersonId.get(userid)
+    if (!personId) continue
+    for (const day of days) buKaoFixes.push({ userid, personId, day })
+  }
+
+  // Every affected day gets its own pull (attendance + leave): the approval
+  // may have flipped to agree AFTER the window attendance fetch above ran, so
+  // reusing window data could write pre-correction punches and then advance
+  // the sweep marker past the approval — permanently wrong. Affected days are
+  // few (typically 0-3), so the extra calls are negligible.
+  const extraDays = [...new Set(buKaoFixes.map(f => f.day))].sort()
+  for (const day of extraDays) {
+    const uids = [...new Set(buKaoFixes.filter(f => f.day === day).map(f => f.userid))]
+    const extraAtt = await fetchAttendance(token, uids, day, day)
+    for (const [uid, byDay] of extraAtt) {
+      let dst = attByDay.get(uid)
+      if (!dst) {
+        dst = new Map()
+        attByDay.set(uid, dst)
+      }
+      for (const [d, v] of byDay) dst.set(d, v)
+    }
+    const extraLeave = await fetchLeaveStatus(token, uids, day, day)
+    for (const [uid, set] of extraLeave) {
+      const dst = leaveByDay.get(uid)
+      if (dst) for (const d of set) dst.add(d)
+      else leaveByDay.set(uid, set)
+    }
+  }
+
+  // Trip data for the correction pass, in its OWN map. Two reasons not to
+  // touch the shared tripByDay: (1) fetchTripStatus only lists approvals
+  // created in the last 30 days — older trips covering a corrected day are
+  // invisible to it, so the correction pass must never re-map status on its
+  // authority alone (frozen trip rows are preserved below instead); (2) the
+  // live pass reads Person.avatar's reason from tripByDay — merging a
+  // historical trip's reason there would overwrite TODAY's trip description
+  // on the personnel board. Seeded from tripByDay so in-window trips still
+  // count for non-frozen rows, plus the extra fetch above.
+  const corrTrip = new Map<string, TripStatus>()
+  for (const uid of new Set(buKaoFixes.map(f => f.userid))) {
+    const base = tripByDay.get(uid)
+    corrTrip.set(uid, { days: new Set(base?.days ?? []), reason: base?.reason })
+  }
+  if (extraDays.length > 0) {
+    // Fetch with the FULL synced userid set: fetchTripStatus prunes cache
+    // entries whose owners are all outside the passed set, so passing a
+    // subset (only the corrected users) would evict everyone else's cached
+    // trips and force re-fetches on later syncs. Attribution scope is really
+    // queryDays — the userid set only bounds cache pruning and local
+    // filtering, and the full set is what the main trip fetch uses.
+    // Historical corrected days: upgrade corrTrip only — never the live map.
+    // fetchTripStatus returns ONE reason per user (last-write-wins across the
+    // queried days), so merging a historical day's fetch into tripByDay could
+    // let a historical trip's reason hijack today's Person.avatar.
+    const historicalDays = extraDays.filter(d => d !== today)
+    if (historicalDays.length > 0) {
+      mergeTripStatus(corrTrip, await fetchTripStatus(token, userids, historicalDays))
+    }
+    // Today (when a 补卡 targets it): a separate fetch scoped to [today] makes
+    // the returned reason unambiguously a today-trip's — safe to reconcile
+    // into the live map (an approval can complete between the main trip fetch
+    // and this point, and the live pass already ran with pre-completion data;
+    // without the reconcile Person would say absent while today's
+    // AttendanceRecord says trip).
+    if (extraDays.includes(today)) {
+      const todayTrip = await fetchTripStatus(token, userids, [today])
+      mergeTripStatus(corrTrip, todayTrip)
+      mergeTripStatus(tripByDay, todayTrip)
+    }
+  }
+
   // All DB writes (history finalize + today's live state + watermark advance)
   // run inside one transaction. This keeps the watermark advance atomic with
   // the records it covers: if the write batch fails partway, the watermark
@@ -311,6 +429,9 @@ export async function syncAttendance(progress?: SyncProgress): Promise<{
   // People offboarded while the fetches above were in flight — skipped at
   // write time and excluded from the reported total.
   let lateOffboarded = 0
+  // AttendanceRecord rows re-upserted by the 补卡 correction pass (assigned
+  // inside the tx, read by the return below).
+  let buKaoRows = 0
   progress?.stage('write')
   const tWrite = Date.now()
   await prisma.$transaction(async (tx) => {
@@ -384,14 +505,63 @@ export async function syncAttendance(progress?: SyncProgress): Promise<{
       })
     }
 
-    // 3. Advance the water mark (inside the tx so it commits with the records).
-    //  - When we finalized a subset (long outage), advance only to the LAST day
-    //    actually finalized, NOT yesterday — the unfinalized older days must be
-    //    retried on the next sync (advancing past them would skip them).
-    //  - When there were no days to finalize (first run / already up to date),
-    //    still PERSIST the bootstrap value (otherwise a fresh deploy recomputes
-    //    "yesterday" every run and never creates the setting, so the regular
-    //    flow never finalizes historical records).
+    // 3. 补卡 correction pass: re-upsert approved-correction rows regardless of
+    // the finalize water mark — a previously frozen absent row must flip when
+    // DingTalk retroactively corrected the day. Person rows stay untouched
+    // (they carry TODAY's live state only) and the finalize water mark does
+    // not move; the sweep marker below is this pass's own state.
+    //
+    // Frozen TRIP rows are the exception: status is only refreshed, never
+    // re-mapped. fetchTripStatus lists approvals created within 30 days, so a
+    // trip approved earlier (covering this day) is invisible to the correction
+    // pass — re-mapping would downgrade a legitimate trip day to present. A
+    // trip row is only ever written from real approval data, so the status is
+    // authoritative; the 补卡 still lands via the punch refresh. Leave is safe
+    // to re-map (getleavestatus queries by time range, and affected days are
+    // fetched above), as are absent/present rows.
+    for (const fix of buKaoFixes) {
+      if (!activeIds.has(fix.personId)) continue
+      const existing = await tx.attendanceRecord.findUnique({
+        where: { personId_date: { personId: fix.personId, date: fix.day } },
+        select: { status: true },
+      })
+      const { status, onDuty, offDuty } = mapStatusForDay(fix.userid, fix.day, corrTrip, leaveByDay, attByDay)
+      if (existing?.status === 'trip') {
+        await tx.attendanceRecord.update({
+          where: { personId_date: { personId: fix.personId, date: fix.day } },
+          data: { checkIn: onDuty?.checkTime ?? null, checkOut: offDuty?.checkTime ?? null },
+        })
+      } else {
+        await tx.attendanceRecord.upsert({
+          where: { personId_date: { personId: fix.personId, date: fix.day } },
+          create: {
+            personId: fix.personId,
+            date: fix.day,
+            status,
+            checkIn: onDuty?.checkTime ?? null,
+            checkOut: offDuty?.checkTime ?? null,
+          },
+          update: {
+            status,
+            checkIn: onDuty?.checkTime ?? null,
+            checkOut: offDuty?.checkTime ?? null,
+          },
+        })
+      }
+      buKaoRows++
+    }
+
+    // 4. Advance the water marks (inside the tx so they commit with the
+    // records).
+    //  - Finalize: when we finalized a subset (long outage), advance only to
+    //    the LAST day actually finalized, NOT yesterday — the unfinalized
+    //    older days must be retried on the next sync (advancing past them
+    //    would skip them). When there were no days to finalize (first run /
+    //    already up to date), still PERSIST the bootstrap value (otherwise a
+    //    fresh deploy recomputes "yesterday" every run and never creates the
+    //    setting, so the regular flow never finalizes historical records).
+    //  - 补卡 sweep: nextSinceMs comes from the sweep itself (oldest pending
+    //    instance − 1s, else a 24h lookback); failing the sync rolls both back.
     const nextFinalized = daysToFinalize.length > 0
       ? daysToFinalize[daysToFinalize.length - 1]
       : lastFinalized
@@ -399,6 +569,11 @@ export async function syncAttendance(progress?: SyncProgress): Promise<{
       where: { key: LAST_FINALIZED_KEY },
       create: { key: LAST_FINALIZED_KEY, value: nextFinalized },
       update: { value: nextFinalized },
+    })
+    await tx.setting.upsert({
+      where: { key: BUKAO_SWEEP_KEY },
+      create: { key: BUKAO_SWEEP_KEY, value: String(buKao.nextSinceMs) },
+      update: { value: String(buKao.nextSinceMs) },
     })
   })
 
@@ -408,10 +583,12 @@ export async function syncAttendance(progress?: SyncProgress): Promise<{
     total: userids.length - lateOffboarded,
     stats,
     finalizedDays: daysToFinalize.length,
+    bukaoRows: buKaoRows,
     timings: {
       attendanceMs: attMs,
       leaveMs: leaveMs,
       tripMs: tripMs,
+      buKaoMs,
       writeMs: Date.now() - tWrite,
       dingtalkCalls: getDingtalkCallCount(),
     },

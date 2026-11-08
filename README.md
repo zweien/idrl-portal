@@ -96,6 +96,7 @@ pnpm exec next dev -p 3500
 | `DINGTALK_CLIENT_ID` / `DINGTALK_CLIENT_SECRET` | 钉钉扫码登录 + 服务端 API |
 | `DINGTALK_DEPT_ID` | 钉钉成员同步的部门根 id |
 | `DINGTALK_TRIP_PROCESS_CODE` | 出差类审批流程码，**逗号分隔多个**（京外出差 + 京内因公）；批准天数计入考勤「出差」 |
+| `DINGTALK_BUKAO_PROCESS_CODE` | 补卡审批流程码（模板「补卡」）；通过的补卡自动修正该日考勤，含已固化的历史日期 |
 
 ## 📡 API 参考
 
