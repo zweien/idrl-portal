@@ -18,11 +18,21 @@ describe('exportWorkHours (status-driven rules)', () => {
     expect(r.hours).toBe(0)
     expect(r.missingPunch).toBe(true)
   })
-  it('trip → configured fixed hours regardless of punches', () => {
-    // Even if someone punched on a trip day, the fixed value wins (per spec:
-    // trip fixed value is a convention, decoupled from punch length).
+  it('trip with full punches → real span wins over the fixed value', () => {
     const r = exportWorkHours('trip', '08:00', '10:00', 8)
-    expect(r.hours).toBe(8)
+    expect(r.hours).toBeCloseTo(2)
+    expect(r.missingPunch).toBe(false)
+    expect(r.anomalous).toBe(false)
+  })
+  it('trip with one punch → fixed hours (no complete pair to compute a span)', () => {
+    expect(exportWorkHours('trip', '08:00', null, 8).hours).toBe(8)
+    expect(exportWorkHours('trip', null, '18:00', 8).hours).toBe(8)
+    expect(exportWorkHours('trip', '08:00', null, 4).hours).toBe(4)
+  })
+  it('trip with invalid punch pair (overnight span) → 0 hours + anomalous', () => {
+    const r = exportWorkHours('trip', '22:00', '02:00', 8)
+    expect(r.hours).toBe(0)
+    expect(r.anomalous).toBe(true)
     expect(r.missingPunch).toBe(false)
   })
   it('trip → uses custom configured value', () => {
@@ -79,6 +89,18 @@ describe('buildDetailCsv', () => {
     expect(lines[2]).toBe('王某某,,2026-07-20,—,—,8.00,出差')
     expect(lines[3]).toBe('李某某,,2026-07-20,09:00,12:30,3.50,请假')
     expect(lines[4]).toBe('赵某某,,2026-07-20,08:30,—,0.00,在位(缺卡)')
+  })
+  it('labels anomalous trip/leave rows and uses real punches for trip hours', () => {
+    const rows: ExportRow[] = [
+      { name: '出差有打卡', date: '2026-07-20', checkIn: '08:00', checkOut: '10:00', status: 'trip' },
+      { name: '出差跨度异常', date: '2026-07-20', checkIn: '22:00', checkOut: '02:00', status: 'trip' },
+      { name: '请假跨度异常', date: '2026-07-20', checkIn: '22:00', checkOut: '02:00', status: 'leave' },
+    ]
+    const csv = buildDetailCsv(rows, 8)
+    const lines = csv.split('\n')
+    expect(lines[1]).toBe('出差有打卡,,2026-07-20,08:00,10:00,2.00,出差')
+    expect(lines[2]).toBe('出差跨度异常,,2026-07-20,22:00,02:00,0.00,出差(异常)')
+    expect(lines[3]).toBe('请假跨度异常,,2026-07-20,22:00,02:00,0.00,请假(异常)')
   })
   it('writes the department column (empty string when absent)', () => {
     const rows: ExportRow[] = [

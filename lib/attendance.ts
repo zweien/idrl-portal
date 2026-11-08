@@ -98,8 +98,9 @@ export function formatWorkHours(min: number | null): string {
  * Unlike computeWorkMinutes() (raw checkOut − checkIn, used for display),
  * this applies the business rules agreed for reporting:
  *  - present:   full punches → span; missing punch → 0 AND counted as 缺卡
- *  - trip:      always the configured fixed hours (actual punches ignored for
- *               the total, but still shown in the detail rows)
+ *  - trip:      full punches → span (real work time wins over the convention);
+ *               no complete punch pair → the configured fixed hours (a day
+ *               away on business legitimately has no punches at all)
  *  - leave:     full punches → span (half-day leave where the person still
  *               worked); no punches → 0
  *  - absent:    0
@@ -114,7 +115,8 @@ export function formatWorkHours(min: number | null): string {
  *  - `missingPunch`: the day genuinely lacks a punch on a FINALIZED present
  *    day (counted as 缺卡).
  *  - `anomalous`: both punches exist but form a non-positive span (overnight
- *    or malformed) — a data error, NOT 缺卡 (Codex P2).
+ *    or malformed) — a data error, NOT 缺卡 (Codex P2). Applies to present,
+ *    trip and leave alike.
  */
 export function exportWorkHours(
   status: string,
@@ -135,6 +137,13 @@ export function exportWorkHours(
       // Missing a punch entirely: 缺卡 only once the day is settled.
       return { hours: 0, missingPunch: isFinalized, anomalous: false }
     case 'trip':
+      if (span !== null) return { hours: span / 60, missingPunch: false, anomalous: false }
+      if (bothPunched) {
+        // Invalid span on a trip day — same anomaly handling as leave.
+        return { hours: 0, missingPunch: false, anomalous: true }
+      }
+      // No complete punch pair (none at all, or just one end) → fixed hours.
+      // Trip days never count as 缺卡 regardless.
       return { hours: tripHours, missingPunch: false, anomalous: false }
     case 'leave':
       if (span !== null) return { hours: span / 60, missingPunch: false, anomalous: false }
@@ -176,10 +185,10 @@ function csvField(v: string): string {
 
 /**
  * Build the per-day detail CSV. One row per (person, day). Hours use the
- * export rules (trip → fixed, leave → punches if present). Missing-punch
- * present days are labeled 在位(缺卡) ONLY on finalized days (a still-open
- * today isn't 缺卡 yet); anomalous spans (both punches, invalid span) are
- * labeled 异常.
+ * export rules (trip/leave → punches if present, trip falls back to fixed
+ * hours). Missing-punch present days are labeled 在位(缺卡) ONLY on finalized
+ * days (a still-open today isn't 缺卡 yet); anomalous spans (both punches,
+ * invalid span) are labeled 异常 for present/trip/leave alike.
  */
 export function buildDetailCsv(rows: ExportRow[], tripHours = 8): string {
   const today = todayDateStr()
@@ -190,6 +199,8 @@ export function buildDetailCsv(rows: ExportRow[], tripHours = 8): string {
     let statusLabel = STATUS_LABEL[r.status] ?? r.status
     if (r.status === 'present' && anomalous) statusLabel = '在位(异常)'
     else if (r.status === 'present' && missingPunch) statusLabel = '在位(缺卡)'
+    else if (r.status === 'trip' && anomalous) statusLabel = '出差(异常)'
+    else if (r.status === 'leave' && anomalous) statusLabel = '请假(异常)'
     lines.push([
       csvField(r.name),
       csvField(r.department ?? ''),
