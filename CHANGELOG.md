@@ -5,6 +5,12 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v0.11.20] - 2026-11-08
+
+### 新增
+
+- feat(attendance): 出差日有真实打卡时按打卡跨度计工时（请假已是此逻辑） (#121)
+
 ## [v0.11.19] - 2026-11-08
 
 ### 新增
