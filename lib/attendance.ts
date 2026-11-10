@@ -100,9 +100,13 @@ export function formatWorkHours(min: number | null): string {
  *  - present:   full punches → span; missing punch → 0 AND counted as 缺卡
  *  - trip:      full punches → span (real work time wins over the convention);
  *               no complete punch pair → the configured fixed hours (a day
- *               away on business legitimately has no punches at all)
+ *               away on business legitimately has no punches at all). Rest
+ *               days inside a trip still count the fixed hours (出差口径
+ *               见 CONTEXT.md — 自然日天数, not 应出勤日).
  *  - leave:     full punches → span (half-day leave where the person still
  *               worked); no punches → 0
+ *  - off:       rest day, 0 (nobody was expected; trips/leave keep their own
+ *               status even on rest days, so `off` is pure rest)
  *  - absent:    0
  *
  * `isFinalized` distinguishes today's in-progress record from a settled
@@ -150,6 +154,7 @@ export function exportWorkHours(
       if (bothPunched) return { hours: 0, missingPunch: false, anomalous: true }
       return { hours: 0, missingPunch: false, anomalous: false }
     default:
+      // 'off' and anything unknown: rest/no-expectation → 0, no flags.
       return { hours: 0, missingPunch: false, anomalous: false }
   }
 }
@@ -159,6 +164,7 @@ const STATUS_LABEL: Record<string, string> = {
   present: '在位',
   trip: '出差',
   leave: '请假',
+  off: '休',
   absent: '未到',
 }
 

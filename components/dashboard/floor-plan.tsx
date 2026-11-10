@@ -286,6 +286,7 @@ export function FloorPlan({ floor, personnel, onSelectWorkstation, selectedWorks
                                     person.status === 'present' && 'bg-[rgb(var(--success-rgb)/0.15)] text-success',
                                     person.status === 'trip' && 'bg-[rgb(var(--primary-rgb)/0.15)] text-primary',
                                     person.status === 'leave' && 'bg-[rgb(var(--warning-rgb)/0.15)] text-warning',
+                                    person.status === 'off' && 'bg-[rgb(var(--muted-foreground-rgb)/0.15)] text-muted-foreground',
                                     person.status === 'absent' && 'bg-[rgb(var(--destructive-rgb)/0.15)] text-destructive',
                                   )}
                                 >

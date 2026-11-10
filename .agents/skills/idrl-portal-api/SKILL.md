@@ -40,7 +40,7 @@ curl -s -X POST "$BASE/api/dingtalk/sync-members" -H "Authorization: Bearer $KEY
 
 # 触发考勤同步（今日实时刷新 + 历史日归档）
 curl -s -X POST "$BASE/api/dingtalk/sync-attendance" -H "Authorization: Bearer $KEY"
-# → {"total":91,"stats":{"present":30,"leave":1,"trip":2,"absent":58},"finalizedDays":1}
+# → {"total":91,"stats":{"present":30,"leave":1,"trip":2,"off":3,"absent":55},"finalizedDays":1}
 ```
 
 ## 工作流
@@ -109,7 +109,7 @@ curl -s "$BASE/api/attendance/records?personId=<id>&from=2026-07-01&to=2026-07-3
 curl -s "$BASE/api/attendance/export/detail?from=2026-07-01&to=2026-07-31"   -H "Authorization: Bearer $KEY"
 curl -s "$BASE/api/attendance/export/summary?from=2026-07-01&to=2026-07-31"  -H "Authorization: Bearer $KEY"
 
-# 人员列表（admin；可按 status 过滤，status=present|leave|trip|absent；pageSize 上限 100，超过按 totalPages 翻页）
+# 人员列表（admin；可按 status 过滤，status=present|leave|trip|off|absent；pageSize 上限 100，超过按 totalPages 翻页）
 # item 含 department（部门显示名，钉钉成员同步自动填充；手动添加的人员可为空串）
 # item 含 photoUrl（人员照片 URL，/api/uploads 上传后经 PATCH 写入；空串/缺省 = 无照片）
 curl -s "$BASE/api/personnel?page=1&pageSize=100&status=present" -H "Authorization: Bearer $KEY"

@@ -391,7 +391,7 @@ export interface AttendanceRecordItem {
   date: string
   checkIn?: string | null
   checkOut?: string | null
-  status: 'present' | 'leave' | 'trip' | 'absent'
+  status: 'present' | 'leave' | 'trip' | 'off' | 'absent'
   workMinutes: number | null
 }
 

@@ -66,6 +66,7 @@
   --status-absent:  var(--destructive);
   --status-trip:    var(--primary);
   --status-leave:   var(--warning);
+  --status-off:     var(--muted-foreground);
 
   /* 透明度工具类用的 RGB 通道三元组（与上方实色成对维护；
      status 别名随功能色联动）。支持 color-mix 的浏览器可改用
@@ -97,6 +98,7 @@
   --status-absent-rgb:  var(--destructive-rgb);
   --status-trip-rgb:    var(--primary-rgb);
   --status-leave-rgb:   var(--warning-rgb);
+  --status-off-rgb:     var(--muted-foreground-rgb);
 }
 
 .dark {
@@ -162,6 +164,7 @@
   --status-absent-rgb:  var(--destructive-rgb);
   --status-trip-rgb:    var(--primary-rgb);
   --status-leave-rgb:   var(--warning-rgb);
+  --status-off-rgb:     var(--muted-foreground-rgb);
 }
 
 @theme inline {
@@ -294,6 +297,7 @@
   .status-dot-absent  { background-color: var(--status-absent); }
   .status-dot-trip    { background-color: var(--status-trip); }
   .status-dot-leave   { background-color: var(--status-leave); }
+  .status-dot-off     { background-color: var(--status-off); }
 }
 
 /* ── Markdown / Prose ─────────────────────────── */

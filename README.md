@@ -33,7 +33,8 @@ IDRL Portal 是一个为科研实验室设计的内部信息看板。它把人�
 
 ### 钉钉集成
 - **成员同步** — 拉取部门成员，建立 Person 档案（职位 / 邮箱 / 手机），自动关联钉钉登录账号；检测退出组织 / 调离同步范围的人员（页面提示 + 一键停用），钉钉删除重加账号（unionid 不变 userid 变）自动级联修复
-- **考勤同步** — 拉取当日打卡 / 请假 / 出差，按优先级映射状态（**出差 > 请假 > 在位 > 未到**），记录打卡时间与出差事由；历史日自动归档（finalize 水位线）。出差审批支持**多模板**（京外出差商旅表单 + 京内因公，配置逗号分隔）；审批详情持久化缓存，进程重启不重拉
+- **考勤同步** — 拉取当日打卡 / 请假 / 出差 / 补卡审批，按优先级映射状态（**出差 > 请假 > 在位 > 休 > 未到**），记录打卡时间与出差事由；历史日自动归档（finalize 水位线）。出差审批支持**多模板**（京外出差商旅表单 + 京内因公，配置逗号分隔）；审批详情持久化缓存，进程重启不重拉
+- **节假日感知** — 内置国务院口径法定节假日日历（[holiday-cn](https://github.com/NateScarlet/holiday-cn) 数据，`data/holidays/<年份>.json`）：周末与法定假日显示「休」而非「未到」，调休补班日按工作日处理；每年 11 月国务院发布次年安排后，把新年份 JSON 提交进仓库随发版更新，当年数据缺失时同步摘要会出现警告（法定假日暂按周末规则）
 - **同步任务化** — 同步在后台执行，前端实时显示阶段进度与审批拉取计数；全局互斥（手动 / API / 调度器共享），重复触发被拒绝
 - **状态展示** — 红 / 琥珀 / 绿 / 蓝高对比配色，人员卡片色条 + 详情徽章
 
@@ -177,7 +178,7 @@ curl -X POST "$BASE/api/dingtalk/sync-members" -H "Authorization: Bearer $KEY"
 
 # 2) 触发考勤同步（Bearer 调用阻塞至完成；浏览器发起则是异步任务）
 curl -X POST "$BASE/api/dingtalk/sync-attendance" -H "Authorization: Bearer $KEY"
-# → {"total":103,"stats":{"present":51,"leave":8,"trip":7,"absent":37},"finalizedDays":0,
+# → {"total":103,"stats":{"present":51,"leave":8,"trip":7,"off":3,"absent":34},"finalizedDays":0,
 #    "timings":{"attendanceMs":3666,"leaveMs":2990,"tripMs":6901,"writeMs":152,"dingtalkCalls":22}}
 
 # 2b) 查询有工位的人员（工位管理 API，admin scope）

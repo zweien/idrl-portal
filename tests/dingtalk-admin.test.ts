@@ -172,6 +172,31 @@ describe('parseTripWindow — 同行人 (traveler contact field)', () => {
   })
 })
 
+describe('mapStatusForDay — 休息日 (off day awareness)', () => {
+  // Real calendar dates from data/holidays/2026.json.
+  const REST = '2026-10-03' // 国庆节 假日（周六）
+  const PATCH = '2026-09-20' // 国庆节 补班日（周日）→ 工作日
+  const punched = (): Map<string, Map<string, DayAttendance>> =>
+    new Map([['u_x', new Map([[REST, { onDuty: { timeResult: 'Normal', checkTime: '09:00' } }]])]])
+
+  it('rest day without a punch → off (was absent before the holiday calendar)', () => {
+    expect(mapStatusForDay('u_x', REST, new Map(), new Map(), new Map()).status).toBe('off')
+  })
+
+  it('rest day WITH a real punch → present (voluntary work)', () => {
+    expect(mapStatusForDay('u_x', REST, new Map(), new Map(), punched()).status).toBe('present')
+  })
+
+  it('trip on a rest day stays trip (审批事实优先)', () => {
+    const trip = new Map([['u_x', { days: new Set([REST]), reason: '京外出差' }]])
+    expect(mapStatusForDay('u_x', REST, trip, new Map(), new Map()).status).toBe('trip')
+  })
+
+  it('调休补班日 without a punch → absent (a workday, NOT off)', () => {
+    expect(mapStatusForDay('u_x', PATCH, new Map(), new Map(), new Map()).status).toBe('absent')
+  })
+})
+
 describe('mapStatusForDay (per-day priority: trip > leave > present > absent)', () => {
   const DAY = '2026-07-21'
   const tripStatus = (days: string[], reason?: string): TripStatus => ({ days: new Set(days), reason })

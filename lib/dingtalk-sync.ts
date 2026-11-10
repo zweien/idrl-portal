@@ -10,6 +10,7 @@ import {
   type TripStatus,
 } from '@/lib/dingtalk-admin'
 import { todayDateStr, shiftDate, dateRangeDays } from '@/lib/attendance'
+import { hasHolidayData } from '@/lib/attendance-holidays'
 import { resetDingtalkCallCount, getDingtalkCallCount } from '@/lib/dingtalk-admin'
 import type { SyncProgress } from '@/lib/sync-task'
 
@@ -244,10 +245,12 @@ export async function syncMembers(progress?: SyncProgress): Promise<{
  */
 export async function syncAttendance(progress?: SyncProgress): Promise<{
   total: number
-  stats: { present: number; leave: number; trip: number; absent: number }
+  stats: { present: number; leave: number; trip: number; off: number; absent: number }
   finalizedDays: number
   /** AttendanceRecord rows re-upserted by the 补卡 correction pass. */
   bukaoRows: number
+  /** Set when the current year has no holiday calendar data (fallback rules active). */
+  holidaysWarning?: string
   message?: string
   /** Per-stage wall time (ms) + DingTalk call count, for SyncLog stats. */
   timings?: { attendanceMs: number; leaveMs: number; tripMs: number; buKaoMs: number; writeMs: number; dingtalkCalls: number }
@@ -275,7 +278,7 @@ export async function syncAttendance(progress?: SyncProgress): Promise<{
   if (userids.length === 0) {
     return {
       total: 0,
-      stats: { present: 0, leave: 0, trip: 0, absent: 0 },
+      stats: { present: 0, leave: 0, trip: 0, off: 0, absent: 0 },
       finalizedDays: 0,
       bukaoRows: 0,
       message: '没有同步的钉钉成员，请先执行成员同步',
@@ -425,7 +428,13 @@ export async function syncAttendance(progress?: SyncProgress): Promise<{
   // the records it covers: if the write batch fails partway, the watermark
   // isn't advanced, so the next sync retries the whole window. Network calls
   // are done above; the tx body is DB-only.
-  const stats = { present: 0, leave: 0, trip: 0, absent: 0 }
+  const stats = { present: 0, leave: 0, trip: 0, off: 0, absent: 0 }
+
+  // Holiday calendar coverage: a missing current-year file silently degrades
+  // 法定假日 to the weekend rule — surface it so the data gets vendored.
+  const holidaysWarning = hasHolidayData(Number(today.slice(0, 4)))
+    ? undefined
+    : `${today.slice(0, 4)} 年节假日数据缺失，法定假日暂按周末规则判定（将 data/holidays/${today.slice(0, 4)}.json 提交进仓库后消失）`
   // People offboarded while the fetches above were in flight — skipped at
   // write time and excluded from the reported total.
   let lateOffboarded = 0
@@ -482,8 +491,10 @@ export async function syncAttendance(progress?: SyncProgress): Promise<{
         where: { id: personId },
         data: {
           status,
-          // lastSeen = today's OnDuty punch time, cleared if no punch
-          ...(onDuty?.checkTime ? { lastSeen: onDuty.checkTime } : { lastSeen: null }),
+          // lastSeen = today's OnDuty punch time. On an off day there was no
+          // expectation to punch — keep the previous value (e.g. Friday's
+          // punch) instead of wiping it every weekend.
+          ...(onDuty?.checkTime ? { lastSeen: onDuty.checkTime } : status === 'off' ? {} : { lastSeen: null }),
           // avatar repurposed as today's trip reason (cleared if not on trip)
           ...(tripReason ? { avatar: tripReason } : { avatar: null }),
         },
@@ -579,11 +590,12 @@ export async function syncAttendance(progress?: SyncProgress): Promise<{
 
   return {
     // Exclude people offboarded mid-flight: stats counters skipped them, so
-    // total must equal the four status counts for the summary to add up.
+    // total must equal the five status counts for the summary to add up.
     total: userids.length - lateOffboarded,
     stats,
     finalizedDays: daysToFinalize.length,
     bukaoRows: buKaoRows,
+    ...(holidaysWarning ? { holidaysWarning } : {}),
     timings: {
       attendanceMs: attMs,
       leaveMs: leaveMs,
@@ -598,12 +610,13 @@ export async function syncAttendance(progress?: SyncProgress): Promise<{
 
 /**
  * Flatten the attendance sync result for SyncLog.stats persistence:
- * `{total, stats:{present,leave,trip,absent}, finalizedDays}` →
- * `{total, present, leave, trip, absent, finalizedDays}`. The nested `stats`
- * key used to leak into the log row, producing a confusing `stats.stats`.
+ * `{total, stats:{present,leave,trip,off,absent}, finalizedDays}` →
+ * `{total, present, leave, trip, off, absent, finalizedDays}`. The nested
+ * `stats` key used to leak into the log row, producing a confusing
+ * `stats.stats`.
  */
 export function flattenAttendanceStats(
-  result: { total: number; stats: { present: number; leave: number; trip: number; absent: number }; finalizedDays: number; timings?: Record<string, unknown> },
+  result: { total: number; stats: { present: number; leave: number; trip: number; off: number; absent: number }; finalizedDays: number; timings?: Record<string, unknown> },
 ): Record<string, unknown> {
   return {
     total: result.total,

@@ -22,6 +22,7 @@ const statusOptions: { value: Person['status']; label: string }[] = [
   { value: 'present', label: '在位' },
   { value: 'leave', label: '请假' },
   { value: 'trip', label: '出差' },
+  { value: 'off', label: '休' },
   { value: 'absent', label: '未到' },
 ]
 
