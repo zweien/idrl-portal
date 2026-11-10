@@ -61,7 +61,7 @@ export async function POST(req: Request) {
     const s = result.stats
     const bu = result.bukaoRows
     return {
-      summary: `考勤同步完成：在位 ${s.present}，出差 ${s.trip}，请假 ${s.leave}，未到 ${s.absent}（共 ${result.total} 人${bu > 0 ? `，补卡修正 ${bu} 条` : ''}）`,
+      summary: `考勤同步完成：在位 ${s.present}，出差 ${s.trip}，请假 ${s.leave}，休 ${s.off}，未到 ${s.absent}（共 ${result.total} 人${bu > 0 ? `，补卡修正 ${bu} 条` : ''}）${result.holidaysWarning ? `。⚠ ${result.holidaysWarning}` : ''}`,
       stats: flattenAttendanceStats(result),
     }
   }, { background })

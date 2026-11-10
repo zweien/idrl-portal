@@ -14,6 +14,7 @@ import {
   dayBounds,
   SHANGHAI_TZ,
 } from '@/lib/attendance'
+import { isOffDay } from '@/lib/attendance-holidays'
 export { dayBounds } from '@/lib/attendance'
 import { loadTripCache, persistTripInstance, type CachedTrip } from '@/lib/trip-cache'
 
@@ -262,7 +263,7 @@ const ATTENDANCE_LIST_URL = 'https://oapi.dingtalk.com/attendance/list'
 const LEAVE_STATUS_URL = 'https://oapi.dingtalk.com/topapi/attendance/getleavestatus'
 const PROCESS_INSTANCE_URL = 'https://oapi.dingtalk.com/topapi/processinstance/listids'
 
-export type AttendanceResult = 'present' | 'leave' | 'trip' | 'absent'
+export type AttendanceResult = 'present' | 'leave' | 'trip' | 'off' | 'absent'
 
 /** Format a ms epoch as "HH:mm" in Asia/Shanghai. */
 function hmInShanghai(ms: number): string {
@@ -1092,10 +1093,12 @@ export async function fetchBuKaoApprovals(
 
 /**
  * Map attendance data for a single day to Person.status using the priority:
- * trip > leave > attendance punch > absent.
+ * trip > leave > attendance punch > off (rest day) > absent.
  *
  * "Punched in" = any OnDuty record exists (Normal, Late, Early, SeriousLate).
- * Only NotSigned / Absenteeism / no record at all → absent.
+ * Only NotSigned / Absenteeism / no record at all fall through — on a rest
+ * day (weekend / 法定假日, per the holiday calendar) that lands on `off`,
+ * on a workday (including 调休补班 weekends) on `absent`.
  *
  * Also returns the day's OnDuty/OffDuty punches so the caller can persist them.
  */
@@ -1124,6 +1127,14 @@ export function mapStatusForDay(
   if (leaveByDay.get(userid)?.has(day)) return { status: 'leave', ...punches }
   // punches.onDuty survived realPunch, so it's a genuine punch by definition.
   if (punches.onDuty) return { status: 'present', ...punches }
+  // Rest day: no attendance was expected, so ANY real punch (even an
+  // OffDuty-only afternoon session) means they came in — 假日加班 counts as
+  // present. Without punches it's a rest day, not absence. A 调休补班
+  // weekend is NOT an off day and falls through to absent.
+  if (isOffDay(day)) {
+    if (punches.offDuty) return { status: 'present', ...punches }
+    return { status: 'off', ...punches }
+  }
   // Absent, but still surface any OffDuty punch we have (rare, but for record).
   return { status: 'absent', ...punches }
 }

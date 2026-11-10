@@ -21,11 +21,12 @@ import { StickyPageHeader } from '@/components/dashboard/sticky-page-header'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { statusBg } from '@/lib/floor-constants'
 
-const statusFilters = ['present', 'trip', 'leave', 'absent'] as const
+const statusFilters = ['present', 'trip', 'leave', 'off', 'absent'] as const
 const statusConfig = {
   present: { label: '在位', dot: 'status-dot-present', badge: 'bg-[rgb(var(--success-rgb)/0.15)] text-success border-[rgb(var(--success-rgb)/0.3)]' },
   trip:    { label: '出差', dot: 'status-dot-trip',    badge: 'bg-[rgb(var(--primary-rgb)/0.15)] text-primary border-[rgb(var(--primary-rgb)/0.3)]' },
   leave:   { label: '请假', dot: 'status-dot-leave',   badge: 'bg-[rgb(var(--warning-rgb)/0.15)] text-warning border-[rgb(var(--warning-rgb)/0.3)]' },
+  off:     { label: '休',   dot: 'status-dot-off',     badge: 'bg-[rgb(var(--muted-foreground-rgb)/0.15)] text-muted-foreground border-[rgb(var(--muted-foreground-rgb)/0.3)]' },
   absent:  { label: '未到', dot: 'status-dot-absent',  badge: 'bg-[rgb(var(--destructive-rgb)/0.15)] text-destructive border-[rgb(var(--destructive-rgb)/0.3)]' },
 }
 
@@ -68,6 +69,7 @@ export default function PersonnelPage() {
     present: personnel.filter(p => p.status === 'present').length,
     trip:    personnel.filter(p => p.status === 'trip').length,
     leave:   personnel.filter(p => p.status === 'leave').length,
+    off:     personnel.filter(p => p.status === 'off').length,
     absent:  personnel.filter(p => p.status === 'absent').length,
   }), [personnel])
 

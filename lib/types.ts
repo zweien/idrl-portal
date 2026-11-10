@@ -1,7 +1,7 @@
 // IDRL Portal - Type Definitions
 
 // ============ Personnel & Attendance ============
-export type AttendanceStatus = 'present' | 'leave' | 'trip' | 'absent'
+export type AttendanceStatus = 'present' | 'leave' | 'trip' | 'off' | 'absent'
 
 export interface Person {
   id: string

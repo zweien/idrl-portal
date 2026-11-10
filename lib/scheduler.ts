@@ -256,7 +256,11 @@ async function runSchedulerSync<T>(
   let full: T | null = null
   const res = await runSyncTask(kind, async () => {
     full = await fn()
-    return { summary: 'scheduler sync' }
+    // Surface maintenance warnings (e.g. missing holiday-calendar year) in
+    // the task summary too — otherwise scheduled syncs degrade to fallback
+    // rules silently and only the manual HTTP route would ever show it.
+    const warn = (full as { holidaysWarning?: string } | null)?.holidaysWarning
+    return { summary: warn ? `scheduler sync。⚠ ${warn}` : 'scheduler sync' }
   }, { background: false })
   if (!res.ok) {
     // only 'already-running' is a race worth deferring; 'failed' is a real

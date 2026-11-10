@@ -391,8 +391,10 @@ export interface AttendanceRecordItem {
   date: string
   checkIn?: string | null
   checkOut?: string | null
-  status: 'present' | 'leave' | 'trip' | 'absent'
+  status: 'present' | 'leave' | 'trip' | 'off' | 'absent'
   workMinutes: number | null
+  /** 该日是否休息日（节假日日历口径）。休息日打卡时 status='present'（假日加班）。 */
+  isOffDay: boolean
 }
 
 /** records 响应 data：分页明细 + 查询对象的身份信息（部门来自钉钉同步）。 */

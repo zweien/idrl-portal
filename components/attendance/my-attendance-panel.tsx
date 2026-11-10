@@ -5,12 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ExportButtons } from '@/components/attendance/export-buttons'
 import { formatWorkHours } from '@/lib/attendance'
+import { holidayName } from '@/lib/attendance-holidays'
 import { cn } from '@/lib/utils'
 
 const statusConfig: Record<string, { label: string; badge: string }> = {
   present: { label: '在位', badge: 'bg-[rgb(var(--success-rgb)/0.15)] text-success border-[rgb(var(--success-rgb)/0.3)]' },
   trip:    { label: '出差', badge: 'bg-[rgb(var(--primary-rgb)/0.15)] text-primary border-[rgb(var(--primary-rgb)/0.3)]' },
   leave:   { label: '请假', badge: 'bg-[rgb(var(--warning-rgb)/0.15)] text-warning border-[rgb(var(--warning-rgb)/0.3)]' },
+  off:     { label: '休', badge: 'bg-[rgb(var(--muted-foreground-rgb)/0.15)] text-muted-foreground border-[rgb(var(--muted-foreground-rgb)/0.3)]' },
   absent:  { label: '未到', badge: 'bg-[rgb(var(--destructive-rgb)/0.15)] text-destructive border-[rgb(var(--destructive-rgb)/0.3)]' },
 }
 
@@ -73,7 +75,7 @@ export function MyAttendancePanel() {
                     <td className="py-2 px-2 tabular-nums text-muted-foreground">{r.checkOut ?? '—'}</td>
                     <td className="py-2 px-2 tabular-nums">{formatWorkHours(r.workMinutes)}</td>
                     <td className="py-2 px-2">
-                      <Badge variant="outline" className={cn('text-xs font-normal border', statusConfig[r.status]?.badge)}>
+                      <Badge variant="outline" title={holidayName(r.date) ?? undefined} className={cn('text-xs font-normal border', statusConfig[r.status]?.badge)}>
                         {statusConfig[r.status]?.label ?? r.status}
                       </Badge>
                     </td>

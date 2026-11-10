@@ -15,12 +15,14 @@ export default function PersonnelStats({ personnel }: Props) {
     const absent = personnel.filter(p => p.status === 'absent').length
     const trip = personnel.filter(p => p.status === 'trip').length
     const leave = personnel.filter(p => p.status === 'leave').length
+    const off = personnel.filter(p => p.status === 'off').length
 
     return [
       { label: '总人数', value: total, color: 'text-foreground' },
       { label: '在位', value: present, color: 'text-success' },
       { label: '出差', value: trip, color: 'text-primary' },
       { label: '请假', value: leave, color: 'text-warning' },
+      { label: '休', value: off, color: 'text-muted-foreground' },
       { label: '未到', value: absent, color: 'text-destructive' },
     ]
   }, [personnel])

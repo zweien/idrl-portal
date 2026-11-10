@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { requireUserOrScopeAny } from '@/lib/auth-api'
 import { computeWorkMinutes } from '@/lib/attendance'
+import { isOffDay } from '@/lib/attendance-holidays'
 import type { ApiResponse, PaginatedResponse, AttendanceStatus } from '@/lib/types'
 
 export interface AttendanceRecordItem {
@@ -11,6 +12,9 @@ export interface AttendanceRecordItem {
   checkOut?: string | null
   status: AttendanceStatus
   workMinutes: number | null
+  /** 该日是否休息日（周末/法定假日，节假日日历口径）。休息日打卡时
+   * status 仍是 'present'（假日加班），外部消费方据此区分，无需自备日历。 */
+  isOffDay: boolean
 }
 
 /**
@@ -23,7 +27,8 @@ export interface AttendanceRecordItem {
  * tab never sends a personId). API keys must always pass an explicit personId.
  *
  * Returns workMinutes per day (checkOut − checkIn, no lunch deduction; null
- * for missing punches or overnight anomalies).
+ * for missing punches or overnight anomalies) plus isOffDay so callers can
+ * tell holiday work from regular attendance without a holiday calendar.
  */
 export async function GET(request: Request) {
   const auth = await requireUserOrScopeAny(request, ['admin'])
@@ -99,6 +104,7 @@ export async function GET(request: Request) {
     checkOut: r.checkOut,
     status: r.status as AttendanceStatus,
     workMinutes: computeWorkMinutes(r.checkIn, r.checkOut),
+    isOffDay: isOffDay(r.date),
   }))
 
   const totalPages = Math.ceil(total / pageSize) || 1

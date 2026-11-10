@@ -20,6 +20,7 @@ export const statusColors: Record<string, string> = {
   absent: 'fill-[var(--status-absent)]',
   trip: 'fill-[var(--status-trip)]',
   leave: 'fill-[var(--status-leave)]',
+  off: 'fill-[var(--status-off)]',
 }
 
 // Same colors as statusColors but as CSS background (for HTML dots, not SVG fill).
@@ -28,6 +29,7 @@ export const statusBg: Record<string, string> = {
   absent: 'bg-[var(--status-absent)]',
   trip: 'bg-[var(--status-trip)]',
   leave: 'bg-[var(--status-leave)]',
+  off: 'bg-[var(--status-off)]',
 }
 
 export const statusLabels: Record<string, string> = {
@@ -35,6 +37,7 @@ export const statusLabels: Record<string, string> = {
   absent: '未到',
   trip: '出差',
   leave: '请假',
+  off: '休',
 }
 
 // 新建区域的默认颜色：从 IDRL VI 品牌色板（含功能色）中按顺序轮转，

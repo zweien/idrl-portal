@@ -12,6 +12,12 @@ describe('personSchema', () => {
     })
     expect(r.success).toBe(true)
   })
+  it('accepts status=off (节假日感知新状态，admin-data 导入不可拒之门外)', () => {
+    const r = personSchema.safeParse({
+      id: 'p1', name: 'Alice', role: '研究员', status: 'off',
+    })
+    expect(r.success).toBe(true)
+  })
   it('accepts an optional department string and rejects a numeric one', () => {
     const ok = personSchema.safeParse({
       id: 'p1', name: 'Alice', role: '研究员', status: 'present', department: '算法组',

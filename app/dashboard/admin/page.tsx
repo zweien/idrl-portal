@@ -29,7 +29,7 @@ import {
 } from 'lucide-react'
 
 /* ── Labels ─────────────────────────────────────── */
-const statusLabels = { present: '在位', trip: '出差', leave: '请假', absent: '未到' }
+const statusLabels = { present: '在位', trip: '出差', leave: '请假', off: '休', absent: '未到' }
 
 /** 与人员页 / 考勤页同一套 --status-* 功能色徽章（VI：同一状态全篇同色）。 */
 const statusBadgeClass: Record<string, string> = {
@@ -37,6 +37,7 @@ const statusBadgeClass: Record<string, string> = {
   absent: 'bg-[rgb(var(--destructive-rgb)/0.15)] text-destructive border-[rgb(var(--destructive-rgb)/0.3)]',
   trip: 'bg-[rgb(var(--primary-rgb)/0.15)] text-primary border-[rgb(var(--primary-rgb)/0.3)]',
   leave: 'bg-[rgb(var(--warning-rgb)/0.15)] text-warning border-[rgb(var(--warning-rgb)/0.3)]',
+  off: 'bg-[rgb(var(--muted-foreground-rgb)/0.15)] text-muted-foreground border-[rgb(var(--muted-foreground-rgb)/0.3)]',
 }
 
 /** 与资源聚合页一致的状态徽章色。 */
