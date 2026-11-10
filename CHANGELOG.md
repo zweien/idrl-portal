@@ -5,6 +5,12 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v0.11.21] - 2026-11-10
+
+### 新增
+
+- feat(attendance): 节假日感知——休息日一等状态 off (#122)
+
 ## [v0.11.20] - 2026-11-08
 
 ### 新增
