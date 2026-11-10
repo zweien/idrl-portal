@@ -1,7 +1,7 @@
 # IDRL Portal · 智能设计与鲁棒学习
 
 [![CI](https://github.com/zweien/idrl-portal/actions/workflows/ci.yml/badge.svg)](https://github.com/zweien/idrl-portal/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-363%20passed-brightgreen)](https://github.com/zweien/idrl-portal/blob/master/tests)
+[![Tests](https://img.shields.io/badge/tests-453%20passed-brightgreen)](https://github.com/zweien/idrl-portal/blob/master/tests)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue)](https://www.typescriptlang.org/)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black)](https://nextjs.org/)
 [![Prisma](https://img.shields.io/badge/Prisma-7-2D3748)](https://www.prisma.io/)
@@ -16,7 +16,7 @@ IDRL Portal 是一个为科研实验室设计的内部信息看板。它把人�
 ### 面向成员
 - **仪表盘** — 人员状态统计、工位使用概览、最新新闻（按分类聚合）、快捷资源入口
 - **人员与工位** — 可交互的 SVG 工位平面图（楼层切换、缩放），点击工位查看人员详情（含打卡时间、出差/请假状态）
-- **考勤** — 个人考勤记录查询、今日最早打卡 / 本月工时排行榜、考勤 CSV 导出（明细 + 汇总）
+- **考勤** — 个人考勤记录查询、今日最早打卡 / 本月工时排行榜、考勤 CSV 导出（明细 + 汇总）；工时口径：出差/请假日有完整真实打卡按打卡跨度计，出差无打卡保底固定工时（自然日口径，含行程中的休息日）
 - **资源聚合** — 实验室常用工具 / 文档入口，按分类筛选，Markdown 富文本描述
 - **最新动态** — 论文发表、通知、活动、荣誉成就，支持置顶、分类筛选与搜索
 - **问题反馈** — 简化版讨论版，登录用户发帖（问题/建议/疑问/其他）+ 单层回复，按最新互动排序；管理员标记「已处理」、删除治理
@@ -33,7 +33,7 @@ IDRL Portal 是一个为科研实验室设计的内部信息看板。它把人�
 
 ### 钉钉集成
 - **成员同步** — 拉取部门成员，建立 Person 档案（职位 / 邮箱 / 手机），自动关联钉钉登录账号；检测退出组织 / 调离同步范围的人员（页面提示 + 一键停用），钉钉删除重加账号（unionid 不变 userid 变）自动级联修复
-- **考勤同步** — 拉取当日打卡 / 请假 / 出差 / 补卡审批，按优先级映射状态（**出差 > 请假 > 在位 > 休 > 未到**），记录打卡时间与出差事由；历史日自动归档（finalize 水位线）。出差审批支持**多模板**（京外出差商旅表单 + 京内因公，配置逗号分隔）；审批详情持久化缓存，进程重启不重拉
+- **考勤同步** — 拉取当日打卡 / 请假 / 出差 / 补卡审批，按优先级映射状态（**出差 > 请假 > 在位 > 休 > 未到**），记录打卡时间与出差事由；历史日自动归档（finalize 水位线，**补漏窗口 3 天**——同步中断超过 3 天会产生数据空洞，需用[单日补拉](#考勤-apiattendance)按天补齐，如长假期间无人触发同步）。出差审批支持**多模板**（京外出差商旅表单 + 京内因公，配置逗号分隔）；审批详情持久化缓存，进程重启不重拉
 - **节假日感知** — 内置国务院口径法定节假日日历（[holiday-cn](https://github.com/NateScarlet/holiday-cn) 数据，`data/holidays/<年份>.json`）：周末与法定假日显示「休」而非「未到」，调休补班日按工作日处理；每年 11 月国务院发布次年安排后，把新年份 JSON 提交进仓库随发版更新，当年数据缺失时同步摘要会出现警告（法定假日暂按周末规则）
 - **同步任务化** — 同步在后台执行，前端实时显示阶段进度与审批拉取计数；全局互斥（手动 / API / 调度器共享），重复触发被拒绝
 - **状态展示** — 红 / 琥珀 / 绿 / 蓝高对比配色，人员卡片色条 + 详情徽章
@@ -381,13 +381,13 @@ Body `{ "ids": string[] }`：**同一分类**的完整有序 id 列表（未分�
 
 ### 人员 `/api/personnel`
 
-**GET** — 👤。Query：`page=1, pageSize=20, status=present|leave|trip|absent, search=<姓名/邮箱/研究方向>` → 分页包裹。
+**GET** — 👤。Query：`page=1, pageSize=20, status=present|leave|trip|off|absent, search=<姓名/邮箱/研究方向>` → 分页包裹。
 
 ```ts
 Person = {
   id: string; name: string; avatar?: string; role: string  // 钉钉职位原文，可空串
   email?: string; phone?: string; dingUserId?: string
-  status: 'present' | 'leave' | 'trip' | 'absent'
+  status: 'present' | 'leave' | 'trip' | 'off' | 'absent'
   lastSeen?: string; researchAreas?: string[]
 }
 ```
@@ -463,8 +463,8 @@ AttendanceRecordItem = {
 
 Query：`from`、`to`（均必填，`from <= to`）、`personId`（可选）
 
-- detail：每人每天一行 — `姓名,日期,上班,下班,工时(小时),状态`
-- summary：每人一行 — `姓名,日期范围,出勤天数,出差天数,请假天数,缺卡天数,总工时(小时),平均工时(小时)`
+- detail：每人每天一行 — `姓名,部门,日期,上班,下班,工时(小时),状态`；状态标签含 `休`（休息日）、`在位(缺卡)`（已固化工作日缺打卡）、`出差(异常)` / `请假(异常)` / `在位(异常)`（双端打卡但跨度无效）
+- summary：每人一行 — `姓名,部门,日期范围,出勤天数,出差天数,请假天数,缺卡天数,总工时(小时),平均工时(小时)`；平均工时分母 = 实际计工时天数（休息日与无打卡请假日不计）
 
 ### 钉钉同步 `/api/dingtalk/*`
 
@@ -474,7 +474,7 @@ Query：`from`、`to`（均必填，`from <= to`）、`personId`（可选）
 
 **POST /api/dingtalk/sync-attendance** — 🔑 `sync:attendance`
 
-今天实时刷新 + 历史日归档（推进 finalize 水位线）→ `{ total, stats: { present, leave, trip, absent }, finalizedDays, timings?, message? }`（`timings` 为各阶段耗时与钉钉调用次数）。
+今天实时刷新 + 历史日归档（推进 finalize 水位线）→ `{ total, stats: { present, leave, trip, off, absent }, finalizedDays, bukaoRows, holidaysWarning?, timings?, message? }`（`timings` 为各阶段耗时与钉钉调用次数；`bukaoRows` 为补卡审批修正的行数；`holidaysWarning` 在当前年份缺节假日数据时出现）。
 
 > **执行模型（双轨）**：`Authorization: Bearer` 调用**阻塞至完成**（机器契约不变）；浏览器 / cookie 会话调用**立即返回 `{ taskId, task }`** 并在后台执行——前端轮询 `GET /api/sync/status?id=` 获取阶段进度（拉取考勤 → 请假 → 出差审批 n/m → 写库，含各阶段耗时）。同一时刻全局只允许一个同步任务（手动 / API / 调度器共享互斥），重复触发返回 409——后台任务时 409 附带当前任务状态可供轮询，Bearer/调度器内联运行的冲突仅含错误文案。服务重启丢任务：轮询方显示「同步中断」，水位线保证数据不丢。
 
@@ -490,7 +490,7 @@ Query：`from`、`to`（均必填，`from <= to`）、`personId`（可选）
 | `cron.enabled.<job>` | `"true" / "false"` 开关 | `"true"` |
 | `backup.keep` | 自动备份保留份数 | `"7"` |
 | `auditlog.keepDays` | 审计日志保留天数 | `"90"` |
-| `attendance.tripWorkHours` | 出差日计工时 | `"8"` |
+| `attendance.tripWorkHours` | 出差日保底工时（出差日有完整真实打卡时按打卡跨度计；无打卡按此值；行程含休息日不剔除） | `"8"` |
 
 **GET /api/sync-logs** Query：`job=sync-members|sync-attendance|publish-news|backup`、`limit=50（≤200）` → `{ success, data: [{ id, job, source: cron|api|manual, status, message, stats, createdAt }] }`
 
@@ -592,9 +592,12 @@ components/admin/   管理后台组件
 lib/                工具、类型、auth、API hooks、调度、限流、备份、审计
 lib/db/             Prisma client、seed、序列化
 prisma/             schema + migrations + 本地 sqlite + 备份目录
-scripts/            release.mjs（发布脚本）
+data/holidays/      中国法定节假日日历（holiday-cn 按年 JSON，每年 11 月补次年）
+scripts/            release.mjs（发布脚本）、backfill-off-days.ts（休息日历史行一次性回填）
 tests/              Vitest 测试
 docs/deployment/    VPS 部署与发布流程文档
+docs/adr/           架构决策记录（ADR）
+CONTEXT.md          领域词汇表（考勤状态 / 休息日 / 工时口径等术语定义）
 ```
 
 导入使用 `@/*` 路径别名。
@@ -617,6 +620,7 @@ pnpm release 0.1.4 --yes  # 免交互
 - [`docs/deployment/vps.md`](docs/deployment/vps.md) — VPS 初始化、secrets、nginx、证书、回滚
 - [`docs/deployment/releases.md`](docs/deployment/releases.md) — 版本约定（semver + Keep a Changelog）与发布流程
 - [`CHANGELOG.md`](CHANGELOG.md) — 版本历史（站内有对应页面 `/dashboard/changelog`）
+- [`CONTEXT.md`](CONTEXT.md) — 领域词汇表；[`docs/adr/`](docs/adr/) — 关键决策记录（如休息日一等状态与出差工时口径）
 
 ## 🧪 测试
 
