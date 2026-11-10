@@ -1,17 +1,20 @@
 /**
- * 一次性回填：历史休息日行的 absent → off。
+ * 一次性回填：节假日感知上线前的历史休息日行（两类）。
  *
- * 背景：节假日感知上线前，finalize 水位线把每个周末/法定假日都固化成了
- * absent（未到）——展示上是误导性的红。本脚本把「无任何打卡且日历判定为
- * 休息日」的历史行刷成 off。判定逻辑直接复用 lib/attendance-holidays.ts
- * （与同步运行时同一份日历，不存在两套真相）。
+ * 背景：旧映射把休息日无差别固化成 absent（未到）——展示上是误导性的红。
+ * finalize 水位线让常规同步永不回访这些日期，必须由本脚本修正：
+ *   A. 无任何打卡的休息日 absent 行 → off（休息日本就不该显示「未到」）
+ *   B. 只有下班打卡的休息日 absent 行 → present（假日加班，旧映射没认出
+ *      来；新映射对这类日子返回 present，保留 checkOut 不动）
+ * 判定逻辑直接复用 lib/attendance-holidays.ts（与同步运行时同一份日历，
+ * 不存在两套真相）。
  *
  * 用法（VPS /opt/idrl-portal 下）：
  *   npx tsx scripts/backfill-off-days.ts          # 预览：只打印将改动什么
  *   npx tsx scripts/backfill-off-days.ts --apply  # 实际写入
  *
- * 打卡/出差/请假行一律不动；offboarded 人员的休息日行同样刷新（他们只是
- * 历史冻结，休息日本就不该显示「未到」）。
+ * 出差/请假行与双端打卡行一律不动；offboarded 人员的休息日行同样刷新
+ * （他们只是历史冻结，休息日本就不该显示「未到」）。
  */
 import Database from 'better-sqlite3'
 import { readFileSync } from 'node:fs'
@@ -44,16 +47,28 @@ async function main() {
   db.pragma('busy_timeout = 5000')
   db.pragma('journal_mode = WAL')
 
-  const rows = db
+  // Case A: 无任何打卡的休息日 absent 行。
+  const rowsA = db
     .prepare("SELECT id, personId, date FROM AttendanceRecord WHERE status = 'absent' AND checkIn IS NULL AND checkOut IS NULL")
     .all() as Array<{ id: string; personId: string; date: string }>
-  const targets = rows.filter(r => isOffDay(r.date))
-  const named = targets.filter(r => holidayName(r.date) !== null)
+  const offTargets = rowsA.filter(r => isOffDay(r.date))
+  const named = offTargets.filter(r => holidayName(r.date) !== null)
 
-  console.log(`扫描无打卡 absent 行: ${rows.length}`)
-  console.log(`其中休息日（将改为 off）: ${targets.length}（法定假日 ${named.length}，普通周末 ${targets.length - named.length}）`)
-  for (const sample of targets.slice(0, 5)) {
-    console.log(`  样例: ${sample.date} person=${sample.personId}${holidayName(sample.date) ? `（${holidayName(sample.date)}）` : ''}`)
+  // Case B: 只有下班打卡的休息日 absent 行（假日加班；absent 意味着无上班
+  // 打卡，故 checkIn 必为 NULL——旧映射把这类的 checkOut 存着但状态记成
+  // absent，新映射会把它们归为 present）。
+  const rowsB = db
+    .prepare("SELECT id, personId, date, checkOut FROM AttendanceRecord WHERE status = 'absent' AND checkIn IS NULL AND checkOut IS NOT NULL")
+    .all() as Array<{ id: string; personId: string; date: string; checkOut: string }>
+  const workTargets = rowsB.filter(r => isOffDay(r.date))
+
+  console.log(`扫描无打卡 absent 行: ${rowsA.length}，其中休息日（→ off）: ${offTargets.length}（法定假日 ${named.length}，普通周末 ${offTargets.length - named.length}）`)
+  for (const sample of offTargets.slice(0, 5)) {
+    console.log(`  样例A: ${sample.date} person=${sample.personId}${holidayName(sample.date) ? `（${holidayName(sample.date)}）` : ''}`)
+  }
+  console.log(`扫描仅下班打卡的 absent 行: ${rowsB.length}，其中休息日（→ present）: ${workTargets.length}`)
+  for (const sample of workTargets.slice(0, 5)) {
+    console.log(`  样例B: ${sample.date} person=${sample.personId} checkOut=${sample.checkOut}${holidayName(sample.date) ? `（${holidayName(sample.date)}）` : ''}`)
   }
   if (!apply) {
     console.log('预览模式，未写入。加 --apply 执行。')
@@ -62,18 +77,22 @@ async function main() {
   }
 
   // 谓词里重查资格（status/checkIn/checkOut 可能自 SELECT 后被并发修改——
-  // 例如补卡修正 pass 恰好在两步之间落库），避免把新写入的 present/trip/
-  // leave 覆盖成 off。
-  const update = db.prepare(
+  // 例如补卡修正 pass 恰好在两步之间落库），避免覆盖并发写入的新状态。
+  const toOff = db.prepare(
     "UPDATE AttendanceRecord SET status = 'off' WHERE id = ? AND status = 'absent' AND checkIn IS NULL AND checkOut IS NULL",
   )
-  let changed = 0
-  const run = db.transaction((ids: string[]) => {
-    for (const id of ids) changed += update.run(id).changes
+  const toPresent = db.prepare(
+    "UPDATE AttendanceRecord SET status = 'present' WHERE id = ? AND status = 'absent' AND checkIn IS NULL AND checkOut IS NOT NULL",
+  )
+  let changedOff = 0
+  let changedPresent = 0
+  const run = db.transaction(() => {
+    for (const t of offTargets) changedOff += toOff.run(t.id).changes
+    for (const t of workTargets) changedPresent += toPresent.run(t.id).changes
   })
-  run(targets.map(t => t.id))
+  run()
   const after = db.prepare("SELECT status, COUNT(*) c FROM AttendanceRecord GROUP BY status ORDER BY c DESC").all()
-  console.log(`已写入（实际更新 ${changed} 行，其余因并发修改被跳过）。当前状态分布:`, JSON.stringify(after))
+  console.log(`已写入（→off ${changedOff} 行，→present ${changedPresent} 行，其余因并发修改被跳过）。当前状态分布:`, JSON.stringify(after))
   db.close()
 }
 
