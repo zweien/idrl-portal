@@ -5,6 +5,7 @@
  * lib/dingtalk-sync.ts (which orchestrates syncs) so the pure logic is testable
  * without mocking network calls or Prisma.
  */
+import { isOffDay } from '@/lib/attendance-holidays'
 
 export const SHANGHAI_TZ = 'Asia/Shanghai'
 
@@ -117,7 +118,9 @@ export function formatWorkHours(min: number | null): string {
  *
  * Returns hours as a NUMBER (0 when not countable) plus:
  *  - `missingPunch`: the day genuinely lacks a punch on a FINALIZED present
- *    day (counted as 缺卡).
+ *    day (counted as 缺卡). Rest days never count — 假日加班 with a single
+ *    punch (e.g. afternoon session with only a checkout) is not 缺卡, so
+ *    callers pass `isRestDay` from the holiday calendar.
  *  - `anomalous`: both punches exist but form a non-positive span (overnight
  *    or malformed) — a data error, NOT 缺卡 (Codex P2). Applies to present,
  *    trip and leave alike.
@@ -128,6 +131,7 @@ export function exportWorkHours(
   checkOut?: string | null,
   tripHours = 8,
   isFinalized = true,
+  isRestDay = false,
 ): { hours: number; missingPunch: boolean; anomalous: boolean } {
   const span = computeWorkMinutes(checkIn, checkOut)
   const bothPunched = checkIn != null && checkOut != null
@@ -138,8 +142,9 @@ export function exportWorkHours(
         // Punched in AND out but the span is invalid (overnight/malformed).
         return { hours: 0, missingPunch: false, anomalous: true }
       }
-      // Missing a punch entirely: 缺卡 only once the day is settled.
-      return { hours: 0, missingPunch: isFinalized, anomalous: false }
+      // Missing a punch entirely: 缺卡 only once the day is settled, and
+      // never on a rest day (no attendance was expected there).
+      return { hours: 0, missingPunch: isFinalized && !isRestDay, anomalous: false }
     case 'trip':
       if (span !== null) return { hours: span / 60, missingPunch: false, anomalous: false }
       if (bothPunched) {
@@ -193,15 +198,16 @@ function csvField(v: string): string {
  * Build the per-day detail CSV. One row per (person, day). Hours use the
  * export rules (trip/leave → punches if present, trip falls back to fixed
  * hours). Missing-punch present days are labeled 在位(缺卡) ONLY on finalized
- * days (a still-open today isn't 缺卡 yet); anomalous spans (both punches,
- * invalid span) are labeled 异常 for present/trip/leave alike.
+ * workdays (a still-open today isn't 缺卡 yet, and rest days never are);
+ * anomalous spans (both punches, invalid span) are labeled 异常 for
+ * present/trip/leave alike.
  */
 export function buildDetailCsv(rows: ExportRow[], tripHours = 8): string {
   const today = todayDateStr()
   const lines: string[] = ['姓名,部门,日期,上班,下班,工时(小时),状态']
   for (const r of rows) {
     const isFinalized = r.date < today
-    const { hours, missingPunch, anomalous } = exportWorkHours(r.status, r.checkIn, r.checkOut, tripHours, isFinalized)
+    const { hours, missingPunch, anomalous } = exportWorkHours(r.status, r.checkIn, r.checkOut, tripHours, isFinalized, isOffDay(r.date))
     let statusLabel = STATUS_LABEL[r.status] ?? r.status
     if (r.status === 'present' && anomalous) statusLabel = '在位(异常)'
     else if (r.status === 'present' && missingPunch) statusLabel = '在位(缺卡)'

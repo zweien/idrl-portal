@@ -47,6 +47,13 @@ describe('exportWorkHours (status-driven rules)', () => {
     // Rest day with a stray (placeholder-filtered) empty punch pair — still 0.
     expect(exportWorkHours('off', '10:00', '11:00').hours).toBe(0)
   })
+  it('present with a single punch on a rest day → NOT 缺卡 (假日加班)', () => {
+    // 假日下午场只打了下班：状态是在位，但休息日没有缺卡概念。
+    // 2026-10-03 是国庆假日（周六）。
+    expect(exportWorkHours('present', null, '17:30', 8, true, true).missingPunch).toBe(false)
+    // 对照组：同样的单端打卡发生在工作日（已固化）→ 缺卡。
+    expect(exportWorkHours('present', null, '17:30', 8, true, false).missingPunch).toBe(true)
+  })
   it('leave with full punches → span in hours (half-day leave, still worked)', () => {
     const r = exportWorkHours('leave', '09:00', '12:30')
     expect(r.hours).toBeCloseTo(3.5)
@@ -104,6 +111,7 @@ describe('buildDetailCsv', () => {
       { name: '出差跨度异常', date: '2026-07-20', checkIn: '22:00', checkOut: '02:00', status: 'trip' },
       { name: '请假跨度异常', date: '2026-07-20', checkIn: '22:00', checkOut: '02:00', status: 'leave' },
       { name: '周末休息', date: '2026-07-20', checkIn: null, checkOut: null, status: 'off' },
+      { name: '假日加班单端', date: '2026-10-03', checkIn: null, checkOut: '17:30', status: 'present' },
     ]
     const csv = buildDetailCsv(rows, 8)
     const lines = csv.split('\n')
@@ -111,6 +119,8 @@ describe('buildDetailCsv', () => {
     expect(lines[2]).toBe('出差跨度异常,,2026-07-20,22:00,02:00,0.00,出差(异常)')
     expect(lines[3]).toBe('请假跨度异常,,2026-07-20,22:00,02:00,0.00,请假(异常)')
     expect(lines[4]).toBe('周末休息,,2026-07-20,—,—,0.00,休')
+    // 国庆假日只打下班：在位，但不是 缺卡（buildDetailCsv 内部按日历判定休息日）。
+    expect(lines[5]).toBe('假日加班单端,,2026-10-03,—,17:30,0.00,在位')
   })
   it('writes the department column (empty string when absent)', () => {
     const rows: ExportRow[] = [

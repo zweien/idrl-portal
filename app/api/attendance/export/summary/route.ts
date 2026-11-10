@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { buildSummaryCsv, exportWorkHours, type SummaryRow } from '@/lib/attendance'
 import { todayDateStr } from '@/lib/attendance'
+import { isOffDay } from '@/lib/attendance-holidays'
 import { resolveExportScope, csvAttachmentHeaders, readTripWorkHours } from '../_shared'
 
 /**
@@ -48,9 +49,10 @@ export async function GET(request: Request) {
       byPerson.set(r.personId, entry)
     }
     // Today's still-open record isn't 缺卡 yet (the person may not have
-    // checked out). Only settled historical days count a missing punch.
+    // checked out). Only settled historical workdays count a missing punch —
+    // rest days never (假日加班只打了一端不是缺卡).
     const isFinalized = r.date < today
-    const { hours, missingPunch } = exportWorkHours(r.status, r.checkIn, r.checkOut, tripHours, isFinalized)
+    const { hours, missingPunch } = exportWorkHours(r.status, r.checkIn, r.checkOut, tripHours, isFinalized, isOffDay(r.date))
     if (r.status === 'present') entry.presentDays++
     else if (r.status === 'trip') entry.tripDays++
     else if (r.status === 'leave') entry.leaveDays++
