@@ -1127,9 +1127,14 @@ export function mapStatusForDay(
   if (leaveByDay.get(userid)?.has(day)) return { status: 'leave', ...punches }
   // punches.onDuty survived realPunch, so it's a genuine punch by definition.
   if (punches.onDuty) return { status: 'present', ...punches }
-  // Rest day with no real punch: nobody was expected (weekend / 法定假日；
-  // a 调休补班 weekend is NOT an off day and falls through to absent).
-  if (isOffDay(day)) return { status: 'off', ...punches }
+  // Rest day: no attendance was expected, so ANY real punch (even an
+  // OffDuty-only afternoon session) means they came in — 假日加班 counts as
+  // present. Without punches it's a rest day, not absence. A 调休补班
+  // weekend is NOT an off day and falls through to absent.
+  if (isOffDay(day)) {
+    if (punches.offDuty) return { status: 'present', ...punches }
+    return { status: 'off', ...punches }
+  }
   // Absent, but still surface any OffDuty punch we have (rare, but for record).
   return { status: 'absent', ...punches }
 }

@@ -14,13 +14,32 @@
  * 历史冻结，休息日本就不该显示「未到」）。
  */
 import Database from 'better-sqlite3'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { isOffDay } from '@/lib/attendance-holidays'
 import { holidayName } from '@/lib/attendance-holidays'
 
+/** tsx 不会自动加载 .env.production——手动读入（不覆盖已有环境变量）。 */
+function loadEnvFiles(): void {
+  for (const f of ['.env.production', '.env']) {
+    try {
+      const txt = readFileSync(resolve(process.cwd(), f), 'utf8')
+      for (const line of txt.split('\n')) {
+        const m = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*"?(.*?)"?\s*$/)
+        if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2]
+      }
+    } catch {
+      /* 可选文件，缺了就跳过 */
+    }
+  }
+}
+
 async function main() {
   const apply = process.argv.includes('--apply')
+  loadEnvFiles()
   const raw = process.env.DATABASE_URL ?? 'file:prisma/db.sqlite'
-  const dbPath = raw.replace(/^file:/, '')
+  const dbPath = resolve(raw.replace(/^file:/, ''))
+  console.log(`数据库: ${dbPath}${apply ? '' : '（预览模式）'}`)
   const db = new Database(dbPath)
   db.pragma('busy_timeout = 5000')
   db.pragma('journal_mode = WAL')
@@ -42,13 +61,19 @@ async function main() {
     return
   }
 
-  const update = db.prepare("UPDATE AttendanceRecord SET status = 'off' WHERE id = ?")
+  // 谓词里重查资格（status/checkIn/checkOut 可能自 SELECT 后被并发修改——
+  // 例如补卡修正 pass 恰好在两步之间落库），避免把新写入的 present/trip/
+  // leave 覆盖成 off。
+  const update = db.prepare(
+    "UPDATE AttendanceRecord SET status = 'off' WHERE id = ? AND status = 'absent' AND checkIn IS NULL AND checkOut IS NULL",
+  )
+  let changed = 0
   const run = db.transaction((ids: string[]) => {
-    for (const id of ids) update.run(id)
+    for (const id of ids) changed += update.run(id).changes
   })
   run(targets.map(t => t.id))
   const after = db.prepare("SELECT status, COUNT(*) c FROM AttendanceRecord GROUP BY status ORDER BY c DESC").all()
-  console.log('已写入。当前状态分布:', JSON.stringify(after))
+  console.log(`已写入（实际更新 ${changed} 行，其余因并发修改被跳过）。当前状态分布:`, JSON.stringify(after))
   db.close()
 }
 

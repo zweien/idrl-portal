@@ -616,12 +616,15 @@ export async function syncAttendance(progress?: SyncProgress): Promise<{
  * `stats.stats`.
  */
 export function flattenAttendanceStats(
-  result: { total: number; stats: { present: number; leave: number; trip: number; off: number; absent: number }; finalizedDays: number; timings?: Record<string, unknown> },
+  result: { total: number; stats: { present: number; leave: number; trip: number; off: number; absent: number }; finalizedDays: number; holidaysWarning?: string; timings?: Record<string, unknown> },
 ): Record<string, unknown> {
   return {
     total: result.total,
     finalizedDays: result.finalizedDays,
     ...result.stats,
+    // Holiday-calendar maintenance warning (missing current-year data) —
+    // kept in the log stats so scheduled syncs surface it too.
+    ...(result.holidaysWarning ? { holidaysWarning: result.holidaysWarning } : {}),
     // Per-stage durations (ms) + dingtalkCalls — the sync-cost record.
     ...(result.timings ?? {}),
   }

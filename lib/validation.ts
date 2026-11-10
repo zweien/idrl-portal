@@ -12,7 +12,7 @@ import { z } from 'zod'
  * ids are strings, enums are constrained, dates are non-empty strings.
  */
 
-const personStatus = z.enum(['present', 'leave', 'trip', 'absent'])
+const personStatus = z.enum(['present', 'leave', 'trip', 'off', 'absent'])
 const personRole = z.string().min(1) // free-form 职位 title (研究员/工程师/...)
 
 export const personSchema = z.object({

@@ -20,11 +20,16 @@ describe('isOffDay (法定假日 / 周末 / 调休补班)', () => {
     expect(holidayName('2026-09-20')).toBe('国庆节')
   })
 
-  it('普通周末（无日历条目）= 休', () => {
-    // 2026-11-08 是周六，2026-11-09 是周日，都不在日历里。
-    expect(isOffDay('2026-11-08')).toBe(true)
-    expect(isOffDay('2026-11-09')).toBe(true)
-    expect(holidayName('2026-11-08')).toBeNull()
+  it('普通周末（无日历条目）= 休（REGRESSION: 周六/周一不能判反）', () => {
+    // P1 回归：星期几计算曾把「+08:00 午夜」的 UTC 日期回退一天——周六被
+    // 判成周五（工作日）、周一被判成周日（休息日），且当时的测试日期注释
+    // 本身也写错了周几，两者互相抵消导致测试全绿。以下星期均经 date 命令
+    // 核实：2026-11-07=周六、11-08=周日、11-09=周一、11-10=周二。
+    expect(isOffDay('2026-11-07')).toBe(true) // 周六
+    expect(isOffDay('2026-11-08')).toBe(true) // 周日
+    expect(isOffDay('2026-11-09')).toBe(false) // 周一 —— 绝不能是休
+    expect(isOffDay('2026-11-10')).toBe(false) // 周二
+    expect(holidayName('2026-11-07')).toBeNull()
   })
 
   it('普通工作日（无日历条目）= 不休', () => {
@@ -33,11 +38,12 @@ describe('isOffDay (法定假日 / 周末 / 调休补班)', () => {
 
   it('数据缺失年份退化为仅周末规则', () => {
     // 2027 安排在编写时尚未发布（每年 11 月公告）——周末照判，工作日照常，
-    // 法定假日此时无法识别（同步摘要会警告）。2027-01-03/04 是周六/周日。
+    // 法定假日此时无法识别（同步摘要会警告）。星期经 date 命令核实：
+    // 2027-01-03=周日、01-05=周二、01-09=周六。
     expect(hasHolidayData(2027)).toBe(false)
-    expect(isOffDay('2027-01-03')).toBe(true) // 周六
-    expect(isOffDay('2027-01-04')).toBe(true) // 周日
-    expect(isOffDay('2027-01-05')).toBe(false) // 周一
+    expect(isOffDay('2027-01-03')).toBe(true) // 周日
+    expect(isOffDay('2027-01-09')).toBe(true) // 周六
+    expect(isOffDay('2027-01-05')).toBe(false) // 周二
   })
 
   it('无效日期字符串一律视为工作日（防御）', () => {

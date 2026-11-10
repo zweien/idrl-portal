@@ -53,9 +53,13 @@ export function holidayName(date: string): string | null {
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
-/** "yyyy-MM-dd" 的星期几（0=周日…6=周六），按 Asia/Shanghai 墙钟。 */
+/** "yyyy-MM-dd" 的星期几（0=周日…6=周六）。注意不能用「+08:00 锚定午夜
+ * 再取 getUTCDay()」——上海午夜是 UTC 前一日的 16:00，getUTCDay 会读到
+ * 前一天的星期（周六算成周五、周一算成周日）。改为按 UTC 午夜解析同一
+ * 个日历日期，星期与写出的年月日严格一致。 */
 function shanghaiDayOfWeek(date: string): number {
-  return new Date(`${date}T00:00:00+08:00`).getUTCDay()
+  const [y, m, d] = date.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay()
 }
 
 /**

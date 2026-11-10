@@ -187,6 +187,14 @@ describe('mapStatusForDay — 休息日 (off day awareness)', () => {
     expect(mapStatusForDay('u_x', REST, new Map(), new Map(), punched()).status).toBe('present')
   })
 
+  it('rest day with only an OffDuty punch → present (holiday work, not off)', () => {
+    // 下午到场只打了下班——休息日没有缺卡概念，任一端真实打卡都算来过。
+    const att = new Map([['u_x', new Map([[REST, { offDuty: { timeResult: 'Normal', checkTime: '17:30' } }]])]])
+    const r = mapStatusForDay('u_x', REST, new Map(), new Map(), att)
+    expect(r.status).toBe('present')
+    expect(r.offDuty?.checkTime).toBe('17:30')
+  })
+
   it('trip on a rest day stays trip (审批事实优先)', () => {
     const trip = new Map([['u_x', { days: new Set([REST]), reason: '京外出差' }]])
     expect(mapStatusForDay('u_x', REST, trip, new Map(), new Map()).status).toBe('trip')
