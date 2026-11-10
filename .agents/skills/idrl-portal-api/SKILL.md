@@ -101,6 +101,8 @@ curl -s "$BASE/api/attendance/leaderboard?type=monthly&limit=10" -H "Authorizati
 
 # 某人考勤明细（admin；personId 来自人员列表）
 # data.person = {id, name, department}（查询对象身份信息，无需再查人员列表）
+# 每行含 isOffDay（该日是否周末/法定假日）：休息日打卡时 status='present'（假日加班），
+# 按 isOffDay 区分加班，无需自备节假日日历
 curl -s "$BASE/api/attendance/records?personId=<id>&from=2026-07-01&to=2026-07-31" -H "Authorization: Bearer $KEY"
 
 # CSV 导出（admin）

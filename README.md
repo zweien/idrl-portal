@@ -447,8 +447,9 @@ Query：`personId`（admin 必传；非 admin 忽略）、`from` / `to=YYYY-MM-D
 AttendanceRecordItem = {
   id: string; date: string;                    // YYYY-MM-DD
   checkIn?: string | null; checkOut?: string | null;  // "HH:mm"
-  status: 'present' | 'leave' | 'trip' | 'absent'
+  status: 'present' | 'leave' | 'trip' | 'off' | 'absent'
   workMinutes: number | null                   // 缺卡 / 跨夜异常为 null
+  isOffDay: boolean                            // 该日是否休息日（周末/法定假日）；休息日打卡时 status='present'（假日加班）
 }
 ```
 
