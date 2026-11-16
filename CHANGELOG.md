@@ -5,6 +5,16 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v0.11.22] - 2026-11-16
+
+### 新增
+
+- feat(auth): 登录页按服务端配置渲染——Authentik 未配置时只显示钉钉登录 (#123)
+
+### 其他
+
+- docs(readme): 同步节假日/补卡/工时口径上线后的滞后内容——测试徽章、off 状态枚举、CSV 部门列、水位线 3 天补漏窗口与补拉提示、tripWorkHours 口径、目录与文档链接
+
 ## [v0.11.21] - 2026-11-10
 
 ### 新增
