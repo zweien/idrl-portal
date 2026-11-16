@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
+import { useAuthProviders } from '@/lib/api'
 import { Brand } from '@/components/brand'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,6 +20,9 @@ export function LoginForm() {
   // 状态，首屏为 true，会让按钮在未提交时就显示「登录中…」。
   const [submitting, setSubmitting] = useState(false)
   const { devLogin } = useAuth()
+  // 服务端 env 决定哪些登录方式可用：AUTHENTIK_* 未配置时隐藏对应按钮
+  // （探测请求完成前不显示，避免先渲染后消失的闪烁）。
+  const { data: providers } = useAuthProviders()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -63,18 +67,20 @@ export function LoginForm() {
         </p>
       </div>
 
-      {/* SSO buttons */}
+      {/* SSO buttons — 按服务端配置渲染（providers 探测完成前只显示钉钉） */}
       <div className="space-y-2">
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full h-9 text-sm justify-start gap-2.5"
-          onClick={() => handleSSOLogin('authentik')}
-          disabled={submitting}
-        >
-          <ShieldCheck className="h-4 w-4 text-primary shrink-0" />
-          使用 Authentik SSO 登录
-        </Button>
+        {providers?.authentik && (
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full h-9 text-sm justify-start gap-2.5"
+            onClick={() => handleSSOLogin('authentik')}
+            disabled={submitting}
+          >
+            <ShieldCheck className="h-4 w-4 text-primary shrink-0" />
+            使用 Authentik SSO 登录
+          </Button>
+        )}
         <Button
           type="button"
           variant="outline"

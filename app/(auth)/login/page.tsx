@@ -34,7 +34,7 @@ export default function LoginPage() {
             '人员在位状态 & 工位平面图',
             '算力、网盘、代码仓库聚合',
             '论文发表 & 实验室动态',
-            'Authentik SSO / 钉钉扫码登录',
+            '钉钉扫码登录，工作台免登',
           ].map((label) => (
             <div key={label} className="flex items-center gap-2.5 text-sm text-white/80">
               <div className="w-1.5 h-1.5 rounded-full bg-brand-cyan shrink-0" />

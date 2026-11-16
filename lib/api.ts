@@ -190,6 +190,24 @@ export const fetchAll = async <T>(url: string): Promise<ApiResponse<PaginatedRes
   return { ...first, data: { ...d, items } }
 }
 
+// ===== Auth =====
+
+export interface AuthProviders {
+  authentik: boolean
+  dingtalk: boolean
+}
+
+/** Which login methods the server has configured (env-gated). The login form
+ * hides the Authentik button unless this reports it enabled. */
+export function useAuthProviders() {
+  return useSWR<AuthProviders>('/api/auth/providers', fetcher, {
+    // Static config — one fetch is enough (revalidated on remount).
+    revalidateIfStale: false,
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+  })
+}
+
 /** Progress of the latest sync task (or one specific task by id); polls every 2s while running. */
 export function useSyncStatus(taskId?: string | null) {
   const key = taskId ? `/api/sync/status?id=${encodeURIComponent(taskId)}` : '/api/sync/status'

@@ -39,7 +39,7 @@ IDRL Portal 是一个为科研实验室设计的内部信息看板。它把人�
 - **状态展示** — 红 / 琥珀 / 绿 / 蓝高对比配色，人员卡片色条 + 详情徽章
 
 ### 认证
-- **Authentik SSO（内网）** — OIDC
+- **Authentik SSO（内网）** — OIDC，可选：不配置 `AUTHENTIK_*` 环境变量即隐藏该登录方式，只保留钉钉扫码
 - **钉钉扫码 OAuth（互联网）** — 新版 OAuth2
 - **dev 本地登录（仅开发）** — `admin` 为管理员
 - 服务端 iron-session 签名 cookie + middleware 路由保护；`User`（登录身份）与 `Person`（人员档案）分离
@@ -93,7 +93,7 @@ pnpm exec next dev -p 3500
 |---|---|
 | `DATABASE_URL` | SQLite 路径，默认 `file:prisma/db.sqlite` |
 | `SESSION_SECRET` | iron-session 签名密钥，≥32 字符，生产必填 |
-| `AUTHENTIK_ISSUER` / `AUTHENTIK_CLIENT_ID` / `AUTHENTIK_CLIENT_SECRET` | Authentik OIDC |
+| `AUTHENTIK_ISSUER` / `AUTHENTIK_CLIENT_ID` / `AUTHENTIK_CLIENT_SECRET` | Authentik OIDC（可选；任一缺失则登录页只显示钉钉登录） |
 | `DINGTALK_CLIENT_ID` / `DINGTALK_CLIENT_SECRET` | 钉钉扫码登录 + 服务端 API |
 | `DINGTALK_DEPT_ID` | 钉钉成员同步的部门根 id |
 | `DINGTALK_TRIP_PROCESS_CODE` | 出差类审批流程码，**逗号分隔多个**（京外出差 + 京内因公）；批准天数计入考勤「出差」 |
